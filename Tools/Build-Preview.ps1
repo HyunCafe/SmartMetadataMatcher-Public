@@ -22,8 +22,17 @@ try {
 
     $dll = Join-Path $root 'bin/Release/net462/SmartMetadataMatcher.dll'
     if (-not (Test-Path -LiteralPath $dll -PathType Leaf)) { throw "Missing built DLL: $dll" }
+    # Fail closed if manifest, source assembly version and compiled package disagree.
+    $yaml = Get-Content -LiteralPath (Join-Path $root 'extension.yaml') -Raw
+    $source = Get-Content -LiteralPath (Join-Path $root 'Source/Plugin.cs') -Raw
+    $yamlVersion = [regex]::Match($yaml, '(?m)^Version:\s*(\d+\.\d+\.\d+)\s*$').Groups[1].Value
+    $sourceVersion = [regex]::Match($source, 'AssemblyVersion\("([0-9.]+)"\)').Groups[1].Value
+    $dllVersion = [System.Reflection.AssemblyName]::GetAssemblyName($dll).Version.ToString()
+    if (-not $yamlVersion -or $sourceVersion -ne "$yamlVersion.0" -or $dllVersion -ne $sourceVersion) {
+        throw "Version mismatch: YAML=$yamlVersion source=$sourceVersion compiled=$dllVersion"
+    }
     New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-    $name = 'SmartMetadataMatcher-0.4.14-title-history-preview-' + (Get-Date -Format 'yyyyMMdd-HHmmss')
+    $name = "SmartMetadataMatcher-$yamlVersion-dated-history-preview-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
     $zip = Join-Path $releaseDir ($name + '.zip')
     $pext = Join-Path $releaseDir ($name + '.pext')
     if (Test-Path -LiteralPath $pext) { throw "Refusing to overwrite $pext" }
@@ -39,6 +48,6 @@ try {
     $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $pext).Hash
     Write-Host "SUCCESS: $pext"
     Write-Host "SHA256: $hash"
-    Write-Host 'TITLE/HISTORY PREVIEW: recent-history multi-select, supervised Playnite-only title rename, latest-consecutive selected undo. Backup Playnite before writes; no production bulk writes.'
+    Write-Host 'DATED HISTORY PREVIEW: applied and undone operations retained, UTC timestamps for new operations, legacy history dates unknown. Playnite writes unchanged; no production bulk writes.'
 }
 finally { Pop-Location }

@@ -33,6 +33,10 @@ namespace SmartMetadataMatcher
         [DataMember] public bool ChangedRelease, ChangedGenres, ChangedDevelopers,
             ChangedPublishers, ChangedSeries;
         [DataMember] public string Note;
+        // Older v2 records have no timestamps: leave them unknown, never infer dates.
+        [DataMember(EmitDefaultValue=false)] public DateTime PreparedUtc;
+        public DateTime CommittedUtc;
+        public DateTime UndoneUtc;
         public bool Committed;
         public bool Undone;
     }
@@ -84,11 +88,18 @@ namespace SmartMetadataMatcher
                   entry.ChangedRelease || entry.ChangedGenres || entry.ChangedDevelopers ||
                   entry.ChangedPublishers || entry.ChangedSeries))
                 throw new ArgumentException("No valid enrichment change to journal");
+            if(entry.PreparedUtc==default(DateTime)) entry.PreparedUtc=DateTime.UtcNow;
             Append("P|"+Serialize(entry));
         }
-        internal void Commit(Guid op) { if(op==Guid.Empty) throw new ArgumentException("Invalid operation"); Append("C|"+op.ToString("N")); }
-        internal void MarkUndone(Guid op) { if(op==Guid.Empty) throw new ArgumentException("Invalid operation"); Append("U|"+op.ToString("N")); }
+        // Date-bearing markers are backward-compatible with legacy C|guid and U|guid.
+        internal void Commit(Guid op) { if(op==Guid.Empty) throw new ArgumentException("Invalid operation"); Append("C|"+op.ToString("N")+"|"+DateTime.UtcNow.Ticks); }
+        internal void MarkUndone(Guid op) { if(op==Guid.Empty) throw new ArgumentException("Invalid operation"); Append("U|"+op.ToString("N")+"|"+DateTime.UtcNow.Ticks); }
         internal List<EnrichmentEntry> OpenEntries()
+        {
+            return AllEntries().Where(x=>!x.Undone).ToList();
+        }
+        // Includes historical undone operations for read-only history; not eligible for redo/undo.
+        internal List<EnrichmentEntry> AllEntries()
         {
             lock(sync)
             {
@@ -108,22 +119,32 @@ namespace SmartMetadataMatcher
                             throw new InvalidDataException("Invalid/duplicate enrichment operation");
                         entries.Add(e);
                     }
-                    else if(parts.Length==2 && Guid.TryParseExact(parts[1],"N",out id) &&
+                    else if((parts.Length==2 || parts.Length==3) &&
+                            Guid.TryParseExact(parts[1],"N",out id) &&
                             (parts[0]=="C" || parts[0]=="U"))
                     {
+                        DateTime timestamp=default(DateTime);
+                        if(parts.Length==3)
+                        {
+                            long ticks;
+                            if(!Int64.TryParse(parts[2],out ticks) ||
+                                ticks<DateTime.MinValue.Ticks || ticks>DateTime.MaxValue.Ticks)
+                                throw new InvalidDataException("Invalid enrichment journal timestamp");
+                            timestamp=new DateTime(ticks,DateTimeKind.Utc);
+                        }
                         var e=entries.LastOrDefault(x=>x.OperationId==id && !x.Undone);
                         if(e==null) throw new InvalidDataException("Unmatched enrichment journal marker");
                         if(parts[0]=="C")
                         {
                             if(e.Committed) throw new InvalidDataException("Duplicate enrichment commit");
-                            e.Committed=true;
+                            e.Committed=true;e.CommittedUtc=timestamp;
                         }
-                        else e.Undone=true;
+                        else {e.Undone=true;e.UndoneUtc=timestamp;}
                     }
                     else throw new InvalidDataException("Unrecognized/truncated enrichment journal; refusing writes");
                 }
                 entries.Reverse();
-                return entries.Where(x=>!x.Undone).ToList();
+                return entries;
             }
         }
         internal EnrichmentEntry LatestOpen() { return OpenEntries().FirstOrDefault(); }

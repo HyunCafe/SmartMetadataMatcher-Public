@@ -190,3 +190,11 @@
 - Review plan supports checkbox marking directly, select all strict-ready, clearing marks and filtering by text without returning to the dashboard.
 - Fix misleading preview count when IGDB returned no description.
 - No change to catalog resolution, writer, journal, stored credentials or public GitHub.
+
+## v0.4.15 — Dated history and UX checkpoint
+- Preserve committed operations in history after undo, without re-enabling undo for those operations.
+- Record UTC prepare/commit/undo dates on new journal operations, while legacy timestamps remain unknown; accept historical two-field markers.
+- Add Date and visually distinct applied/undone statuses in Recent Updates / Full History; add selection count guidance.
+- Distinguish review and unmatched states visually; rename history action to clarify Playnite-only title edits.
+- Automatically guard build against mismatched YAML/source/DLL versions.
+- No IGDB matching, ROM, Playnite metadata writer, or launch configuration changes.

@@ -156,3 +156,9 @@ Manual exception: exactly one marked Strong candidate may be tested via the exis
 - Accepted: integrated review marking/search, unified primary actions, collapsible scan options and empty history, initial preview selection.
 - Deferred: durable job execution, per-field verified preflight, persistent scan/ID decision cache, and automatic bulk writing pending live accuracy/recovery testing.
 - Existing writer paths remain available for supervised testing only; version 0.4.12 is not production.
+
+## v0.4.15 decisions
+- Keep one v2 journal and preserve backward compatibility, including undated historical records.
+- Read-only history may show undone records; only active latest-consecutive operations can be undone.
+- Existing manually approved title correction retained; no unattended duplicate-title renaming added.
+- Do not change the metadata writer or image staging in the same batch as history schema evolution.

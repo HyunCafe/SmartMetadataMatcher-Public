@@ -244,3 +244,6 @@ A single marked Strong candidate that is not strictly auto-ready may be tested u
 
 ### v0.4.12 private UI preview
 Scan games, then review and mark candidates in the same dialog (search and strict-ready marking available). The visible identity plan is not a verified field-level write plan. Supervised imports still require an explicit full Playnite+extension-data backup and final approval. Production bulk automation is not enabled.
+
+### History (v0.4.15 private preview)
+New operations record UTC timestamps and display local apply dates. Undo is retained as a read-only history state; older v2 log entries with no timestamp display Unknown (legacy). Undo remains latest-consecutive only. No ROM paths or emulator settings are modified by the Playnite display-title correction action. Test backups and exact-field undo on your own Playnite library before additional bulk imports.

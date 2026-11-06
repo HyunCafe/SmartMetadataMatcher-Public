@@ -79,6 +79,7 @@ namespace SmartMetadataMatcher
         public Guid GameId { get; set; }
         public string Game { get; set; }
         public string Fields { get; set; }
+        public string When { get; set; }
         public string Result { get; set; }
     }
 
@@ -150,6 +151,7 @@ namespace SmartMetadataMatcher
         private static Brush Accent() { return UiColor(50,193,240); }
         private static Brush Good() { return UiColor(102,225,148); }
         private static Brush Caution() { return UiColor(252,193,81); }
+        private static Brush Quiet() { return UiColor(150,174,203); }
         private static Brush Muted() { return UiColor(170,186,207); }
         private static Brush Deep() { return UiColor(10,18,37); }
         private static Brush PanelBrush() { return UiColor(15,27,51); }
@@ -212,6 +214,34 @@ namespace SmartMetadataMatcher
             button.MinWidth=index==4?150:171;button.Padding=new Thickness(13,12,13,12);
             button.Margin=new Thickness(0,0,5,0);
             tabButtons.Add(button);SetTabContent(button,label,index,index==0);return button;
+        }
+        private static Style ResultStyle()
+        {
+            var style=new Style(typeof(TextBlock));
+            style.Setters.Add(new Setter(TextBlock.ForegroundProperty,Good()));
+            foreach(var pair in new[]{
+                Tuple.Create("Review",Caution()),Tuple.Create("Unmatched",Caution()),
+                Tuple.Create("Ignored",Quiet()),Tuple.Create("Undone",Quiet())})
+            {
+                var trigger=new DataTrigger{Binding=new Binding("Result"),Value=pair.Item1};
+                trigger.Setters.Add(new Setter(TextBlock.ForegroundProperty,pair.Item2));
+                style.Triggers.Add(trigger);
+            }
+            return style;
+        }
+        private static Style CandidateStatusStyle()
+        {
+            var style=new Style(typeof(TextBlock));
+            style.Setters.Add(new Setter(TextBlock.ForegroundProperty,Good()));
+            foreach(var pair in new[]{
+                Tuple.Create("Review",Caution()),Tuple.Create("Unmatched",Caution()),
+                Tuple.Create("Ignored",Quiet())})
+            {
+                var trigger=new DataTrigger{Binding=new Binding("Status"),Value=pair.Item1};
+                trigger.Setters.Add(new Setter(TextBlock.ForegroundProperty,pair.Item2));
+                style.Triggers.Add(trigger);
+            }
+            return style;
         }
         private static DataGrid NewTable()
         {
@@ -465,6 +495,7 @@ namespace SmartMetadataMatcher
             Column("Platform","Platform",155);
             Column("Best IGDB candidate","Candidate",245);
             Column("Result","Status",128);
+            ((DataGridTextColumn)grid.Columns[4]).ElementStyle=CandidateStatusStyle();
             Column("Score*","MatchScore",72);
             Column("IGDB ID","IgdbId",90);
             Column("Available fields","AvailableMetadata",152);
@@ -496,7 +527,7 @@ namespace SmartMetadataMatcher
             title.FontWeight=FontWeights.SemiBold;
             Button fullHistory;AddButton(historyHeading,"View full history...",ShowFullHistory,out fullHistory);
             Decorate(fullHistory,"\uE8A7");DockPanel.SetDock(fullHistory,Dock.Right);
-            Button renameHistory;AddButton(historyHeading,"Rename selected titles...",()=>RenameSelectedHistoryTitles(
+            Button renameHistory;AddButton(historyHeading,"Fix Playnite titles...",()=>RenameSelectedHistoryTitles(
                 historyGrid.SelectedItems.OfType<HistoryRow>().ToList()),out renameHistory);
             DockPanel.SetDock(renameHistory,Dock.Right);
             Button undoHistory;AddButton(historyHeading,"Undo selected (latest first)",()=>UndoSelectedHistory(
@@ -507,10 +538,17 @@ namespace SmartMetadataMatcher
             historyGrid.SelectionUnit=DataGridSelectionUnit.FullRow;
             historyGrid.ToolTip="Click, Ctrl-click or Shift-click to select operations. Undo only supports the latest consecutive operations.";
             historyGrid.RowHeight=27;historyGrid.ColumnHeaderHeight=30;
+            historyGrid.Columns.Add(new DataGridTextColumn{Header="Date",Binding=new Binding("When"),Width=146});
             historyGrid.Columns.Add(new DataGridTextColumn{Header="Game",Binding=new Binding("Game"),Width=225});
             historyGrid.Columns.Add(new DataGridTextColumn{Header="Applied fields",Binding=new Binding("Fields"),
                 Width=new DataGridLength(1,DataGridLengthUnitType.Star)});
-            historyGrid.Columns.Add(new DataGridTextColumn{Header="Result",Binding=new Binding("Result"),Width=97});
+            historyGrid.Columns.Add(new DataGridTextColumn{Header="Result",Binding=new Binding("Result"),Width=97,
+                ElementStyle=ResultStyle()});
+            historyGrid.SelectionChanged+=(s,e)=>{
+                var selected=historyGrid.SelectedItems.OfType<HistoryRow>().ToList();
+                title.Text=selected.Count==0?"◷  Recent updates":
+                    "◷  Recent updates ("+selected.Count+" selected)";
+            };
             historyGrid.MouseDoubleClick+=(s,e)=>{
                 var selected=historyGrid.SelectedItem as HistoryRow;if(selected==null)return;
                 resultView.SelectedIndex=1;
@@ -931,7 +969,7 @@ namespace SmartMetadataMatcher
         private List<HistoryRow> HistoryRows(int take)
         {
             var view=new List<HistoryRow>();
-            foreach(var e in enrichmentJournal.Committed().Take(take))
+            foreach(var e in enrichmentJournal.AllEntries().Where(x=>x.Committed).Take(take))
             {
                 var fields=new List<string>();
                 if(e.ChangedName)fields.Add("Name");
@@ -946,7 +984,10 @@ namespace SmartMetadataMatcher
                 if(e.ChangedPublishers)fields.Add("Publishers");
                 if(e.ChangedSeries)fields.Add("Series");
                 view.Add(new HistoryRow { OperationId=e.OperationId,GameId=e.GameId,Game=e.AfterName??e.BeforeName,
-                    Fields=String.Join(", ",fields),Result="Applied" });
+                    Fields=String.Join(", ",fields),
+                    When=e.CommittedUtc==default(DateTime)?"Unknown (legacy)":
+                        e.CommittedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
+                    Result=e.Undone?"Undone":"Applied" });
             }
             return view;
         }
@@ -966,11 +1007,11 @@ namespace SmartMetadataMatcher
         private void ShowFullHistory()
         {
             var detail=api.Dialogs.CreateWindow(new WindowCreationOptions { ShowMinimizeButton=false });
-            detail.Title="Smart Metadata Matcher — Applied history";
+            detail.Title="Smart Metadata Matcher — Full operation history";
             detail.Width=950;detail.Height=610;detail.MinWidth=700;detail.MinHeight=400;
             detail.Owner=window;detail.WindowStartupLocation=WindowStartupLocation.CenterOwner;
             var root=new DockPanel {Margin=new Thickness(12)};
-            var lead=Caption("Previously applied operations; most recent first. An operation is listed only while its undo record remains committed.",13);
+            var lead=Caption("All committed operations, newest first, including undone records. Legacy dates are unknown. Ctrl/Shift selects multiple; only the newest consecutive applied operations can be undone.",13);
             DockPanel.SetDock(lead,Dock.Top);root.Children.Add(lead);
             var foot=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};
             DockPanel.SetDock(foot,Dock.Bottom);root.Children.Add(foot);
@@ -980,7 +1021,7 @@ namespace SmartMetadataMatcher
                 HeadersVisibility=DataGridHeadersVisibility.Column,EnableRowVirtualization=true,
                 SelectionMode=DataGridSelectionMode.Extended,SelectionUnit=DataGridSelectionUnit.FullRow
             };
-            Button renameInFull;AddButton(foot,"Rename selected titles...",()=>{
+            Button renameInFull;AddButton(foot,"Fix Playnite titles...",()=>{
                 RenameSelectedHistoryTitles(records.SelectedItems.OfType<HistoryRow>().ToList());
                 records.ItemsSource=HistoryRows(Int32.MaxValue);
             },out renameInFull);
@@ -989,9 +1030,11 @@ namespace SmartMetadataMatcher
                 records.ItemsSource=HistoryRows(Int32.MaxValue);
             },out undoInFull);
             records.ToolTip="Ctrl-click and Shift-click select multiple history operations. Undo only the latest consecutive operations.";
+            records.Columns.Add(new DataGridTextColumn {Header="Date",Binding=new Binding("When"),Width=150});
             records.Columns.Add(new DataGridTextColumn {Header="Game",Binding=new Binding("Game"),Width=275});
             records.Columns.Add(new DataGridTextColumn {Header="Fields applied",Binding=new Binding("Fields"),Width=new DataGridLength(1,DataGridLengthUnitType.Star)});
-            records.Columns.Add(new DataGridTextColumn {Header="State",Binding=new Binding("Result"),Width=100});
+            records.Columns.Add(new DataGridTextColumn {Header="State",Binding=new Binding("Result"),Width=100,
+                ElementStyle=ResultStyle()});
             records.ItemsSource=HistoryRows(Int32.MaxValue);
             root.Children.Add(records);detail.Content=root;detail.ShowDialog();
         }
@@ -1932,6 +1975,9 @@ namespace SmartMetadataMatcher
             if(selected==null || selected.Count==0)
             { api.Dialogs.ShowMessage("Select one or more Recent Updates rows. Use Ctrl-click or Shift-click for multiple.",
                 "Smart Metadata Matcher");return; }
+            if(selected.Any(x=>x.Result!="Applied"))
+            { api.Dialogs.ShowMessage("Undone history entries cannot be renamed again. Select applied records only.",
+                "Smart Metadata Matcher");return; }
             if(selected.Count>20)
             { api.Dialogs.ShowMessage("Select at most 20 titles for a supervised rename.",
                 "Smart Metadata Matcher");return; }
@@ -1997,6 +2043,9 @@ namespace SmartMetadataMatcher
             if(busy)return;
             if(selected==null || selected.Count==0)
             { api.Dialogs.ShowMessage("Select one or more recent operations with Ctrl-click or Shift-click.",
+                "Smart Metadata Matcher");return; }
+            if(selected.Any(x=>x.Result!="Applied"))
+            { api.Dialogs.ShowMessage("Historical undone entries are read-only. Select applied records only.",
                 "Smart Metadata Matcher");return; }
             if(!JournalAllowsNewWrites())return;
             var history=enrichmentJournal.Committed();

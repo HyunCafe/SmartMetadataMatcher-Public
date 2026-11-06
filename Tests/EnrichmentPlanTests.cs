@@ -106,10 +106,33 @@ internal static class EnrichmentPlanTests
             Check(!EnrichmentPlan.CanUndo(pending,"manual custom title",pending.AfterSorting,
                 pending.AfterDescription,pending.AfterCover,pending.AfterIcon,pending.AfterBackground),
                 "newer user edit blocks undo");
+            Check(entry.PreparedUtc>new DateTime(2026,1,1,0,0,0,DateTimeKind.Utc),
+                "new prepared operation has UTC date");
             j.Commit(entry.OperationId);
             Check(j.Committed().Count==1 && j.LatestOpen().Committed,"commit survived reload");
+            Check(j.AllEntries().Single().CommittedUtc>=entry.PreparedUtc,
+                "new commit records UTC timestamp");
             j.MarkUndone(entry.OperationId);
             Check(j.Committed().Count==0 && j.LatestOpen()==null,"undo survives reload");
+            var archived=j.AllEntries();
+            Check(archived.Count==1 && archived[0].Committed && archived[0].Undone,
+                "undone history retained while active undo remains closed");
+            Check(archived[0].UndoneUtc>=archived[0].CommittedUtc,
+                "undo timestamp persists across reload");
+            // v0.4.14 legacy two-field markers remain readable and undoable.
+            var legacyDir=Path.Combine(dir,"legacy-markers");
+            var oldJournal=new EnrichmentJournal(legacyDir);
+            var oldEntry=new EnrichmentEntry {OperationId=Guid.NewGuid(),GameId=Guid.NewGuid(),
+                IgdbId=42,BeforeName="Old",AfterName="New",ChangedName=true};
+            oldJournal.Prepare(oldEntry);
+            var logPath=Path.Combine(legacyDir,"enrichment-journal-v2.log");
+            File.AppendAllText(logPath,"C|"+oldEntry.OperationId.ToString("N")+"\n"+
+                "U|"+oldEntry.OperationId.ToString("N")+"\n");
+            Check(oldJournal.AllEntries().Count==1 && oldJournal.AllEntries()[0].Undone,
+                "legacy two-field journal markers remain readable");
+            Check(oldJournal.AllEntries()[0].CommittedUtc==default(DateTime) &&
+                oldJournal.AllEntries()[0].UndoneUtc==default(DateTime),
+                "missing legacy timestamps remain unknown");
             var legacy=new MetadataJournal(dir);
             Check(legacy.LatestPending()==null,"old journal preserved separately");
             var again=new EnrichmentEntry {OperationId=Guid.NewGuid(),GameId=Guid.NewGuid(),IgdbId=2,
