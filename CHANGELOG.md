@@ -1,3 +1,8 @@
+### v0.4.30 — Preserve review selection on draft edits
+- Right-click **Edit proposed import** now keeps the current Review Matches filter, selected game, selection marks, and status.
+- Only a confirmed IGDB identity change may switch the review list to All matches.
+- Added a read-only source regression check for menu callback routing; writer and undo journals are unchanged.
+
 - Added search-only recovery for titles ending in Legacy/Beta/Test/Playtest/Starter Access/Launcher/SDK and + DLC; ambiguous editions never become Strong automatically.
 ### Full 318-game export audit
 - Detected 244 Strong, 48 Review, 24 Unmatched, 1 Completed, 1 Ignored entries.

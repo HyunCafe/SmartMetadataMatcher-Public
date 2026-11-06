@@ -1,3 +1,8 @@
+### v0.4.30 — Review context invariants
+- Draft edits are not catalog identity changes. Preserve review filter, highlighting and import marks when a draft is saved or reset.
+- IGDB alternative selection remains a distinct, explicitly confirmed operation that may change displayed status and selected view.
+- No change to media staging, data writer, recovery and supervised import caps.
+
 - Search non-base edition suffixes only as discovery; even exact beta/launcher/legacy naming is not enough for automatic writes.
 ### Full-library matching audit constraints
 - A perfect alias score is not sufficient when official title has no plausible lexical relationship to the original. Classify as Review; do not silently rename to a possibly different bootleg variant.

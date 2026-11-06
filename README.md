@@ -1,3 +1,6 @@
+### v0.4.30 review filter correction
+Editing a staged title/description/field draft from the Review Matches context menu retains the existing filter (including **Selected for import**) and highlighted game. Only selecting a different IGDB identity can reset the review filter. The change does not affect metadata writes, undo, or ROM files.
+
 Read-only search fallbacks for Legacy, Beta/Test, Playtest, Starter Access, launcher, SDK, selected DLC, and Ys I & II are discovery-only; these editions always require review.
 ### Full-library matching safety (v0.4.26)
 A full 318-result CSV audit prompted conservative handling of alternative-name-only matches: an exact IGDB alias linking a completely unrelated official title requires review, even with a corroborated platform ID. Examples include Bump Bomb / Flame Beetles and Manic Troll / Coin Digger. Score 1.000 is not a correctness probability. Cached results still require fresh IGDB evidence; use **Refresh cached** in the review dialog for selected saved games.

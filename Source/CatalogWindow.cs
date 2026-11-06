@@ -988,7 +988,7 @@ namespace SmartMetadataMatcher
         // The original Playnite game editor handles ALL editable metadata fields;
         // Matcher does not make unjournaled direct database writes of its own.
         private void AttachGameReviewMenu(DataGrid table,Func<CatalogViewRow> selected,
-            Window reviewOwner,Action refreshReview)
+            Window reviewOwner,Action<bool> refreshReview)
         {
             table.PreviewMouseRightButtonDown+=(sender,args)=>{
                 // A right-click targets the row under the pointer, not the last
@@ -1003,7 +1003,7 @@ namespace SmartMetadataMatcher
             var draftAction=new MenuItem{Header="Edit proposed import (title, description, fields)..."};
             draftAction.Click+=(sender,args)=>{
                 var row=selected();if(row!=null && EditImportDraft(row,reviewOwner))
-                { if(refreshReview!=null)refreshReview();else UpdatePreview(); }
+                { if(refreshReview!=null)refreshReview(false);else UpdatePreview(); }
             };
             menu.Items.Add(draftAction);
             menu.Items.Add(new Separator());
@@ -1027,7 +1027,8 @@ namespace SmartMetadataMatcher
             menu.Items.Add(inspect);
             var search=new MenuItem{Header="Search IGDB alternatives..."};
             search.Click+=(sender,args)=>{
-                var row=selected();if(row!=null)ShowIgdbAlternativeSearch(row,reviewOwner,refreshReview);
+                var row=selected();if(row!=null)ShowIgdbAlternativeSearch(row,reviewOwner,
+                    refreshReview==null?null:new Action(()=>refreshReview(true)));
             };
             menu.Items.Add(search);
             menu.Opened+=(sender,args)=>{
@@ -1429,9 +1430,17 @@ namespace SmartMetadataMatcher
             AttachGameReviewMenu(table,()=>{
                 var selected=table.SelectedItem as PlanPreviewRow;
                 return selected==null?null:selected.SourceRow;
-            },dialog,()=>{
+            },dialog,identityChanged=>{
                 var selected=table.SelectedItem as PlanPreviewRow;
                 if(selected==null || selected.SourceRow==null)return;
+                // A staged title/description/field edit is NOT an IGDB identity change.
+                // Keep the user's Selected-for-import filter and highlighted game.
+                if(!identityChanged)
+                {
+                    selected.RenameHandling=DraftTitlePreview(selected.SourceRow);
+                    refreshRows();
+                    return;
+                }
                 selected.Catalog=selected.SourceRow.Candidate;
                 selected.CatalogId=selected.SourceRow.IgdbId;
                 selected.IdentityStatus=selected.SourceRow.UserConfirmed?"Confirmed by you":"Needs review";

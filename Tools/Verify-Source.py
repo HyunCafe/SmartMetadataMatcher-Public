@@ -51,6 +51,22 @@ for path in (root/"Tests").glob("*Tests.cs"):
     if stem + ".Run();" not in program:
         problems.append(f"Test suite not invoked: {stem}")
 
+# Review navigation invariant: draft edits must preserve the current filter.
+# IGDB identity adoption is the only context-menu operation that may reset it.
+review_source = (root / "Source/CatalogWindow.cs").read_text(encoding="utf-8-sig")
+checks = (
+    "Window reviewOwner,Action<bool> refreshReview",
+    "refreshReview(false);else UpdatePreview();",
+    "refreshReview==null?null:new Action(()=>refreshReview(true))",
+    "},dialog,identityChanged=>{",
+    "if(!identityChanged)",
+    "selected.RenameHandling=DraftTitlePreview(selected.SourceRow);",
+)
+if not all(fragment in review_source for fragment in checks):
+    problems.append("Review context actions must distinguish draft edits from IGDB identity changes")
+if not re.search(r"if\(!identityChanged\)\s*\{[^{}]*?refreshRows\(\);[^{}]*?return;\s*\}", review_source, re.S):
+    problems.append("Draft edits must refresh only the current filtered review view")
+
 if problems:
     for problem in problems:
         print("STOP:", problem)
