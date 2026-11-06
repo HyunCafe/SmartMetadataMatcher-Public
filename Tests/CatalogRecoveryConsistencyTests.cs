@@ -42,6 +42,51 @@ internal static class CatalogRecoveryConsistencyTests
         var mismatch=CatalogRecoveryConsistency.Inspect(new[]{Stage(op,Guid.NewGuid(),true,"H")},
             new[]{Entry(op,game,true)});
         Check(!mismatch.AllowsWrites,"mismatched game IDs block");
+        // Cross-journal media ownership is checked for every field and exact ID.
+        var correctStage=Stage(op,game,true,"H");
+        correctStage.Media.Add("cover","media/cover-A");
+        correctStage.Media.Add("icon","media/icon-A");
+        correctStage.Media.Add("background","media/background-A");
+        var correctEntry=Entry(op,game,true);
+        correctEntry.ChangedCover=true;correctEntry.AfterCover="media/cover-A";
+        correctEntry.ChangedIcon=true;correctEntry.AfterIcon="media/icon-A";
+        correctEntry.ChangedBackground=true;correctEntry.AfterBackground="media/background-A";
+        Check(CatalogRecoveryConsistency.Inspect(new[]{correctStage},new[]{correctEntry}).AllowsWrites,
+            "all three imported artwork IDs match the journal");
+        var wrongCover=Entry(op,game,true);
+        wrongCover.ChangedCover=true;wrongCover.AfterCover="media/DIFFERENT";
+        var oneCover=Stage(op,game,true,"H");oneCover.Media.Add("cover","media/cover-A");
+        Check(!CatalogRecoveryConsistency.Inspect(new[]{oneCover},new[]{wrongCover}).AllowsWrites,
+            "wrong cover ID blocks import");
+        var missingCover=Entry(op,game,true);missingCover.ChangedCover=true;
+        missingCover.AfterCover="media/cover-A";
+        Check(!CatalogRecoveryConsistency.Inspect(new[]{Stage(op,game,true,"H")},
+            new[]{missingCover}).AllowsWrites,"missing cover staging marker blocks");
+        Check(!CatalogRecoveryConsistency.Inspect(new[]{oneCover},new[]{Entry(op,game,true)}).AllowsWrites,
+            "staged cover not owned by field journal blocks");
+        var wrongIcon=Entry(op,game,true);wrongIcon.ChangedIcon=true;
+        wrongIcon.AfterIcon="media/wrong";
+        var oneIcon=Stage(op,game,true,"H");oneIcon.Media.Add("icon","media/right");
+        Check(!CatalogRecoveryConsistency.Inspect(new[]{oneIcon},new[]{wrongIcon}).AllowsWrites,
+            "wrong icon ID blocks");
+        var wrongBg=Entry(op,game,true);wrongBg.ChangedBackground=true;
+        wrongBg.AfterBackground="media/wrong";
+        var oneBg=Stage(op,game,true,"H");oneBg.Media.Add("background","media/right");
+        Check(!CatalogRecoveryConsistency.Inspect(new[]{oneBg},new[]{wrongBg}).AllowsWrites,
+            "wrong background ID blocks");
+        var untracked=Stage(op,game,true,"H");untracked.Media.Add("thumbnail","media/other");
+        Check(!CatalogRecoveryConsistency.Inspect(new[]{untracked},new[]{Entry(op,game,true)}).AllowsWrites,
+            "unknown staging slot blocks");
+        Check(CatalogRecoveryConsistency.Inspect(new[]{correctStage},
+            new[]{new EnrichmentEntry {OperationId=op,GameId=game,IgdbId=123,
+                Committed=true,Undone=true,ChangedCover=true,AfterCover="media/cover-A",
+                ChangedIcon=true,AfterIcon="media/icon-A",ChangedBackground=true,
+                AfterBackground="media/background-A"}}).AllowsWrites,
+            "undo retains historical artwork ownership");
+        var legacyWithArtwork=Entry(op,game,true);
+        legacyWithArtwork.ChangedCover=true;legacyWithArtwork.AfterCover="old/media/cover";
+        Check(CatalogRecoveryConsistency.Inspect(new CatalogMediaStage[0],
+            new[]{legacyWithArtwork}).AllowsWrites,"legacy field-only media remains supported");
         var falseAbandon=CatalogRecoveryConsistency.Inspect(new[]{Stage(op,game,true,"A")},
             new[]{Entry(op,game,true)});
         Check(!falseAbandon.AllowsWrites,"abandoned stage with journal owner blocks");
@@ -74,7 +119,8 @@ internal static class CatalogRecoveryConsistencyTests
             mediaLedger.Begin(realOp,realGame);
             mediaLedger.Track(realOp,"cover","media/001");
             fieldJournal.Prepare(new EnrichmentEntry {OperationId=realOp,GameId=realGame,
-                IgdbId=10,BeforeName="Old",AfterName="New",ChangedName=true});
+                IgdbId=10,BeforeName="Old",AfterName="New",ChangedName=true,
+                BeforeCover="",AfterCover="media/001",ChangedCover=true});
             mediaLedger.HandOff(realOp);
             fieldJournal.Commit(realOp);
             var reread=CatalogRecoveryConsistency.Inspect(

@@ -15,6 +15,10 @@ function Run([string[]]$Command) {
 
 Push-Location $root
 try {
+    # Catch version/title, compile-inventory and missing-runner mistakes before
+    # expensive restoration/build; this personal development workflow uses Python.
+    & python (Join-Path $root 'Tools/Verify-Source.py')
+    if ($LASTEXITCODE -ne 0) { throw 'Source consistency verification failed' }
     Run @('restore', $tests, '--source', 'https://api.nuget.org/v3/index.json')
     Run @('run', '--project', $tests, '--configuration', 'Release', '--no-restore')
     Run @('restore', $project, '--source', 'https://api.nuget.org/v3/index.json')
@@ -32,7 +36,7 @@ try {
         throw "Version mismatch: YAML=$yamlVersion source=$sourceVersion compiled=$dllVersion"
     }
     New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-    $name = "SmartMetadataMatcher-$yamlVersion-recovery-consistency-preview-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
+    $name = "SmartMetadataMatcher-$yamlVersion-media-ownership-preview-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
     $zip = Join-Path $releaseDir ($name + '.zip')
     $pext = Join-Path $releaseDir ($name + '.pext')
     if (Test-Path -LiteralPath $pext) { throw "Refusing to overwrite $pext" }
@@ -48,6 +52,6 @@ try {
     $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $pext).Hash
     Write-Host "SUCCESS: $pext"
     Write-Host "SHA256: $hash"
-    Write-Host 'RECOVERY CONSISTENCY PREVIEW: cross-journal safety gate and conservative approval field preview. No production bulk writes.'
+    Write-Host 'MEDIA OWNERSHIP PREVIEW: journal field IDs correlated with staged artwork; live Playnite tests still required. No production bulk writes.'
 }
 finally { Pop-Location }

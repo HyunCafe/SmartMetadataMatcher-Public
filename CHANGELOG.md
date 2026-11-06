@@ -1,3 +1,9 @@
+## v0.4.25 — media ownership verification and release checks (private preview)
+- Correlate actual cover/icon/background staging IDs with the exact field-level undo journal owner. Failed/corrupt media ownership blocks future writes, including after undo; legacy field-only journals remain compatible.
+- Add offline regressions for three valid artwork slots, mismatched/missing IDs, orphan stage slots, persisted replay, historical undo and legacy entries.
+- Add a read-only prebuild verifier covering source/manifest version consistency, runtime UI titles, project compile inventory and invoked offline tests.
+- Keep the five-game supervised limit and all existing writer paths unchanged. Live Playnite import, undo and crash recovery remain unverified.
+
 
 ## v0.4.23 — unified final approval and recovery visibility (private preview)
 - Replaced the separate backup prompt and single-line manual confirmation with one scrollable final approval window shared by manual and strict planning. User must confirm a restorable Playnite library and extension-data backup before Apply is enabled.

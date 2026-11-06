@@ -1,3 +1,6 @@
+### v0.4.25 private recovery checkpoint
+Run `python Tools/Verify-Source.py` to check version labels, compile references and test-suite wiring without changing files. The normal Windows preview build calls this verifier automatically. Media staging and journal field IDs are now cross-checked before new writes. The five-game test limit remains until one complete import-and-undo is tested inside a disposable Playnite profile; use the official Playnite backup tool to preserve Settings, Library, Library media, Extensions and Extensions data first.
+
 
 ## v0.4.23 — unified final approval and recovery visibility (private preview)
 - Replaced the separate backup prompt and single-line manual confirmation with one scrollable final approval window shared by manual and strict planning. User must confirm a restorable Playnite library and extension-data backup before Apply is enabled.

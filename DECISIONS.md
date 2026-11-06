@@ -1,3 +1,9 @@
+## v0.4.25 decisions
+- **Accepted:** cross-ledger validation must prove exact imported media IDs match the journaled fields, not just operation/game IDs. This is a fail-closed read-only validation, with no automatic deletion/repair.
+- **Accepted:** source consistency checks run before the Windows compiler, preventing repeated hardcoded-version, missing-file and orphan-test mistakes.
+- **Deferred:** removing write batch limits or adding unattended processing until live Playnite import/undo/recovery tests establish safety. Do not conflate offline unit success with live Playnite behavior.
+- **Preserve:** user-confirmed IGDB identity, scan cache, title cleanup, prior journals and manual-approval boundaries. No GitHub actions.
+
 
 ## v0.4.23 — unified final approval and recovery visibility (private preview)
 - Replaced the separate backup prompt and single-line manual confirmation with one scrollable final approval window shared by manual and strict planning. User must confirm a restorable Playnite library and extension-data backup before Apply is enabled.
