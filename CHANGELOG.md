@@ -1,3 +1,11 @@
+## v0.5.6 — Private read-only scan checkpoints (2026-11-06)
+
+- Save each 10 completed IGDB lookup records through the existing atomic v1 cache file, not only when the entire selected scan batch finishes. After normal completion, cancellation or IGDB failure, save the remaining short tail.
+- Preserve full in-memory scan results and continue read-only lookups if disk cache saving fails; show cache warning instead of claiming persistence.
+- On next launch, reuse only unexpired saved results matching each live game's current name, platform and missing-field state. Saved evidence never gives strict write authorization.
+- Add offline restart, partial-tail/cancel, malformed-checkpoint and last-good-cache regression tests. No Playnite metadata writes, cache schema/credential change, matching threshold, journal or undo change.
+- This is private development, not an independently verified crash-recovery or public release certification.
+
 ## v0.5.5 — Private IGDB connection diagnostics (pending Windows acceptance)
 - Added a cancellable **Test Connection** button in IGDB settings. It tests the entered Twitch credentials with OAuth, then performs one small read-only IGDB `/games` lookup; merely saving settings still does not make a network request.
 - Test runs off the WPF UI thread, disables editing/saving while checking, cancels if settings close, and does not store tokens or unconfirmed credentials. Successful testing only marks the header verified when the tested credentials are saved in that session.

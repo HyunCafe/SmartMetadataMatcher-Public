@@ -16,10 +16,10 @@ if not commit or len(commit)>40 or not all(c in '0123456789abcdef' for c in comm
 root=Path(__file__).resolve().parent.parent
 with ZipFile(package) as z:
     if z.testzip() or sorted(z.namelist())!=['SmartMetadataMatcher.dll','extension.yaml'] or \
-        b'Version: 0.5.5' not in z.read('extension.yaml'):
+        b'Version: 0.5.6' not in z.read('extension.yaml'):
         sys.exit('Candidate package verification failed')
 report={
-  'product':'Smart Metadata Matcher', 'release':'0.5.5 private IGDB connection diagnostics',
+  'product':'Smart Metadata Matcher', 'release':'0.5.6 private incremental scan checkpoints',
   'created_utc':datetime.now(timezone.utc).isoformat(),
   'package_filename':package.name,
   'sha256':sha256(package.read_bytes()).hexdigest().upper(),
@@ -33,12 +33,12 @@ report={
     'v0.5.1 30-game import':'user screenshot reports Applied 30 of 30 with 0 failures; partial undo shown in history'},
   'remaining_gates':['independent undo was user-reported successful; supporting capture not independently reviewed',
     'injected crash/interrupted artwork operation in disposable Playnite data',
-    'v0.5.5 IGDB connection test requires live Playnite acceptance; mock tests are offline',
+    'v0.5.6 abrupt scan interruption/resume requires focused Playnite acceptance; offline checkpoints are simulated',
     'dependencies and compiled binary have not received independent security certification'],
   'publication':'private only; no GitHub remote action authorized'
 }
 # Deliberately record no absolute file paths, library inventories, or user identifiers.
-output=package.parent/'PrivateReports'/('SMM-0.5.5-IGDB-CONNECTION-'+commit[:8]+'.json')
+output=package.parent/'PrivateReports'/('SMM-0.5.6-SCAN-CHECKPOINTS-'+commit[:8]+'.json')
 output.parent.mkdir(parents=True,exist_ok=True)
 output.write_text(json.dumps(report,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
 print('PRIVATE RC REPORT:',output)

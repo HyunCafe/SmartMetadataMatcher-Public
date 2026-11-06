@@ -314,3 +314,7 @@ Use Playnite's supported MainView.OpenEditDialog for editing any game metadata r
 
 ## v0.5.4 private — action labels, not new trust rules
 A cached *Strong candidate* remains saved, read-only identity evidence and may not become strict-import-ready until refreshed. The main grid now says **Refresh required**, while the internal `Status` and `AutoPlanEligible` flags remain untouched. Select-all actions describe their actual scope. No auto-approval, API, writer or undo change was approved in this UX milestone.
+
+## v0.5.6: reduce worst-case scan progress loss without altering identity safety
+
+Use the existing atomic read-only cache after every 10 completed scans; flush the short tail at normal scan termination, cancellation or provider error. Do not replace the cache schema or make cached matches eligible for strict import without live refresh. No one-file-per-game writes, separate database, new dependencies or implicit Playnite writes. A hard shutdown can still lose at most the uncheckpointed short tail (assuming the last file replacement reached durable storage); post-crash filesystem durability is not guaranteed. Cache failures must preserve in-memory progress and surface a warning rather than abort read-only discovery.

@@ -11,7 +11,7 @@ import tempfile
 import shutil
 import xml.etree.ElementTree as ET
 
-EXPECTED_VERSION = "0.5.5"
+EXPECTED_VERSION = "0.5.6"
 EXPECTED_GUID = "11D77564-F56F-5BF3-9CBB-7BB0CB427537"
 EXPECTED_PACKAGES = {"PlayniteSDK": "[6.18.0]", "Microsoft.NETFramework.ReferenceAssemblies.net462": "[1.0.3]"}
 PRIVATE_PATTERNS = (
@@ -42,11 +42,11 @@ def audit(root):
         problems.append("Playnite plugin GUID changed")
     if "Name: Smart Metadata Matcher" not in manifest or "Author: HyunCafe" not in manifest:
         problems.append("Unexpected extension identity")
-    if 'AssemblyVersion("0.5.5.0")' not in plugin or 'AssemblyFileVersion("0.5.5.0")' not in plugin:
+    if 'AssemblyVersion("0.5.6.0")' not in plugin or 'AssemblyFileVersion("0.5.6.0")' not in plugin:
         problems.append("Assembly version is not aligned with RC")
     if 'AssemblyCompany("HyunCafe")' not in plugin:
         problems.append("Unexpected assembly publisher")
-    if 'private connection check' not in (root / "Source/CatalogWindow.cs").read_text(encoding="utf-8-sig"):
+    if 'private scan checkpoints' not in (root / "Source/CatalogWindow.cs").read_text(encoding="utf-8-sig"):
         problems.append("Dashboard batch-unlock label missing")
     def properties(tree):
         return {n.tag: (n.text or "").strip() for n in tree.iter() if n.tag in
@@ -70,7 +70,7 @@ def audit(root):
     for required in ("Tools/Verify-RC.py", "Tools/Verify-Package.py", "Tools/Test-Package-Integrity.py"):
         if required not in build or not (root / required).is_file():
             problems.append("Missing build-time verification: " + required)
-    if 'private-igdb-connection-' not in build:
+    if 'private-scan-checkpoints-' not in build:
         problems.append("Release package must be labeled private IGDB connection")
     for pattern in ("*.csv", "*.log", "*.env", "*.pext", "*.pdb", "bin/", "obj/", "__pycache__/", "*.py[cod]"):
         if pattern not in ignore:
@@ -109,6 +109,13 @@ def audit(root):
         problems.append('Batch no-change counting and UI wiring must remain complete')
     if '" skipped  •  "' not in progress:
         problems.append('Batch progress must separately show skipped outcomes')
+    # Preserve the v1 scan cache format while saving read-only progress every ten.
+    cache=(root/'Source/CatalogScanCache.cs').read_text(encoding='utf-8-sig')
+    if not all(x in cache for x in ('Version = 1', 'catalog-scans-v1.json',
+        'internal const int DefaultInterval = 10', 'cache.SaveBatch(pending,utcNow);')):
+        problems.append('Incremental scan persistence/schema guard missing')
+    if 'try {checkpoints.Flush(DateTime.UtcNow);}' not in ui:
+        problems.append('Final scan tail checkpoint missing')
     for p in list((root / 'Source').glob('*.cs')) + [root/'Tools/Build-Preview.ps1']:
         try: content=p.read_text(encoding='utf-8-sig')
         except (OSError, UnicodeError):
@@ -131,15 +138,15 @@ def self_test():
     with tempfile.TemporaryDirectory(prefix='smm-rc-audit-') as folder:
         shadow=Path(folder)
         for relative in (".gitignore","extension.yaml","RELEASE_READINESS.md","SmartMetadataMatcher.csproj",
-                         "Tests/NameRulesTests.csproj","Tests/NameRulesTests.cs","Source/Plugin.cs","Source/CatalogWindow.cs","Source/IgdbReadOnly.cs","Source/CatalogEnrichmentWriter.cs","Source/CatalogBatchProgress.cs",
+                         "Tests/NameRulesTests.csproj","Tests/NameRulesTests.cs","Source/Plugin.cs","Source/CatalogWindow.cs","Source/IgdbReadOnly.cs","Source/CatalogEnrichmentWriter.cs","Source/CatalogBatchProgress.cs","Source/CatalogScanCache.cs",
                          "Tools/Build-Preview.ps1","Tools/Verify-RC.py","Tools/Verify-Package.py",
                          "Tools/Test-Package-Integrity.py"):
             target=shadow/relative;target.parent.mkdir(parents=True,exist_ok=True)
             shutil.copyfile(root/relative,target)
         assert not audit(shadow), audit(shadow)
-        p=shadow/'extension.yaml';p.write_text(p.read_text().replace('Version: 0.5.5','Version: 0.4.32'))
+        p=shadow/'extension.yaml';p.write_text(p.read_text().replace('Version: 0.5.6','Version: 0.4.32'))
         assert any('version' in x for x in audit(shadow))
-        p.write_text(p.read_text().replace('Version: 0.4.32','Version: 0.5.5'))
+        p.write_text(p.read_text().replace('Version: 0.4.32','Version: 0.5.6'))
         p=shadow/'Source/Plugin.cs';p.write_text(p.read_text()+ '\n// C:\\Users\\privateuser\\secrets.txt\n')
         assert any('private path' in x for x in audit(shadow))
         p.write_text(p.read_text().replace('// C:\\Users\\privateuser\\secrets.txt',''))

@@ -119,3 +119,10 @@ Never upload project files or publish to GitHub as part of local build/verificat
 - Confirm cached Strong rows show **Refresh required** in the main list while remaining reviewable, and only fresh strict-ready matches appear as Ready for review.
 - Confirm the review button **Select all ready (N)** describes its complete scope and user-confirmed identity batches remain supervised.
 - Run full Windows WPF build, pure offline suites and package verification before local Git commit. No runtime changes to writer or undo.
+
+## v0.5.6 private scan-checkpoint gate
+- Windows full WPF compile, all offline tests, package-verifier and local Git commit must succeed before installation. No remote action.
+- Cache files remain under private per-plugin data, excluded from source control; v1 data contract and 7-day freshness preserved.
+- Offline tests must simulate checkpoint success every ten, abrupt restart after partial batches, normal/cancelled short-tail flush and failed-save preservation of last good results.
+- Manual test should be read-only: scan 12+ games, close/reopen the dashboard and confirm valid cached progress is restored. No need for a fresh 837-game full rescan or any import/undo.
+- Unverified: real sudden process death/fault injection and filesystem-level persistence guarantees; do not test against the primary Playnite profile.

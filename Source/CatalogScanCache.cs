@@ -43,6 +43,42 @@ namespace SmartMetadataMatcher
         [DataMember] public List<CatalogScanRecord> Records = new List<CatalogScanRecord>();
     }
 
+    // Persist only fully completed read-only lookup records in bounded chunks.
+    // The existing cache's atomic write/revalidation contract remains authoritative:
+    // these snapshots NEVER confer authorization to write Playnite metadata.
+    internal sealed class CatalogScanCheckpoint
+    {
+        internal const int DefaultInterval = 10;
+        private readonly CatalogScanCache cache;
+        private readonly int interval;
+        private readonly List<CatalogScanRecord> pending = new List<CatalogScanRecord>();
+        internal int SavedCount { get; private set; }
+        internal int PendingCount { get { return pending.Count; } }
+
+        internal CatalogScanCheckpoint(CatalogScanCache cache,int interval=DefaultInterval)
+        {
+            if(cache==null)throw new ArgumentNullException("cache");
+            if(interval<1 || interval>1000)throw new ArgumentOutOfRangeException("interval");
+            this.cache=cache;this.interval=interval;
+        }
+        internal void Add(CatalogScanRecord completeResult,DateTime utcNow)
+        {
+            if(completeResult==null)throw new ArgumentNullException("completeResult");
+            pending.Add(completeResult);
+            if(pending.Count>=interval)Flush(utcNow);
+        }
+        internal void Flush(DateTime utcNow)
+        {
+            if(pending.Count==0)return;
+            // SaveBatch validates and atomically replaces the complete snapshot.
+            // On failure keep the unsaved records buffered and the last good
+            // on-disk checkpoint intact. The scan controller reports the failure.
+            cache.SaveBatch(pending,utcNow);
+            SavedCount+=pending.Count;
+            pending.Clear();
+        }
+    }
+
     internal sealed class CatalogScanCache
     {
         private const int MaxBytes = 8 * 1024 * 1024;

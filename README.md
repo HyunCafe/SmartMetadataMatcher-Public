@@ -370,3 +370,7 @@ In Review Matches, use **Select next 25 ready** (or hand-pick a smaller group) t
 
 ### Verify IGDB setup (private v0.5.5)
 Open **IGDB settings** and enter your Twitch Developer application's Client ID and Client Secret. Click **Test Connection** to check Twitch OAuth and a minimal read-only IGDB game query without saving. On success, click **Save settings**; credentials are stored using Windows CurrentUser DPAPI, but access tokens are kept in memory only. Saving without testing is supported; the banner will correctly say the connection is untested. The test never imports metadata or uploads your Playnite library.
+
+## v0.5.6 — resumable read-only scans
+
+Long scans now save candidate results to the existing private cache after every 10 completed games, not just when the batch ends. If Playnite exits unexpectedly, reopen the Matcher to reload still-valid saved results; the last incomplete checkpoint may need rescanning. Ordinary cancellation and IGDB errors also save the final partial set. Results are read-only evidence and **never** grant permission to import without current live verification. Use **Tools → Rescan all** only to intentionally archive past cached results and start fresh. No changes to ROMs, launch settings, or Playnite game metadata during scanning.

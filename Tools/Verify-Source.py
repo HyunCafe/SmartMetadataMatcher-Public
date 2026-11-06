@@ -140,6 +140,20 @@ if not all(k in conn for k in ('TestConnection(CancellationToken ct)',
     problems.append('IGDB test must check both auth and bounded game API query')
 if 'IgdbConnectionTests.Run();' not in program or 'Link="IgdbReadOnly.cs"' not in (root/'Tests/NameRulesTests.csproj').read_text(encoding='utf-8-sig'):
     problems.append('IGDB connection test seams must be compiled and invoked')
+# v0.5.6 scan continuation: bounded on-worker checkpoints; final short-tail
+# flush must occur after success, cancellation, and IGDB errors but before UI update.
+cache=(root/"Source/CatalogScanCache.cs").read_text(encoding="utf-8-sig")
+if not all(x in cache for x in ("internal sealed class CatalogScanCheckpoint",
+    "internal const int DefaultInterval = 10", "cache.SaveBatch(pending,utcNow);",
+    "pending.Clear();")):
+    problems.append("Incremental atomic scan checkpoint buffering missing")
+if not all(x in view for x in ("checkpoints.Add(SaveableScanResult(next[next.Count-1]),DateTime.UtcNow)",
+    "try {checkpoints.Flush(DateTime.UtcNow);}",
+    "if(finalCacheWarning!=null)scanCacheAvailable=false;")):
+    problems.append("Read-only long scan must checkpoint completed rows and final tail")
+if "checkpoint.SavedCount==20 && checkpoint.PendingCount==5" not in (root/"Tests/CatalogScanCacheTests.cs").read_text(encoding="utf-8-sig"):
+    problems.append("Incremental scan restart/flush regression missing")
+
 if problems:
     for problem in problems:
         print("STOP:", problem)

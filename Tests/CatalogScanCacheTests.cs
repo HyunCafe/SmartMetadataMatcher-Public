@@ -44,6 +44,68 @@ internal static class CatalogScanCacheTests
             Check(!reload.TryGet(input,now.AddDays(8),out found),"expired cache invalidates");
             Check(!reload.TryGet(input,now.AddMinutes(-10),out found),"future cache invalidates");
 
+            // v0.5.6: simulate a large scan with a process restart between
+            // checkpoints. A new cache instance sees only fully saved chunks.
+            var progressFolder=Path.Combine(folder,"progress");
+            Directory.CreateDirectory(progressFolder);
+            var progressCache=new CatalogScanCache(progressFolder);
+            progressCache.Load();
+            var checkpoint=new CatalogScanCheckpoint(progressCache);
+            Check(CatalogScanCheckpoint.DefaultInterval==10,"bounded default checkpoint interval");
+            var progressInputs=new System.Collections.Generic.List<CatalogInput>();
+            for(int i=0;i<25;i++)
+            {
+                var item=new CatalogInput {Id=Guid.NewGuid(),Name="Scanned Game "+i,
+                    Platform="Nintendo Game Boy Advance",MissingCount=1};
+                progressInputs.Add(item);
+                checkpoint.Add(new CatalogScanRecord {GameId=item.Id,Name=item.Name,
+                    Platform=item.Platform,MissingCount=item.MissingCount,
+                    ScannedUtc=now.ToString("o",System.Globalization.CultureInfo.InvariantCulture),
+                    Status="Review",Candidate="Candidate "+i},now);
+                if(i==8)
+                {
+                    Check(!File.Exists(Path.Combine(progressFolder,"catalog-scans-v1.json")),
+                        "under ten results remain in memory until checkpoint");
+                }
+                if(i==9 || i==19)
+                {
+                    var restarted=new CatalogScanCache(progressFolder);restarted.Load();
+                    CatalogScanRecord saved;
+                    Check(restarted.TryGet(progressInputs[i],now,out saved),
+                        "last result in completed checkpoint survives restart");
+                    Check(checkpoint.SavedCount==i+1 && checkpoint.PendingCount==0,
+                        "completed checkpoint clears only persisted buffer");
+                }
+            }
+            Check(checkpoint.SavedCount==20 && checkpoint.PendingCount==5,
+                "unsaved short tail retained for cancellation");
+            var beforeFlush=new CatalogScanCache(progressFolder);beforeFlush.Load();
+            CatalogScanRecord progressFound;
+            Check(!beforeFlush.TryGet(progressInputs[24],now,out progressFound),
+                "abrupt exit can lose only uncheckpointed short tail");
+            checkpoint.Flush(now); // Mimics normal completion / cancellation.
+            var afterFlush=new CatalogScanCache(progressFolder);afterFlush.Load();
+            Check(afterFlush.TryGet(progressInputs[24],now,out progressFound),
+                "cancellation/completion flush persists short tail");
+            Check(checkpoint.SavedCount==25 && checkpoint.PendingCount==0,
+                "final flush reports all persisted records");
+            checkpoint.Flush(now);
+            Check(checkpoint.SavedCount==25,"empty flush is idempotent");
+            // Rejected malformed checkpoint cannot replace a prior valid snapshot.
+            var invalidCheckpoint=new CatalogScanCheckpoint(afterFlush,1);
+            bool failedCheckpoint=false;
+            try {invalidCheckpoint.Add(new CatalogScanRecord(),now);}
+            catch(InvalidDataException){failedCheckpoint=true;}
+            Check(failedCheckpoint && invalidCheckpoint.PendingCount==1,
+                "invalid checkpoint fails without dropping unsaved entries");
+            var afterFailure=new CatalogScanCache(progressFolder);afterFailure.Load();
+            Check(afterFailure.TryGet(progressInputs[24],now,out progressFound),
+                "previously persisted results survive failed checkpoint");
+            bool invalidInterval=false;
+            try {new CatalogScanCheckpoint(afterFailure,0);}
+            catch(ArgumentOutOfRangeException){invalidInterval=true;}
+            Check(invalidInterval,"zero-length checkpoint prohibited");
+
             // Old v1 snapshots have no field mask, and remain read-only reusable
             // when the three original primary fields agree.
             var expanded=new CatalogInput{Id=input.Id,Name=input.Name,Platform=input.Platform,

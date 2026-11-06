@@ -416,7 +416,7 @@ namespace SmartMetadataMatcher
         internal void Show()
         {
             window=api.Dialogs.CreateWindow(new WindowCreationOptions{ShowMinimizeButton=false});
-            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private connection check";
+            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private scan checkpoints";
             window.Width=1610;window.Height=935;window.MinWidth=1120;window.MinHeight=675;
             var owner=api.Dialogs.GetCurrentAppWindow();
             if(owner!=null && owner!=window)window.Owner=owner;
@@ -2627,16 +2627,25 @@ namespace SmartMetadataMatcher
             var password = secret.Password;
             var count=CatalogCore.NextScanCount(queue.Count-cursor,scanSize.SelectedIndex);
             var batch = queue.Skip(cursor).Take(count).ToList();
+            // Cache writes are serialized by the one active scan worker. Other
+            // cache actions require !busy; no simultaneous UI-thread writes.
+            var checkpointEnabled=scanCacheAvailable;
             busy=true; scanButton.IsEnabled=false; scanSize.IsEnabled=false; cancelButton.IsEnabled=true;cancelButton.Visibility=Visibility.Visible;
             UpdateSelectionActions();
             cancellation=new CancellationTokenSource();
             var token=cancellation.Token;
             if(batchProgress!=null)batchProgress.Visibility=Visibility.Collapsed;
             if(batchProgressText!=null)batchProgressText.Visibility=Visibility.Collapsed;
-            summary.Text="Searching IGDB for " + batch.Count + " games; " + cursor + " already processed. Read-only; you can cancel.";
+            summary.Text="Searching IGDB for " + batch.Count + " games; " + cursor +
+                " already processed. Read-only results checkpoint every 10 games; you can cancel.";
             Task.Run(() =>
             {
                 var next = new List<CatalogViewRow>();
+                // Never write cache data from the dispatcher at the end of a long scan:
+                // an unexpected shutdown could otherwise lose every lookup result.
+                CatalogScanCheckpoint checkpoints=checkpointEnabled?
+                    new CatalogScanCheckpoint(scanCache):null;
+                string cacheWarning=null;
                 int done=0;
                 try
                 {
@@ -2671,6 +2680,22 @@ namespace SmartMetadataMatcher
                                     g.Name+" ["+g.Id+"; "+String.Join("/",(g.Platforms??new List<string>()).Take(2))+"]"))
                             });
                             done++;
+                            if(checkpoints!=null)
+                            {
+                                try
+                                {
+                                    // A cache entry is written only after its complete
+                                    // lookup row exists. No credentials or write approval.
+                                    checkpoints.Add(SaveableScanResult(next[next.Count-1]),DateTime.UtcNow);
+                                }
+                                catch(Exception ex)
+                                {
+                                    // Preserve in-memory progress. A failed checkpoint
+                                    // must not prevent further read-only lookup work.
+                                    checkpoints=null;
+                                    cacheWarning="Saved scan could not be updated (results remain in memory): "+ex.Message;
+                                }
+                            }
                             var progress=done;
                             window.Dispatcher.BeginInvoke(new Action(() => { if (window.IsVisible) summary.Text="Processed " + progress + " / " + batch.Count + " (IGDB read-only)"; }));
                             // IGDB permits 4 requests/s. Stay below the limit and leave space for retries.
@@ -2684,18 +2709,20 @@ namespace SmartMetadataMatcher
                     var error=ex.Message;
                     window.Dispatcher.BeginInvoke(new Action(() => { if (window.IsVisible) api.Dialogs.ShowErrorMessage(error,"IGDB catalog lookup stopped"); }));
                 }
+                // Persist the final short tail on success, cancellation, or error.
+                // Never discard already persisted chunks if this flush fails.
+                if(checkpoints!=null)
+                {
+                    try {checkpoints.Flush(DateTime.UtcNow);}
+                    catch(Exception ex)
+                    {
+                        cacheWarning="Saved scan could not be updated (results remain in memory): "+ex.Message;
+                    }
+                }
+                var finalCacheWarning=cacheWarning;
                 window.Dispatcher.BeginInvoke(new Action(() => {
                     results.AddRange(next); cursor += done;
-                    string cacheWarning=null;
-                    if(scanCacheAvailable && next.Count>0)
-                    {
-                        try {scanCache.SaveBatch(next.Select(SaveableScanResult),DateTime.UtcNow);}
-                        catch(Exception ex)
-                        {
-                            scanCacheAvailable=false;
-                            cacheWarning="Saved scan could not be updated (results remain in memory): "+ex.Message;
-                        }
-                    }
+                    if(finalCacheWarning!=null)scanCacheAvailable=false;
                     foreach(var result in next)ApplyRememberedIdentity(result);
                     grid.ItemsSource=null; grid.ItemsSource=results;
                     RefreshVisibility();
@@ -2708,7 +2735,7 @@ namespace SmartMetadataMatcher
                             results.Count(x=>x.Status=="Unmatched")+" unmatched  •  "+
                             results.Count(x=>x.IsCompleted)+" completed.  "+
                             "No changes made.  Strong is not a calibrated probability."+
-                            (cacheWarning==null?"":"  "+cacheWarning);
+                            (finalCacheWarning==null?"":"  "+finalCacheWarning);
                 }));
             });
         }
