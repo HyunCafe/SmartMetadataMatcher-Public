@@ -243,3 +243,9 @@ Use Playnite's supported MainView.OpenEditDialog for editing any game metadata r
 - Staged drafts are in-memory and tied to the exact Playnite game name/platform and IGDB ID/title. Closing Matcher discards unapproved drafts. Saving a draft never changes the library.
 - The only path to write a staged draft is the same explicit final approved import and write-ahead enrichment journal.
 - Custom titles must be unique by normalized display name; unsafe or changing identities fail closed.
+
+## v0.4.31 — Batch promotion after one-game import/undo validation
+- User confirmed an actual Playnite Driv3r metadata import and successful metadata restore on v0.4.25–0.4.29. Real crash/interruption and larger batch sizes are not yet verified.
+- Promote **only** fully strict-reviewed entries (not user-confirmed or cached Strong labels) to the existing 25-per-approval path, with its live revalidation and recovery checks. Keep manual/confirmed matches at five; all writes remain explicitly approved.
+- Stop a running batch on its first error, regardless of whether that error damaged a journal; this makes partial completion easy to inspect and undo. Do not automatically retry failures or touch ROMs.
+- This is a private preview with a bounded opt-in batch; do not claim production-scale safety until successful multi-item runtime testing.

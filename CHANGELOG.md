@@ -1,3 +1,10 @@
+## v0.4.31 — Graduated supervised batches and fail-fast imports (private preview)
+- Normal Review Matches → Review & Apply supports up to 25 independently strict-ready games, with exact live IGDB ID/platform revalidation, final field/title preview, verified-backup acknowledgement, and per-game undo journals. No separate automatic-import button is required.
+- Select next ready picks only as many eligible games as the 25-game strict limit permits instead of selecting 200+ at once, with a direct Deselect ready state.
+- User-confirmed identities remain limited to five per reviewed batch; a manually reviewed non-ready Strong match remains one at a time. Every selection is explicitly bounded; nothing is silently truncated.
+- Batch import now stops immediately on the first failed game even when recovery inspection says journals remain healthy; completed prior entries remain independently undoable. Unresolved artwork/journal operations continue to block future writes.
+- Added 20 offline batch-policy regression checks and static guard validation of both review and writer limits. **Windows compile and Playnite runtime validation required before treating 25-game batches as proven.**
+
 ### v0.4.30 — Preserve review selection on draft edits
 - Right-click **Edit proposed import** now keeps the current Review Matches filter, selected game, selection marks, and status.
 - Only a confirmed IGDB identity change may switch the review list to All matches.

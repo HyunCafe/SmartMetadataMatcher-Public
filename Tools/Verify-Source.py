@@ -66,6 +66,23 @@ if not all(fragment in review_source for fragment in checks):
     problems.append("Review context actions must distinguish draft edits from IGDB identity changes")
 if not re.search(r"if\(!identityChanged\)\s*\{[^{}]*?refreshRows\(\);[^{}]*?return;\s*\}", review_source, re.S):
     problems.append("Draft edits must refresh only the current filtered review view")
+# PlanPreviewRow is a lightweight wrapper. Batch policy must reflect the same
+# confirmation state as the underlying CatalogViewRow, not a stale copy.
+preview_class = review_source.split("internal sealed class PlanPreviewRow", 1)
+if len(preview_class) != 2 or "public bool UserConfirmed" not in preview_class[1].split("internal sealed class HistoryRow", 1)[0]:
+    problems.append("PlanPreviewRow must expose the underlying user-confirmed state")
+
+# Batch-size and fail-fast policy must be used in both review and writer paths.
+policy=(root / "Source/CatalogBatchPolicy.cs").read_text(encoding="utf-8-sig")
+if "StrictLimit = 25" not in policy or "SupervisedLimit = 5" not in policy:
+    problems.append("Batch limits changed without review")
+if "CatalogBatchPolicy.WithinLimit(selected.Count,strictBatch)" not in review_source or \
+   "CatalogBatchPolicy.WithinLimit(marked.Count,automatic)" not in review_source:
+    problems.append("Review and writer batch-size gates must agree")
+if "CatalogBatchPolicy.AvailableSelectionSlots(markedCount()," not in review_source:
+    problems.append("Ready selection must be bounded before marking games")
+if "stoppedOnError=CatalogBatchPolicy.StopOnFailure(true);" not in review_source:
+    problems.append("The import loop must stop after its first failure")
 
 if problems:
     for problem in problems:

@@ -69,6 +69,8 @@ namespace SmartMetadataMatcher
         public string CatalogId { get; set; }
         public bool Ready { get; set; }
         public bool Archived { get; set; }
+        // Review decisions are stored on the underlying game, not duplicated here.
+        public bool UserConfirmed { get { return SourceRow != null && SourceRow.UserConfirmed; } }
         // The review dialog and dashboard share ONE selection state.
         public bool Marked
         {
@@ -1383,14 +1385,17 @@ namespace SmartMetadataMatcher
                 }
                 if(previewApply!=null){
                     previewApply.IsEnabled=markedCount()>0;
-                    previewApply.Content="Apply selected ("+markedCount()+")...";
+                    previewApply.Content="Review & apply ("+markedCount()+")...";
                 }
                 if(markReady!=null){
                     var readyRows=lines.Where(x=>x.Ready&&!x.Archived).ToList();
-                    markReady.Content=readyRows.Count==0?"No ready matches":
-                        readyRows.Any(x=>!x.Marked)?"Select all ready ("+readyRows.Count+")":
-                        "Deselect all ready ("+readyRows.Count+")";
-                    markReady.IsEnabled=readyRows.Count>0;
+                    var strictRows=readyRows.Where(x=>!x.UserConfirmed).ToList();
+                    int slots=CatalogBatchPolicy.AvailableSelectionSlots(markedCount(),
+                        lines.Any(x=>x.Marked&&x.UserConfirmed));
+                    int canAdd=Math.Min(slots,strictRows.Count(x=>!x.Marked));
+                    markReady.Content=canAdd>0?"Select next "+canAdd+" ready":
+                        strictRows.Any(x=>x.Marked)?"Deselect ready games":"No ready matches";
+                    markReady.IsEnabled=canAdd>0 || strictRows.Any(x=>x.Marked);
                 }
                 if(refreshSelected!=null){
                     var needsRefresh=lines.Count(x=>x.Marked&&!x.Archived&&
@@ -1469,12 +1474,19 @@ namespace SmartMetadataMatcher
                 }
             },out editDraft);
             editDraft.ToolTip="Stage a custom Playnite title, description and field choices without writing to the library.";
-            AddButton(selectionTools,"Select all ready",()=>{
-                var readyRows=lines.Where(x=>x.Ready&&!x.Archived).ToList();
-                bool select=readyRows.Any(x=>!x.Marked);
-                foreach(var row in readyRows)row.Marked=select;
+            AddButton(selectionTools,"Select next ready",()=>{
+                var readyRows=lines.Where(x=>x.Ready&&!x.Archived&&!x.UserConfirmed).ToList();
+                int slots=CatalogBatchPolicy.AvailableSelectionSlots(markedCount(),
+                    lines.Any(x=>x.Marked&&x.UserConfirmed));
+                var append=readyRows.Where(x=>!x.Marked).Take(slots).ToList();
+                if(append.Count>0)
+                    foreach(var row in append)row.Marked=true;
+                else
+                    foreach(var row in readyRows)row.Marked=false;
                 refreshRows();
             },out markReady);
+            markReady.ToolTip="Choose a bounded ready batch without marking the entire library. " +
+                "The strict-ready batch limit is 25; user-confirmed selections are limited to five.";
             AddButton(selectionTools,"Clear selection",()=>{
                 foreach(var row in lines)row.Marked=false;
                 refreshRows();
@@ -1568,7 +1580,7 @@ namespace SmartMetadataMatcher
             };
             AddButton(footer,"Inspect game",focus,out inspect);
             Decorate(inspect,"\uE8A7");
-            AddButton(footer,"Apply selected (supervised test)...",()=>{
+            AddButton(footer,"Review & apply selected...",()=>{
                 var selected=lines.Where(x=>x.Marked).ToList();
                 if(selected.Count==0){api.Dialogs.ShowMessage("Select at least one game using the checkboxes. " +
                     "Highlighting a row only opens its details.","Smart Metadata Matcher");return;}
@@ -1592,12 +1604,19 @@ namespace SmartMetadataMatcher
                         "verified Strong match, or refresh cached results for batch eligibility.",
                         "Matches need attention");return;
                 }
-                // Temporary validation cap, not a user-facing batch architecture.
-                // Increase only after recovery/accuracy tests; never silently truncate.
-                if(selected.Count>5){api.Dialogs.ShowMessage("This private test preview currently limits " +
-                    "each supervised import to five marked games. Unmark the others for this test. " +
-                    "The production workflow will not expose separate one/five/25 buttons.",
-                    "Smart Metadata Matcher");return;}
+                // A single Review & Apply action supports 25 independently strict
+                // matches or five user-confirmed/manual matches. No truncation.
+                bool strictBatch=CatalogBatchPolicy.IsStrictBatch(blocked.Count>0,
+                    selected.Any(x=>x.UserConfirmed),manualSingle);
+                int limit=CatalogBatchPolicy.Limit(strictBatch);
+                if(!CatalogBatchPolicy.WithinLimit(selected.Count,strictBatch))
+                {
+                    api.Dialogs.ShowMessage("This selection has "+selected.Count+" games; the " +
+                        (strictBatch?"strictly verified":"supervised")+
+                        " limit is "+limit+" per reviewed batch. Deselect some games and " +
+                        "apply the remaining games in another batch. No items are silently skipped.",
+                        "Review batch size");return;
+                }
                 // One final scrollable approval dialog includes the actual plan and
                 // a required backup acknowledgement. Avoid double confirmation.
                 // Leave the modal review window before the confirmation dialog,
@@ -1605,8 +1624,7 @@ namespace SmartMetadataMatcher
                 var reviewedRows=selected.Select(x=>x.SourceRow).ToList();
                 var excludedCount=lines.Count-reviewedRows.Count;
                 dialog.Close();
-                bool userConfirmed=reviewedRows.Any(x=>x.UserConfirmed);
-                window.Dispatcher.BeginInvoke(new Action(()=>RunBatch(reviewedRows,!manualSingle&&!userConfirmed,excludedCount)));
+                window.Dispatcher.BeginInvoke(new Action(()=>RunBatch(reviewedRows,strictBatch,excludedCount)));
             },out previewApply);
             previewApply.Background=Accent();previewApply.BorderBrush=Accent();
             previewApply.Foreground=Deep();previewApply.FontWeight=FontWeights.SemiBold;
@@ -2616,7 +2634,8 @@ namespace SmartMetadataMatcher
             }),library,useCatalogTitle.IsChecked==true,false);
             var ready=new HashSet<Guid>(plan.Where(x=>x.ReadyForPreflight).Select(x=>x.GameId));
             var safe=results.Where(x=>ready.Contains(x.GameId) && x.AutoPlanEligible && !x.UserConfirmed)
-                .OrderBy(x=>x.CurrentName,StringComparer.OrdinalIgnoreCase).Take(25).ToList();
+                .OrderBy(x=>x.CurrentName,StringComparer.OrdinalIgnoreCase)
+                .Take(CatalogBatchPolicy.StrictLimit).ToList();
             if(safe.Count==0)
             {
                 api.Dialogs.ShowMessage("No strict candidates ready for preflight in this scan. " +
@@ -2652,6 +2671,14 @@ namespace SmartMetadataMatcher
             {
                 var skipped=Caption(excluded+" other candidate(s) are excluded or require review.",12);
                 skipped.Foreground=Caution();heading.Children.Add(skipped);
+            }
+            if(items.Count>5)
+            {
+                var scale=Caption("Larger supervised batch: up to 25 independently strict matches. " +
+                    "Imports are sequential and stop after the first failure. " +
+                    "Completed games retain individual undo records.",12);
+                scale.Foreground=Caution();scale.TextWrapping=TextWrapping.Wrap;
+                heading.Children.Add(scale);
             }
             var footer=new StackPanel {Margin=new Thickness(0,10,0,0)};
             DockPanel.SetDock(footer,Dock.Bottom);body.Children.Add(footer);
@@ -2848,7 +2875,7 @@ namespace SmartMetadataMatcher
         private void RunBatch(List<CatalogViewRow> marked,bool automatic,int excluded)
         {
             if(!JournalAllowsNewWrites()) return;
-            if(busy || marked==null || marked.Count==0 || marked.Count>(automatic?25:5)) return;
+            if(busy || marked==null || !CatalogBatchPolicy.WithinLimit(marked.Count,automatic)) return;
             if(automatic && marked.Any(x=>!x.AutoPlanEligible || x.IsIgnored || x.IsCompleted || x.FromHistory))
             { api.Dialogs.ShowMessage("Auto-plan gate changed. Rescan first.","Smart Metadata Matcher");return; }
             if(String.IsNullOrWhiteSpace(clientId.Text)||String.IsNullOrWhiteSpace(secret.Password))
@@ -2887,7 +2914,7 @@ namespace SmartMetadataMatcher
             cancellation=new CancellationTokenSource();var token=cancellation.Token;
             Task.Run(()=>{
                 int completed=0,failed=0;var errors=new List<string>();
-                bool cancelled=false,recoveryRequired=false;
+                bool cancelled=false,recoveryRequired=false,stoppedOnError=false;
                 CatalogViewRow lastApplied=null;
                 try
                 {
@@ -2971,11 +2998,12 @@ namespace SmartMetadataMatcher
                                 batchProgressText.Text=CatalogBatchProgress.Describe(items.Count,completed,failed,
                                     "Error: "+item.Name,token.IsCancellationRequested,recoveryRequired);
                             }));
+                            // Stop on the first failure, including otherwise recoverable
+                            // IGDB/network failures. This avoids cascading partial imports.
+                            stoppedOnError=CatalogBatchPolicy.StopOnFailure(true);
                             if(recoveryRequired)
-                            {
                                 errors.Add("STOPPED: unresolved journal entry; recover before more writes.");
-                                break;
-                            }
+                            break;
                         }
                         if(token.WaitHandle.WaitOne(350)){cancelled=true;break;}
                     }
@@ -2994,7 +3022,8 @@ namespace SmartMetadataMatcher
                     if(lastApplied!=null)FocusCompleted(lastApplied);
                     var report="Applied "+completed+" of "+items.Count+" reviewed games; "+failed+
                         " failures"+(recoveryRequired?"; RECOVERY REQUIRED before further writes":
-                            cancelled?"; cancelled before remaining items":"")+
+                            cancelled?"; cancelled before remaining items":
+                            stoppedOnError?"; stopped at first failed game":"")+
                         ". Confirmed changes have individual undo records.";
                     if(errors.Count>0)report+="\n"+String.Join("\n",errors.Take(5));
                     summary.Text=report;api.Dialogs.ShowMessage(report,"Smart Metadata Matcher");

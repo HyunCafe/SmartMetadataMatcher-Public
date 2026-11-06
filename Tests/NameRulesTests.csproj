@@ -29,7 +29,9 @@
     <Compile Include="../Source/EnrichmentPlan.cs" Link="EnrichmentPlan.cs" />
     <Compile Include="../Source/EnrichmentJobPlan.cs" Link="EnrichmentJobPlan.cs" />
     <Compile Include="../Source/CatalogBatchProgress.cs" Link="CatalogBatchProgress.cs" />
+    <Compile Include="../Source/CatalogBatchPolicy.cs" Link="CatalogBatchPolicy.cs" />
     <Compile Include="CatalogBatchProgressTests.cs" />
+    <Compile Include="CatalogBatchPolicyTests.cs" />
     <Compile Include="EnrichmentJobPlanTests.cs" />
     <Compile Include="../Source/EnrichmentJournal.cs" Link="EnrichmentJournal.cs" />
     <Compile Include="../Source/CatalogMediaStagingJournal.cs" Link="CatalogMediaStagingJournal.cs" />
