@@ -1,3 +1,15 @@
+# v0.5.1 Private Batch-Unlock Acceptance (CURRENT)
+
+**Status: development candidate; Windows build and live 26+ item acceptance pending.**
+
+- Unlimited (no fixed numeric cap) **unrestricted strict-ready selection** is enabled only for freshly verified strong evidence; cached/review/user-confirmed identities do not obtain strict authorization.
+- The supervised path remains limited to five, and manually inspected non-ready exceptions remain single-item. All writes require a backup acknowledgement and separate final confirmation.
+- Existing sequential writer, live recheck, first-error stop, cross-ledger recovery gate, per-game undo, journal/ROM isolation and cancellation stay unchanged.
+- Pending: Windows compile/offline regression results; live multi-game performance beyond 25; injected crash recovery and independent dependency-binary certification. Earlier individual import and **independent undo** are user-reported passes.
+- Provenance: preserve v0.5.0 local stable tag; do not publish or replace the private-stable package.
+
+---
+
 ## Private RC3 — Precision and export audit (2026-11-06)
 
 - Corrected false edition warning for ordinary titles such as *Hogwarts Legacy*. Explicit `- Legacy` and `Legacy Mode` remain review-sensitive.

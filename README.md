@@ -1,3 +1,12 @@
+## v0.5.1 — private batch-unlock candidate (post-stable, pending Windows/Playnite acceptance)
+
+- The v0.5.0 private-stable source at `c1b08d1` and the local `v0.5.0-private-stable` tag remain the rollback baseline.
+- Remove the fixed 25-game cap for **independently strict-ready, freshly validated** matches. Select all remaining ready entries or manually choose a subset; no silent truncation.
+- Keep the **five-game supervised** limit for user-confirmed/weaker-evidence matches and the one-at-a-time manual exception path. Strict evidence, cached-result refresh, duplicate game ID checks and explicit final approval are unchanged.
+- Keep live exact-ID/platform/title rechecks, sequential per-game writes, stop after first failure, cancel-before-next-game, per-game undo journals, recovery blocking and Playnite/ROM isolation.
+- **Do not mistake removing the testing cap for proving crash recovery or large-batch performance**. No unattended import, cross-run auto-resume, or unbounded retry is added; test a backed-up modest batch before a large one.
+- This is a **private development candidate** until Windows build/offline suites and focused Playnite runtime verification pass. No GitHub publication.
+
 ## Private RC3 — Precision and export audit (2026-11-06)
 
 - Corrected false edition warning for ordinary titles such as *Hogwarts Legacy*. Explicit `- Legacy` and `Legacy Mode` remain review-sensitive.

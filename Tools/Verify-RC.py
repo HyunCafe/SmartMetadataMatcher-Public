@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only, high-confidence v0.5.0 private release-candidate guard.
+"""Read-only, high-confidence v0.5.1 private candidate guard.
 
 Not a source security audit, transitive dependency audit or binary certification.
 Does not access network, Git, Playnite, credentials, or modify files.
@@ -11,7 +11,7 @@ import tempfile
 import shutil
 import xml.etree.ElementTree as ET
 
-EXPECTED_VERSION = "0.5.0"
+EXPECTED_VERSION = "0.5.1"
 EXPECTED_GUID = "11D77564-F56F-5BF3-9CBB-7BB0CB427537"
 EXPECTED_PACKAGES = {"PlayniteSDK": "[6.18.0]", "Microsoft.NETFramework.ReferenceAssemblies.net462": "[1.0.3]"}
 PRIVATE_PATTERNS = (
@@ -42,12 +42,12 @@ def audit(root):
         problems.append("Playnite plugin GUID changed")
     if "Name: Smart Metadata Matcher" not in manifest or "Author: HyunCafe" not in manifest:
         problems.append("Unexpected extension identity")
-    if 'AssemblyVersion("0.5.0.0")' not in plugin or 'AssemblyFileVersion("0.5.0.0")' not in plugin:
+    if 'AssemblyVersion("0.5.1.0")' not in plugin or 'AssemblyFileVersion("0.5.1.0")' not in plugin:
         problems.append("Assembly version is not aligned with RC")
     if 'AssemblyCompany("HyunCafe")' not in plugin:
         problems.append("Unexpected assembly publisher")
-    if 'private RC4' not in (root / "Source/CatalogWindow.cs").read_text(encoding="utf-8-sig"):
-        problems.append("Dashboard private RC4 label missing")
+    if 'private batch unlock' not in (root / "Source/CatalogWindow.cs").read_text(encoding="utf-8-sig"):
+        problems.append("Dashboard batch-unlock label missing")
     def properties(tree):
         return {n.tag: (n.text or "").strip() for n in tree.iter() if n.tag in
                 ("TargetFramework", "GenerateAssemblyInfo", "Deterministic", "Optimize", "DebugType", "DebugSymbols")}
@@ -70,13 +70,13 @@ def audit(root):
     for required in ("Tools/Verify-RC.py", "Tools/Verify-Package.py", "Tools/Test-Package-Integrity.py"):
         if required not in build or not (root / required).is_file():
             problems.append("Missing build-time verification: " + required)
-    if 'private-rc4-' not in build:
-        problems.append("Release package must be labeled private RC4")
+    if 'private-batch-unlock-' not in build:
+        problems.append("Release package must be labeled private batch unlock")
     for pattern in ("*.csv", "*.log", "*.env", "*.pext", "*.pdb", "bin/", "obj/", "__pycache__/", "*.py[cod]"):
         if pattern not in ignore:
             problems.append("Privacy/build exclusion missing: " + pattern)
-    if "25 independently strict-ready" not in notes or "independent undo" not in notes:
-        problems.append("Release readiness document omits required gate")
+    if "unrestricted strict-ready selection" not in notes or "independent undo" not in notes:
+        problems.append("Release readiness document omits batch-unlock gate")
     for p in list((root / 'Source').glob('*.cs')) + [root/'Tools/Build-Preview.ps1']:
         try: content=p.read_text(encoding='utf-8-sig')
         except (OSError, UnicodeError):
@@ -105,9 +105,9 @@ def self_test():
             target=shadow/relative;target.parent.mkdir(parents=True,exist_ok=True)
             shutil.copyfile(root/relative,target)
         assert not audit(shadow), audit(shadow)
-        p=shadow/'extension.yaml';p.write_text(p.read_text().replace('Version: 0.5.0','Version: 0.4.32'))
+        p=shadow/'extension.yaml';p.write_text(p.read_text().replace('Version: 0.5.1','Version: 0.4.32'))
         assert any('version' in x for x in audit(shadow))
-        p.write_text(p.read_text().replace('Version: 0.4.32','Version: 0.5.0'))
+        p.write_text(p.read_text().replace('Version: 0.4.32','Version: 0.5.1'))
         p=shadow/'Source/Plugin.cs';p.write_text(p.read_text()+ '\n// C:\\Users\\privateuser\\secrets.txt\n')
         assert any('private path' in x for x in audit(shadow))
         p.write_text(p.read_text().replace('// C:\\Users\\privateuser\\secrets.txt',''))

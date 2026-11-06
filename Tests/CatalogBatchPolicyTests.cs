@@ -13,7 +13,6 @@ internal static class CatalogBatchPolicyTests
 
     internal static void Run()
     {
-        Assert(CatalogBatchPolicy.StrictLimit==25,"strict limit unchanged");
         Assert(CatalogBatchPolicy.SupervisedLimit==5,"manual limit unchanged");
         Assert(CatalogBatchPolicy.IsStrictBatch(false,false,false),"fully strict reviews can batch");
         Assert(!CatalogBatchPolicy.IsStrictBatch(true,false,false),"blocked match not strict");
@@ -22,15 +21,17 @@ internal static class CatalogBatchPolicyTests
         Assert(CatalogBatchPolicy.WithinLimit(1,true),"single strict");
         Assert(CatalogBatchPolicy.WithinLimit(5,true),"five strict");
         Assert(CatalogBatchPolicy.WithinLimit(25,true),"25 strict");
-        Assert(!CatalogBatchPolicy.WithinLimit(26,true),"26 strict blocked");
+        Assert(CatalogBatchPolicy.WithinLimit(26,true),"26 strict accepted");
+        Assert(CatalogBatchPolicy.WithinLimit(837,true),"full library strict selection accepted");
         Assert(!CatalogBatchPolicy.WithinLimit(0,true),"empty batch blocked");
         Assert(CatalogBatchPolicy.WithinLimit(5,false),"five supervised");
         Assert(!CatalogBatchPolicy.WithinLimit(6,false),"six supervised blocked");
         Assert(!CatalogBatchPolicy.WithinLimit(-1,false),"negative size blocked");
-        Assert(CatalogBatchPolicy.AvailableSelectionSlots(0,false)==25,"first ready selection is capped at 25");
-        Assert(CatalogBatchPolicy.AvailableSelectionSlots(5,false)==20,"existing marks consume slots");
-        Assert(CatalogBatchPolicy.AvailableSelectionSlots(1,true)==4,"confirmed selections keep small cap");
-        Assert(CatalogBatchPolicy.AvailableSelectionSlots(30,false)==0,"overfull selection cannot add");
+        Assert(CatalogBatchPolicy.AvailableSelectionSlots(707,0,false)==707,"all strict-ready matches selectable");
+        Assert(CatalogBatchPolicy.AvailableSelectionSlots(702,5,false)==702,"existing strict marks do not cap additional ready games");
+        Assert(CatalogBatchPolicy.AvailableSelectionSlots(100,1,true)==4,"confirmed selections keep small cap");
+        Assert(CatalogBatchPolicy.AvailableSelectionSlots(100,5,true)==0,"confirmed track cannot exceed five");
+        Assert(CatalogBatchPolicy.AvailableSelectionSlots(0,0,false)==0,"no ready matches");
         Assert(CatalogBatchPolicy.StopOnFailure(true),"any failure stops before next game");
         Assert(!CatalogBatchPolicy.StopOnFailure(false),"no error allows next game");
         var g1=Guid.NewGuid();var g2=Guid.NewGuid();
@@ -53,9 +54,20 @@ internal static class CatalogBatchPolicyTests
         Assert(CatalogBatchPolicy.ValidateSelection(new[]{new CatalogBatchSelection{GameId=g1,IgdbId="3",CatalogTitle="A",AutoReady=true,UserConfirmed=true}},true)!=null,"user-confirmed strict blocked");
         Assert(CatalogBatchPolicy.ValidateSelection(new[]{new CatalogBatchSelection{GameId=g1,IgdbId="3",CatalogTitle="A",UserConfirmed=true}},false)==null,"user-confirmed supervised allowed");
         Assert(CatalogBatchPolicy.ValidateSelection(new[]{new CatalogBatchSelection{GameId=g1,IgdbId="3",CatalogTitle="A"}},false)==null,"reviewed manual one-game match allowed");
-        Assert(CatalogBatchPolicy.ValidateSelection(Enumerable.Range(0,26).Select(i=>
-            new CatalogBatchSelection {GameId=Guid.NewGuid(),IgdbId="3",CatalogTitle="A",AutoReady=true}),true)!=null,
-            "strict size checked before writes");
+        var many=Enumerable.Range(0,837).Select(i=>
+            new CatalogBatchSelection {GameId=Guid.NewGuid(),IgdbId="3",CatalogTitle="A",AutoReady=true}).ToList();
+        Assert(CatalogBatchPolicy.ValidateSelection(many,true)==null,
+            "837 strict-ready games survive reviewed selection validation");
+        many[836].FromSavedScan=true;
+        Assert(CatalogBatchPolicy.ValidateSelection(many,true)!=null,
+            "large strict selection rejects even one stale cached identity");
+        many[836].FromSavedScan=false;
+        many[836].GameId=many[0].GameId;
+        Assert(CatalogBatchPolicy.ValidateSelection(many,true)!=null,
+            "large strict selection rejects duplicates regardless of position");
+        Assert(CatalogBatchPolicy.ValidateSelection(Enumerable.Range(0,6).Select(i=>
+            new CatalogBatchSelection {GameId=Guid.NewGuid(),IgdbId="3",CatalogTitle="A",UserConfirmed=true}),false)!=null,
+            "six manually confirmed games remain blocked");
         Console.WriteLine("PASS: "+checks+" graduated batch-cap and fail-fast policy checks.");
     }
 }

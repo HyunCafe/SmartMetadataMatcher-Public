@@ -4,9 +4,9 @@ using System.Linq;
 
 namespace SmartMetadataMatcher
 {
-    // The same explicit limits govern Review Matches and RunBatch.
-    // Larger batches require independently strict candidate evidence.
-    // Manually confirmed identities remain on a smaller supervised track.
+    // Strict-ready batches have no artificial per-approval size cap. Every item
+    // still requires fresh identity evidence, explicit approval, journaled writes
+    // and failure-stop/recovery checks. Weaker evidence remains supervised.
     internal sealed class CatalogBatchSelection
     {
         internal Guid GameId;
@@ -16,7 +16,6 @@ namespace SmartMetadataMatcher
 
     internal static class CatalogBatchPolicy
     {
-        internal const int StrictLimit = 25;
         internal const int SupervisedLimit = 5;
 
         internal static bool IsStrictBatch(bool anyBlocked, bool anyUserConfirmed, bool manualSingle)
@@ -24,19 +23,20 @@ namespace SmartMetadataMatcher
             return !anyBlocked && !anyUserConfirmed && !manualSingle;
         }
 
-        internal static int Limit(bool strictBatch)
-        {
-            return strictBatch ? StrictLimit : SupervisedLimit;
-        }
-
         internal static bool WithinLimit(int selected, bool strictBatch)
         {
-            return selected > 0 && selected <= Limit(strictBatch);
+            return selected > 0 && (strictBatch || selected <= SupervisedLimit);
         }
 
-        internal static int AvailableSelectionSlots(int alreadyMarked, bool includesConfirmed)
+        // Strict selection can include every remaining independently verified
+        // candidate. A selected user-confirmed identity keeps the five-item cap.
+        internal static int AvailableSelectionSlots(int remainingReady, int alreadyMarked,
+            bool includesConfirmed)
         {
-            return Math.Max(0, Limit(!includesConfirmed)-Math.Max(0,alreadyMarked));
+            if(remainingReady<=0)return 0;
+            if(!includesConfirmed)return remainingReady;
+            return Math.Min(remainingReady,
+                Math.Max(0,SupervisedLimit-Math.Max(0,alreadyMarked)));
         }
 
         // Defensive final gate: checking the selection again in RunBatch avoids
@@ -48,7 +48,8 @@ namespace SmartMetadataMatcher
             if(rows==null)return "Missing reviewed selection";
             var items=rows.ToList();
             if(!WithinLimit(items.Count,strictBatch))
-                return "Reviewed selection exceeds its batch limit or is empty";
+                return strictBatch ? "Reviewed strict selection is empty" :
+                    "Reviewed supervised selection exceeds five games or is empty";
             var seen=new HashSet<Guid>();
             foreach(var row in items)
             {

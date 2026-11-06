@@ -412,7 +412,7 @@ namespace SmartMetadataMatcher
         internal void Show()
         {
             window=api.Dialogs.CreateWindow(new WindowCreationOptions{ShowMinimizeButton=false});
-            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private RC4";
+            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private batch unlock";
             window.Width=1610;window.Height=935;window.MinWidth=1120;window.MinHeight=675;
             var owner=api.Dialogs.GetCurrentAppWindow();
             if(owner!=null && owner!=window)window.Owner=owner;
@@ -1442,10 +1442,10 @@ namespace SmartMetadataMatcher
                 if(markReady!=null){
                     var readyRows=lines.Where(x=>x.Ready&&!x.Archived).ToList();
                     var strictRows=readyRows.Where(x=>!x.UserConfirmed).ToList();
-                    int slots=CatalogBatchPolicy.AvailableSelectionSlots(markedCount(),
+                    int canAdd=CatalogBatchPolicy.AvailableSelectionSlots(
+                        strictRows.Count(x=>!x.Marked),markedCount(),
                         lines.Any(x=>x.Marked&&x.UserConfirmed));
-                    int canAdd=Math.Min(slots,strictRows.Count(x=>!x.Marked));
-                    markReady.Content=canAdd>0?"Select next "+canAdd+" ready":
+                    markReady.Content=canAdd>0?"Select "+canAdd+" ready":
                         strictRows.Any(x=>x.Marked)?"Deselect ready games":"No ready matches";
                     markReady.IsEnabled=canAdd>0 || strictRows.Any(x=>x.Marked);
                 }
@@ -1528,7 +1528,8 @@ namespace SmartMetadataMatcher
             editDraft.ToolTip="Stage a custom Playnite title, description and field choices without writing to the library.";
             AddButton(selectionTools,"Select next ready",()=>{
                 var readyRows=lines.Where(x=>x.Ready&&!x.Archived&&!x.UserConfirmed).ToList();
-                int slots=CatalogBatchPolicy.AvailableSelectionSlots(markedCount(),
+                int slots=CatalogBatchPolicy.AvailableSelectionSlots(
+                    readyRows.Count(x=>!x.Marked),markedCount(),
                     lines.Any(x=>x.Marked&&x.UserConfirmed));
                 var append=readyRows.Where(x=>!x.Marked).Take(slots).ToList();
                 if(append.Count>0)
@@ -1537,8 +1538,9 @@ namespace SmartMetadataMatcher
                     foreach(var row in readyRows)row.Marked=false;
                 refreshRows();
             },out markReady);
-            markReady.ToolTip="Choose a bounded ready batch without marking the entire library. " +
-                "The strict-ready batch limit is 25; user-confirmed selections are limited to five.";
+            markReady.ToolTip="Select all remaining independently strict-ready matches. " +
+                "You may select fewer manually. User-confirmed selections are limited to five. " +
+                "Every import still requires final approval and a verified backup.";
             AddButton(selectionTools,"Clear selection",()=>{
                 foreach(var row in lines)row.Marked=false;
                 refreshRows();
@@ -1656,18 +1658,15 @@ namespace SmartMetadataMatcher
                         "verified Strong match, or refresh cached results for batch eligibility.",
                         "Matches need attention");return;
                 }
-                // A single Review & Apply action supports 25 independently strict
-                // matches or five user-confirmed/manual matches. No truncation.
+                // Strict-ready selections have no numeric cap; supervised ones
+                // retain the five-game safety limit. No silent truncation.
                 bool strictBatch=CatalogBatchPolicy.IsStrictBatch(blocked.Count>0,
                     selected.Any(x=>x.UserConfirmed),manualSingle);
-                int limit=CatalogBatchPolicy.Limit(strictBatch);
                 if(!CatalogBatchPolicy.WithinLimit(selected.Count,strictBatch))
                 {
-                    api.Dialogs.ShowMessage("This selection has "+selected.Count+" games; the " +
-                        (strictBatch?"strictly verified":"supervised")+
-                        " limit is "+limit+" per reviewed batch. Deselect some games and " +
-                        "apply the remaining games in another batch. No items are silently skipped.",
-                        "Review batch size");return;
+                    api.Dialogs.ShowMessage("The supervised limit is five reviewed games per batch. " +
+                        "Deselect some games and apply the remainder separately. " +
+                        "No items are silently skipped.","Review batch size");return;
                 }
                 // One final scrollable approval dialog includes the actual plan and
                 // a required backup acknowledgement. Avoid double confirmation.
@@ -2279,7 +2278,7 @@ namespace SmartMetadataMatcher
             one.Click += (s,e) => ApplySelected(); legacy.Items.Add(one);
             var marked = new MenuItem { Header = "Apply marked games — existing five-game limit" };
             marked.Click += (s,e) => ApplyMarked(); legacy.Items.Add(marked);
-            var automatic = new MenuItem { Header = "Strict auto-plan — existing 25-game limit" };
+            var automatic = new MenuItem { Header = "Strict auto-plan — all ready matches (approval required)" };
             automatic.Click += (s,e) => AutoPlan(); legacy.Items.Add(automatic);
             legacy.ToolTip="Legacy testing only. Not the approved v0.5 bulk-workflow design. Back up Playnite before any writing.";
             menu.Items.Add(legacy);
@@ -2683,7 +2682,7 @@ namespace SmartMetadataMatcher
             var ready=new HashSet<Guid>(plan.Where(x=>x.ReadyForPreflight).Select(x=>x.GameId));
             var safe=results.Where(x=>ready.Contains(x.GameId) && x.AutoPlanEligible && !x.UserConfirmed)
                 .OrderBy(x=>x.CurrentName,StringComparer.OrdinalIgnoreCase)
-                .Take(CatalogBatchPolicy.StrictLimit).ToList();
+                .ToList();
             if(safe.Count==0)
             {
                 api.Dialogs.ShowMessage("No strict candidates ready for preflight in this scan. " +
@@ -2722,9 +2721,10 @@ namespace SmartMetadataMatcher
             }
             if(items.Count>5)
             {
-                var scale=Caption("Larger supervised batch: up to 25 independently strict matches. " +
-                    "Imports are sequential and stop after the first failure. " +
-                    "Completed games retain individual undo records.",12);
+                var scale=Caption("Larger strict-ready batch ("+items.Count+" games): " +
+                    "imports run sequentially, stop after the first failure, and " +
+                    "retain separate undo records for completed games. " +
+                    "Large batches have not been crash-tested end to end.",12);
                 scale.Foreground=Caution();scale.TextWrapping=TextWrapping.Wrap;
                 heading.Children.Add(scale);
             }

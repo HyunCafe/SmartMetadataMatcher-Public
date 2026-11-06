@@ -103,13 +103,14 @@ if len(preview_class) != 2 or "public bool UserConfirmed" not in preview_class[1
 
 # Batch-size and fail-fast policy must be used in both review and writer paths.
 policy=(root / "Source/CatalogBatchPolicy.cs").read_text(encoding="utf-8-sig")
-if "StrictLimit = 25" not in policy or "SupervisedLimit = 5" not in policy:
-    problems.append("Batch limits changed without review")
+if "StrictLimit" in policy or "SupervisedLimit = 5" not in policy or \
+   "strictBatch || selected <= SupervisedLimit" not in policy:
+    problems.append("Unrestricted strict/five supervised batch policy changed without review")
 if "CatalogBatchPolicy.WithinLimit(selected.Count,strictBatch)" not in review_source or \
    "CatalogBatchPolicy.ValidateSelection(marked.Select" not in review_source:
     problems.append("Review and writer batch-size gates must agree")
-if "CatalogBatchPolicy.AvailableSelectionSlots(markedCount()," not in review_source:
-    problems.append("Ready selection must be bounded before marking games")
+if review_source.count("CatalogBatchPolicy.AvailableSelectionSlots(")<2:
+    problems.append("Strict-ready selection and UI display must use shared policy")
 if "stoppedOnError=CatalogBatchPolicy.StopOnFailure(true);" not in review_source:
     problems.append("The import loop must stop after its first failure")
 
