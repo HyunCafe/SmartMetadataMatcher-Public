@@ -1,3 +1,11 @@
+## v0.5.2 — private update-history clarity and safe mixed-selection undo (pending Windows acceptance)
+
+- The dashboard **Update history** now lists every visible committed operation with scrolling and virtualization, removing the hidden 10-row cap. Hidden entries remain accessible in Full History.
+- Full History distinguishes **Undo selected metadata** (changes Playnite records) from **Show in update history** (only changes local history visibility). The latter is disabled until hidden entries are selected.
+- Mixed history selections may contain Applied and Undone rows. Undo ignores already-undone operations and processes only the selected newest consecutive *applied* prefix after reading the live journal. Selected older nonconsecutive applied records are explicitly left unchanged, with counts in confirmation and result messages.
+- All database safety rules remain: latest-first undo, existing manual-edit checks, global journal gate, stop on first undo error, per-game journal history, no ROM/path changes. **No existing journal data is migrated or rewritten.**
+- RC version/package labels updated; automated mixed-selection regression assertions added. No Playnite UI/runtime validation is claimed until Windows build and manual check pass.
+
 ## v0.5.1 — private batch-unlock candidate (post-stable, pending Windows/Playnite acceptance)
 
 - The v0.5.0 private-stable source at `c1b08d1` and the local `v0.5.0-private-stable` tag remain the rollback baseline.

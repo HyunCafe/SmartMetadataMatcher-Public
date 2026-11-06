@@ -167,7 +167,7 @@ namespace SmartMetadataMatcher
         private DataGrid historyGrid;
         private RowDefinition historyRow;
         private GridSplitter historySplitter;
-        private TextBlock emptyHistory;
+        private TextBlock emptyHistory, historyTitle;
         private TextBlock previewTitle, previewDetails, previewSummary;
         private TextBlock previewChangeHeading, previewDiagnostics;
         private StackPanel previewHighlights;
@@ -412,7 +412,7 @@ namespace SmartMetadataMatcher
         internal void Show()
         {
             window=api.Dialogs.CreateWindow(new WindowCreationOptions{ShowMinimizeButton=false});
-            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private batch unlock";
+            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private history usability";
             window.Width=1610;window.Height=935;window.MinWidth=1120;window.MinHeight=675;
             var owner=api.Dialogs.GetCurrentAppWindow();
             if(owner!=null && owner!=window)window.Owner=owner;
@@ -626,27 +626,27 @@ namespace SmartMetadataMatcher
             Grid.SetRow(historyLayout,2);left.Children.Add(historyLayout);
             var historyHeading=new DockPanel{Margin=new Thickness(1,2,0,4)};
             DockPanel.SetDock(historyHeading,Dock.Top);historyLayout.Children.Add(historyHeading);
-            var title=Caption("◷  Recent updates",14);
-            title.FontWeight=FontWeights.SemiBold;
+            historyTitle=Caption("◷  Update history",14);
+            historyTitle.FontWeight=FontWeights.SemiBold;
             Button fullHistory;AddButton(historyHeading,"View full history...",ShowFullHistory,out fullHistory);
             Decorate(fullHistory,"\uE8A7");DockPanel.SetDock(fullHistory,Dock.Right);
             // Primary history actions remain visible; there is no nested menu.
             // The first button reverses committed changes; the second only hides
             // history rows. Their distinct labels prevent accidental data loss.
-            AddButton(historyHeading,"Restore changes",()=>
+            AddButton(historyHeading,"Undo selected",()=>
                 UndoSelectedHistory(historyGrid.SelectedItems.OfType<HistoryRow>().ToList()),out restoreHistoryButton);
-            restoreHistoryButton.ToolTip="Restore earlier Playnite metadata using undo records. Only the newest consecutive operations can be reversed.";
+            restoreHistoryButton.ToolTip="Undo selected applied metadata updates, newest first. Already-undone rows are ignored; older operations remain protected.";
             DockPanel.SetDock(restoreHistoryButton,Dock.Right);
             AddButton(historyHeading,"Remove from recent",()=>
                 HideSelectedHistory(historyGrid.SelectedItems.OfType<HistoryRow>().ToList(),null),out removeRecentButton);
             removeRecentButton.ToolTip="Hide selected history rows without deleting games, metadata, or undo records. Restore in Full history.";
             DockPanel.SetDock(removeRecentButton,Dock.Right);
-            historyHeading.Children.Add(title);
+            historyHeading.Children.Add(historyTitle);
             restoreHistoryButton.IsEnabled=false;
             removeRecentButton.IsEnabled=false;
             historyGrid=NewTable();historyGrid.SelectionMode=DataGridSelectionMode.Extended;
             historyGrid.SelectionUnit=DataGridSelectionUnit.FullRow;
-            historyGrid.ToolTip="Click, Ctrl-click or Shift-click to select operations. Undo only supports the latest consecutive operations.";
+            historyGrid.ToolTip="All visible history entries are listed; scroll for older ones. Select with Ctrl/Shift. Undone rows are skipped when undoing metadata.";
             historyGrid.RowHeight=27;historyGrid.ColumnHeaderHeight=30;
             historyGrid.Columns.Add(new DataGridTextColumn{Header="Date",Binding=new Binding("When"),Width=146});
             historyGrid.Columns.Add(new DataGridTextColumn{Header="Game",Binding=new Binding("Game"),Width=225});
@@ -656,8 +656,8 @@ namespace SmartMetadataMatcher
                 ElementStyle=ResultStyle()});
             historyGrid.SelectionChanged+=(s,e)=>{
                 var selected=historyGrid.SelectedItems.OfType<HistoryRow>().ToList();
-                title.Text=selected.Count==0?"◷  Recent updates":
-                    "◷  Recent updates ("+selected.Count+" selected)";
+                historyTitle.Text="◷  Update history ("+historyGrid.Items.Count+" shown"+
+                    (selected.Count==0?"":", "+selected.Count+" selected")+")";
                 if(restoreHistoryButton!=null)
                     restoreHistoryButton.IsEnabled=!busy && selected.Any(x=>x.Result=="Applied");
                 if(removeRecentButton!=null)
@@ -1737,8 +1737,10 @@ namespace SmartMetadataMatcher
         private void RefreshHistory()
         {
             if(historyGrid==null)return;
-            var rows=HistoryRows(10);
+            // The dashboard shows every visible operation; DataGrid virtualizes rows and scrolls.
+            var rows=HistoryRows(Int32.MaxValue);
             historyGrid.ItemsSource=rows;
+            if(historyTitle!=null)historyTitle.Text="◷  Update history ("+rows.Count+" shown)";
             bool hasHistory=rows.Count>0;
             historyGrid.Visibility=hasHistory?Visibility.Visible:Visibility.Collapsed;
             if(emptyHistory!=null)emptyHistory.Visibility=hasHistory?Visibility.Collapsed:Visibility.Visible;
@@ -1754,7 +1756,7 @@ namespace SmartMetadataMatcher
             detail.Width=950;detail.Height=610;detail.MinWidth=700;detail.MinHeight=400;
             detail.Owner=window;detail.WindowStartupLocation=WindowStartupLocation.CenterOwner;
             var root=new DockPanel {Margin=new Thickness(12)};
-            var lead=Caption("Operations are retained for undo/recovery. Remove from recent only hides them; use Show hidden to restore. Ctrl/Shift selects multiple. Only newest consecutive applied operations can be undone.",13);
+            var lead=Caption("Undo selected metadata restores previous Playnite fields. Show in update history only unhides rows. Already-undone entries are skipped; older applied records are protected by newest-first undo.",13);
             DockPanel.SetDock(lead,Dock.Top);root.Children.Add(lead);
             var foot=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};
             DockPanel.SetDock(foot,Dock.Bottom);root.Children.Add(foot);
@@ -1764,27 +1766,48 @@ namespace SmartMetadataMatcher
                 HeadersVisibility=DataGridHeadersVisibility.Column,EnableRowVirtualization=true,
                 SelectionMode=DataGridSelectionMode.Extended,SelectionUnit=DataGridSelectionUnit.FullRow
             };
-            var showHidden=new CheckBox{Content="Show hidden",Margin=new Thickness(6,8,10,0),VerticalAlignment=VerticalAlignment.Center};
+            var showHidden=new CheckBox{Content="Include hidden entries",Margin=new Thickness(6,8,10,0),VerticalAlignment=VerticalAlignment.Center};
             DockPanel.SetDock(showHidden,Dock.Top);
             root.Children.Add(showHidden);
-            Action refreshFull=()=>{records.ItemsSource=HistoryRows(Int32.MaxValue,showHidden.IsChecked==true);};
+            Action updateActions=null;
+            Action refreshFull=()=>{records.ItemsSource=HistoryRows(Int32.MaxValue,showHidden.IsChecked==true);
+                if(updateActions!=null)updateActions();};
             showHidden.Checked+=(s,e)=>refreshFull();
             showHidden.Unchecked+=(s,e)=>refreshFull();
-            Button restoreInFull;AddButton(foot,"Restore selected",()=>{
+            Button restoreInFull;AddButton(foot,"Show in update history",()=>{
                 RestoreSelectedHistory(records.SelectedItems.OfType<HistoryRow>().ToList(),refreshFull);
             },out restoreInFull);
-            Button hideInFull;AddButton(foot,"Remove from history view...",()=>{
+            restoreInFull.ToolTip="Unhide selected hidden entries. This does not change Playnite metadata.";
+            Button hideInFull;AddButton(foot,"Hide from update history...",()=>{
                 HideSelectedHistory(records.SelectedItems.OfType<HistoryRow>().ToList(),refreshFull);
             },out hideInFull);
             Button renameInFull;AddButton(foot,"Fix Playnite titles...",()=>{
                 RenameSelectedHistoryTitles(records.SelectedItems.OfType<HistoryRow>().ToList());
                 refreshFull();
             },out renameInFull);
-            Button undoInFull;AddButton(foot,"Undo selected (latest first)",()=>{
+            Button undoInFull;AddButton(foot,"Undo selected metadata...",()=>{
                 UndoSelectedHistory(records.SelectedItems.OfType<HistoryRow>().ToList());
                 refreshFull();
             },out undoInFull);
-            records.ToolTip="Ctrl-click and Shift-click select multiple history operations. Undo only the latest consecutive operations.";
+            undoInFull.ToolTip="Undo the newest consecutive applied changes. Already-undone entries are skipped.";
+            var selectionSummary=Caption("Select records to see which actions apply.",12);
+            DockPanel.SetDock(selectionSummary,Dock.Top);root.Children.Add(selectionSummary);
+            updateActions=()=>{
+                var selected=records.SelectedItems.OfType<HistoryRow>().ToList();
+                int applied=selected.Count(x=>x.Result=="Applied");
+                int undone=selected.Count(x=>x.Result=="Undone");
+                int hidden=selected.Count(x=>x.Hidden);
+                restoreInFull.IsEnabled=!busy && hidden>0;
+                hideInFull.IsEnabled=!busy && selected.Any(x=>!x.Hidden);
+                renameInFull.IsEnabled=!busy && applied>0;
+                undoInFull.IsEnabled=!busy && applied>0;
+                selectionSummary.Text=selected.Count==0?
+                    "Select records with Ctrl/Shift. Undo skips already-undone entries.":
+                    "Selected "+selected.Count+" | Applied "+applied+" | Already undone "+undone+
+                    " | Hidden "+hidden+". Undo is newest-first.";
+            };
+            records.SelectionChanged+=(s,e)=>updateActions();
+            records.ToolTip="Ctrl/Shift select multiple operations. Undo skips Undone entries and protects later edits.";
             records.Columns.Add(new DataGridTextColumn {Header="Date",Binding=new Binding("When"),Width=150});
             records.Columns.Add(new DataGridTextColumn {Header="Game",Binding=new Binding("Game"),Width=275});
             records.Columns.Add(new DataGridTextColumn {Header="Fields applied",Binding=new Binding("Fields"),Width=new DataGridLength(1,DataGridLengthUnitType.Star)});
@@ -3265,7 +3288,7 @@ namespace SmartMetadataMatcher
             var ids=(selected??new List<HistoryRow>()).Where(r=>r!=null && r.Hidden)
                 .Select(r=>r.OperationId).Where(id=>id!=Guid.Empty).Distinct().ToList();
             if(ids.Count==0)
-            { api.Dialogs.ShowMessage("Enable Show hidden, then select hidden entries to restore.",
+            { api.Dialogs.ShowMessage("No hidden entries are selected. Use Include hidden entries to find rows hidden from the update history. This action does not undo metadata.",
                 "Smart Metadata Matcher");return; }
             var updated=new HashSet<Guid>(hiddenOperations);
             foreach(var id in ids)updated.Remove(id);
@@ -3365,37 +3388,55 @@ namespace SmartMetadataMatcher
             if(selected==null || selected.Count==0)
             { api.Dialogs.ShowMessage("Select one or more recent operations with Ctrl-click or Shift-click.",
                 "Smart Metadata Matcher");return; }
-            if(selected.Any(x=>x.Result!="Applied"))
-            { api.Dialogs.ShowMessage("Historical undone entries are read-only. Select applied records only.",
-                "Smart Metadata Matcher");return; }
+            // Undone entries are historical, never candidates for another undo.
+            // Work from a fresh journal snapshot; a screenshot's old row state
+            // must not authorize database writes.
             if(!JournalAllowsNewWrites())return;
             var history=enrichmentJournal.Committed();
-            if(!EnrichmentPlan.IsLatestUndoPrefix(history.Select(x=>x.OperationId),selected.Select(x=>x.OperationId)))
+            var activeIds=new HashSet<Guid>(history.Select(x=>x.OperationId));
+            var requested=selected.Where(x=>x.Result=="Applied" && x.OperationId!=Guid.Empty)
+                .Select(x=>x.OperationId).Distinct().ToList();
+            int alreadyUndone=selected.Count(x=>x.Result=="Undone")+
+                requested.Count(id=>!activeIds.Contains(id));
+            var chosen=requested.Where(activeIds.Contains).ToList();
+            var safe=EnrichmentPlan.LatestSelectedUndoPrefix(history.Select(x=>x.OperationId),chosen);
+            if(safe.Count==0)
             {
-                api.Dialogs.ShowMessage("Only the latest consecutive committed operations can be undone together. " +
-                    "Select the newest row(s) without skipping one; older arbitrary selections are not currently safe for stack undo.",
-                    "Smart Metadata Matcher");return;
+                api.Dialogs.ShowMessage(chosen.Count==0?
+                    "Every selected operation is already undone; no Playnite metadata needs restoring.":
+                    "The newest applied operation was not selected. Select it first; arbitrary older operations cannot be safely undone.",
+                    "Nothing safe to undo");return;
             }
-            if(api.Dialogs.ShowMessage("Undo the latest "+selected.Count+" metadata operation(s), newest first? " +
-                "Newer manual changes are protected, and the process stops on any conflict.",
-                "Confirm selected undo",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)return;
+            // Keep the existing stack constraint even if the selection includes
+            // old Undone entries or older non-consecutive Applied operations.
+            if(!EnrichmentPlan.IsLatestUndoPrefix(history.Select(x=>x.OperationId),safe))
+            { api.Dialogs.ShowErrorMessage("Undo order no longer matches the journal. No changes made.",
+                "Unsafe undo order");return; }
+            int outsidePrefix=chosen.Count-safe.Count;
+            string skipped=(alreadyUndone>0?"\nAlready undone: "+alreadyUndone+" (skipped).":"")+
+                (outsidePrefix>0?"\nOlder non-consecutive applied: "+outsidePrefix+
+                    " (left unchanged for safety).":"");
+            if(api.Dialogs.ShowMessage("Undo "+safe.Count+" latest applied metadata operation(s), newest first?"+
+                skipped+"\n\nNewer manual edits are protected; any conflict stops further undo.",
+                "Confirm metadata undo",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)return;
             int done=0;
             try
             {
-                foreach(var e in history.Take(selected.Count))
+                foreach(var e in history.Take(safe.Count))
                 {
                     CatalogEnrichmentWriter.UndoLast(api,enrichmentJournal);
                     UpdateRowAfterUndo(e.GameId);
                     done++;
                 }
                 RefreshHistory();RefreshVisibility();UpdatePreview();
-                api.Dialogs.ShowMessage("Undid "+done+" operation(s).","Smart Metadata Matcher");
+                api.Dialogs.ShowMessage("Undid "+done+" metadata operation(s)."+skipped,
+                    "Smart Metadata Matcher");
             }
             catch(Exception ex)
             {
                 RefreshHistory();
                 api.Dialogs.ShowErrorMessage("Stopped after "+done+" undo(s): "+ex.Message+
-                    "\nRemaining operations were not changed.","Selected undo stopped");
+                    "\nRemaining operations were not changed."+skipped,"Selected undo stopped");
             }
         }
         private void UndoLastMetadata()

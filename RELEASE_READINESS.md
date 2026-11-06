@@ -1,3 +1,12 @@
+# v0.5.2 Private History-UX Acceptance (CURRENT)
+
+**Source:** v0.5.1 `b6c35dd1e5d9a9980032312e2f0a8b4a4fb3dce1`, local-only, clean required.
+**Scope:** 10-row compact history limit removed; clear Undo metadata versus Unhide history labels; safe mixed-selection undo with already-undone rows ignored.
+**Invariant:** unrestricted strict-ready selection and independent undo remain protected. No writer, IGDB matching, ROM, journal schema, or remote changes.
+**Automated gate:** full Windows WPF build first, C# regressions, source/privacy checks, exact-package validation, commit only after success.
+**Manual gate:** review all visible entries using scrolling; select Applied+Undone mixed entries, confirm skipped counts and undo only newest active records. Verify Recovery Status read-only, no unresolved/inconsistent stage.
+**Unknown:** independently injected crash recovery, broad user-study confirmation, transitive binary security review. 30-game batch was reported successful, not proof of arbitrary 100+ batch fault recovery.
+
 # v0.5.1 Private Batch-Unlock Acceptance (CURRENT)
 
 **Status: development candidate; Windows build and live 26+ item acceptance pending.**

@@ -29,6 +29,22 @@ namespace SmartMetadataMatcher
             return history.Take(selected.Count).OrderBy(id=>id)
                 .SequenceEqual(selected.OrderBy(id=>id));
         }
+        // Calculate only the maximal newest-first prefix of selected *active*
+        // operations. Historical Undone entries are absent from newestFirstActive.
+        // This never grants permission to undo arbitrary older records.
+        internal static List<Guid> LatestSelectedUndoPrefix(IEnumerable<Guid> newestFirstActive,
+            IEnumerable<Guid> selectedApplied)
+        {
+            var wanted=new HashSet<Guid>((selectedApplied??Enumerable.Empty<Guid>())
+                .Where(id=>id!=Guid.Empty));
+            var prefix=new List<Guid>();
+            foreach(var id in newestFirstActive??Enumerable.Empty<Guid>())
+            {
+                if(id==Guid.Empty || !wanted.Contains(id))break;
+                prefix.Add(id);
+            }
+            return prefix;
+        }
         internal static bool BatchEligible(string status,bool completed,string catalogId)
         {
             long id;

@@ -103,6 +103,25 @@ internal static class EnrichmentPlanTests
             "skipping an intermediate operation blocked");
         Check(!EnrichmentPlan.IsLatestUndoPrefix(undoHistory,new[]{op3,op3}),
             "duplicate operation selection blocked");
+        var historicalUndone=Guid.NewGuid();
+        Check(EnrichmentPlan.LatestSelectedUndoPrefix(undoHistory,
+            new[]{op2,op3,historicalUndone}).SequenceEqual(new[]{op3,op2}),
+            "mixed selected history ignores already-undone operations");
+        Check(EnrichmentPlan.LatestSelectedUndoPrefix(undoHistory,
+            new[]{op3,op1}).SequenceEqual(new[]{op3}),
+            "only safe newest consecutive prefix can be undone");
+        Check(EnrichmentPlan.LatestSelectedUndoPrefix(undoHistory,
+            new[]{op1,historicalUndone}).Count==0,
+            "older selected operation cannot bypass newest-first constraint");
+        Check(EnrichmentPlan.LatestSelectedUndoPrefix(undoHistory,
+            new[]{historicalUndone}).Count==0,
+            "already-undone-only selection is harmless");
+        Check(EnrichmentPlan.LatestSelectedUndoPrefix(undoHistory,
+            new[]{op3,op3,op2}).SequenceEqual(new[]{op3,op2}),
+            "repeated selected identity cannot cause duplicate undo");
+        Check(EnrichmentPlan.LatestSelectedUndoPrefix(undoHistory,
+            new Guid[]{Guid.Empty,op3}).SequenceEqual(new[]{op3}),
+            "invalid selected operation ID ignored");
         var dir=Path.Combine(Path.GetTempPath(),"SMM-enrichment-test-"+Guid.NewGuid().ToString("N"));
         try
         {
