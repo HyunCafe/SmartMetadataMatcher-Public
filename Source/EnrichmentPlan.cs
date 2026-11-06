@@ -63,6 +63,40 @@ namespace SmartMetadataMatcher
             if(catalogKey==cleanKey || catalogKey==cleanKey+"version") return cleaned;
             return catalog.Trim();
         }
+        // Pure, user-reviewable Playnite display-name proposal. When the canonical
+        // title already exists on the SAME platform, append a short platform tag.
+        // No ROM paths, game IDs, launches or files are touched here.
+        internal static string PlatformDisplaySuffix(string platform)
+        {
+            switch(CatalogCore.PlatformKey(platform))
+            {
+                case "gba": return "GBA";
+                case "gbc": return "GBC";
+                case "gb": return "GB";
+                case "nds": return "NDS";
+                case "3ds": return "3DS";
+                case "psp": return "PSP";
+                case "ps1": return "PS1";
+                case "ps2": return "PS2";
+                case "pc": return "PC";
+                case "switch": return "Switch";
+                default: return "";
+            }
+        }
+        internal static string SuggestedUniqueDisplayTitle(string original,string catalog,Guid gameId,
+            string platform,IEnumerable<Tuple<Guid,string,string>> library)
+        {
+            var clean=SuggestedDisplayTitle(original,catalog);
+            if(!IsSafeTitle(clean))return "";
+            var all=(library??Enumerable.Empty<Tuple<Guid,string,string>>()).ToList();
+            if(!HasCollision(clean,gameId,platform,all))return clean;
+            var suffix=PlatformDisplaySuffix(platform);
+            if(suffix.Length==0)return ""; // Unknown platform: require explicit manual decision.
+            var tagged=clean+" ("+suffix+")";
+            if(!IsSafeTitle(tagged) || HasCollision(tagged,gameId,platform,all))
+                return ""; // Still ambiguous; never invent #2/#3 labels.
+            return tagged;
+        }
         internal static bool IsSafeTitle(string value)
         {
             return !String.IsNullOrWhiteSpace(value) && value.Trim().Length>=3 && value.Trim().Length<=160 &&

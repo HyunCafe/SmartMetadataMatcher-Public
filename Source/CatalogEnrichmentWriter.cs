@@ -224,9 +224,13 @@ namespace SmartMetadataMatcher
             if(game==null || !EnrichmentPlan.IsExpected(game.Name,expectedName))
                 throw new InvalidOperationException("Playnite title changed since review; reopen history.");
             var wanted=(approvedTitle??"").Trim();
+            var simple=EnrichmentPlan.SuggestedDisplayTitle(game.Name,verifiedTitle);
+            var suffix=EnrichmentPlan.PlatformDisplaySuffix(Platforms(game));
+            var tagged=suffix.Length==0?"":simple+" ("+suffix+")";
             if(!EnrichmentPlan.IsSafeTitle(wanted) ||
                !(String.Equals(wanted,verifiedTitle.Trim(),StringComparison.Ordinal) ||
-                 String.Equals(wanted,EnrichmentPlan.SuggestedDisplayTitle(game.Name,verifiedTitle),StringComparison.Ordinal)))
+                 String.Equals(wanted,simple,StringComparison.Ordinal) ||
+                 (suffix.Length>0 && String.Equals(wanted,tagged,StringComparison.Ordinal))))
                 throw new InvalidOperationException("Display title does not match the approved catalog identity or safe cleanup.");
             if(String.Equals(game.Name,wanted,StringComparison.Ordinal))
                 throw new InvalidOperationException("Playnite already has this display title.");

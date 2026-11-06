@@ -198,3 +198,9 @@
 - Distinguish review and unmatched states visually; rename history action to clarify Playnite-only title edits.
 - Automatically guard build against mismatched YAML/source/DLL versions.
 - No IGDB matching, ROM, Playnite metadata writer, or launch configuration changes.
+
+## 0.4.16 — Title cleanup and reversible recent-history removal (private preview)
+- User-approved Playnite-only title correction adds a platform suffix (e.g. `Super Mario Advance (GBA)`) when the clean catalog title already exists on the same platform. No ROM-file, emulator or install-path renaming.
+- Mixed Applied/Undone selection no longer silently blocks all rename operations; only eligible distinct applied games are considered and skips are disclosed before approval.
+- Recent Updates adds reversible **Remove from recent**; Full History offers **Show hidden** and **Restore selected**. Undo/write-ahead journal records are never deleted.
+- Tests cover collision suffixes, unsafe second collisions, persistence and malformed visibility state.

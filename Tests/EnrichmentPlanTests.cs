@@ -42,6 +42,40 @@ internal static class EnrichmentPlanTests
             "Pokemon Leaf Green", "number prefix cleaned without unwanted Version suffix");
         Check(EnrichmentPlan.SuggestedDisplayTitle("05 Super Mario Adv", "Super Mario Advance") ==
             "Super Mario Advance", "approved catalog title expands abbreviation");
+        var gbaId=Guid.NewGuid();
+        var gbaGames=new List<Tuple<Guid,string,string>>{
+            Tuple.Create(gbaId,"05 Super Mario Adv","Nintendo Game Boy Advance"),
+            Tuple.Create(Guid.NewGuid(),"Super Mario Advance","Nintendo Game Boy Advance"),
+            Tuple.Create(Guid.NewGuid(),"Super Mario Advance","Nintendo DS")};
+        Check(EnrichmentPlan.SuggestedUniqueDisplayTitle("05 Super Mario Adv","Super Mario Advance",
+            gbaId,"Nintendo Game Boy Advance",gbaGames)=="Super Mario Advance (GBA)",
+            "same-platform duplicate gets canonical catalog title plus GBA suffix");
+        Check(EnrichmentPlan.SuggestedUniqueDisplayTitle("05 Super Mario Adv","Super Mario Advance",
+            gbaId,"Nintendo DS",gbaGames)=="Super Mario Advance (NDS)",
+            "platform tag based on requested platform");
+        gbaGames.Add(Tuple.Create(Guid.NewGuid(),"Super Mario Advance (GBA)","Nintendo Game Boy Advance"));
+        Check(EnrichmentPlan.SuggestedUniqueDisplayTitle("05 Super Mario Adv","Super Mario Advance",
+            gbaId,"Nintendo Game Boy Advance",gbaGames)=="",
+            "second collision does not manufacture ambiguous names");
+        Check(EnrichmentPlan.SuggestedUniqueDisplayTitle("02 Pokemon Leaf Green","Pokémon LeafGreen Version",
+            gbaId,"Nintendo Game Boy Advance",new Tuple<Guid,string,string>[0])=="Pokemon Leaf Green",
+            "cleaned Pokemon name is retained without collision");
+        var visibilityDir=Path.Combine(Path.GetTempPath(),"SMM-history-visibility-"+Guid.NewGuid().ToString("N"));
+        try{
+            var visibility=new HistoryVisibilityStore(visibilityDir);
+            Check(visibility.Load().Count==0,"empty history visibility preferences");
+            var hideId=Guid.NewGuid();
+            visibility.Save(new[]{hideId,hideId});
+            Check(visibility.Load().SetEquals(new[]{hideId}),"hidden IDs persist and deduplicate");
+            visibility.Save(new Guid[0]);
+            Check(visibility.Load().Count==0,"hidden IDs restore without touching journal");
+            var file=Path.Combine(visibilityDir,"history-hidden-operations.txt");
+            File.WriteAllText(file,"CORRUPT\n");
+            bool rejected=false;
+            try{visibility.Load();}catch(InvalidDataException){rejected=true;}
+            Check(rejected,"malformed visibility file rejected without changing journal");
+        }
+        finally{if(Directory.Exists(visibilityDir))Directory.Delete(visibilityDir,true);}
         Check(EnrichmentPlan.SuggestedDisplayTitle("007 Nightfire", "007 Nightfire") ==
             "007 Nightfire", "three digit identifiers preserved");
         Check(EnrichmentPlan.IsLatestUndoPrefix(undoHistory,new[]{op3}),

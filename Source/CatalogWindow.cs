@@ -81,6 +81,8 @@ namespace SmartMetadataMatcher
         public string Fields { get; set; }
         public string When { get; set; }
         public string Result { get; set; }
+        public bool Hidden { get; set; }
+        public string VisibilityLabel { get { return Hidden?"Hidden":"Shown"; } }
     }
 
     // Early read-only integration checkpoint. Bulk application is intentionally NOT enabled
@@ -96,6 +98,8 @@ namespace SmartMetadataMatcher
         private readonly MetadataJournal metadataJournal;
         private readonly EnrichmentJournal enrichmentJournal;
         private readonly CatalogIgnored ignoredStore;
+        private readonly HistoryVisibilityStore historyVisibility;
+        private HashSet<Guid> hiddenOperations = new HashSet<Guid>();
         private HashSet<Guid> ignoredIds = new HashSet<Guid>();
         private readonly List<Button> tabButtons = new List<Button>();
         private TextBox catalogSearch;
@@ -143,6 +147,10 @@ namespace SmartMetadataMatcher
             metadataJournal = new MetadataJournal(pluginDataPath);
             enrichmentJournal = new EnrichmentJournal(pluginDataPath);
             ignoredStore = new CatalogIgnored(pluginDataPath);
+            historyVisibility = new HistoryVisibilityStore(pluginDataPath);
+            // Fail closed for malformed privacy/preferences state. Never silently
+            // reset the user's hidden-record choices or mutate the undo journal.
+            hiddenOperations = historyVisibility.Load();
         }
         private static SolidColorBrush UiColor(byte r,byte g,byte b)
         {
@@ -527,6 +535,9 @@ namespace SmartMetadataMatcher
             title.FontWeight=FontWeights.SemiBold;
             Button fullHistory;AddButton(historyHeading,"View full history...",ShowFullHistory,out fullHistory);
             Decorate(fullHistory,"\uE8A7");DockPanel.SetDock(fullHistory,Dock.Right);
+            Button hideHistory;AddButton(historyHeading,"Remove from recent...",()=>HideSelectedHistory(
+                historyGrid.SelectedItems.OfType<HistoryRow>().ToList(),null),out hideHistory);
+            DockPanel.SetDock(hideHistory,Dock.Right);
             Button renameHistory;AddButton(historyHeading,"Fix Playnite titles...",()=>RenameSelectedHistoryTitles(
                 historyGrid.SelectedItems.OfType<HistoryRow>().ToList()),out renameHistory);
             DockPanel.SetDock(renameHistory,Dock.Right);
@@ -966,10 +977,11 @@ namespace SmartMetadataMatcher
             for(int i=0;i<tabButtons.Count;i++)
                 SetTabContent(tabButtons[i],labels[i],i,i==resultView.SelectedIndex);
         }
-        private List<HistoryRow> HistoryRows(int take)
+        private List<HistoryRow> HistoryRows(int take,bool includeHidden=false)
         {
             var view=new List<HistoryRow>();
-            foreach(var e in enrichmentJournal.AllEntries().Where(x=>x.Committed).Take(take))
+            foreach(var e in enrichmentJournal.AllEntries().Where(x=>x.Committed &&
+                (includeHidden || !hiddenOperations.Contains(x.OperationId))).Take(take))
             {
                 var fields=new List<string>();
                 if(e.ChangedName)fields.Add("Name");
@@ -987,7 +999,7 @@ namespace SmartMetadataMatcher
                     Fields=String.Join(", ",fields),
                     When=e.CommittedUtc==default(DateTime)?"Unknown (legacy)":
                         e.CommittedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
-                    Result=e.Undone?"Undone":"Applied" });
+                    Result=e.Undone?"Undone":"Applied",Hidden=hiddenOperations.Contains(e.OperationId) });
             }
             return view;
         }
@@ -1011,7 +1023,7 @@ namespace SmartMetadataMatcher
             detail.Width=950;detail.Height=610;detail.MinWidth=700;detail.MinHeight=400;
             detail.Owner=window;detail.WindowStartupLocation=WindowStartupLocation.CenterOwner;
             var root=new DockPanel {Margin=new Thickness(12)};
-            var lead=Caption("All committed operations, newest first, including undone records. Legacy dates are unknown. Ctrl/Shift selects multiple; only the newest consecutive applied operations can be undone.",13);
+            var lead=Caption("Operations are retained for undo/recovery. Remove from recent only hides them; use Show hidden to restore. Ctrl/Shift selects multiple. Only newest consecutive applied operations can be undone.",13);
             DockPanel.SetDock(lead,Dock.Top);root.Children.Add(lead);
             var foot=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};
             DockPanel.SetDock(foot,Dock.Bottom);root.Children.Add(foot);
@@ -1021,13 +1033,25 @@ namespace SmartMetadataMatcher
                 HeadersVisibility=DataGridHeadersVisibility.Column,EnableRowVirtualization=true,
                 SelectionMode=DataGridSelectionMode.Extended,SelectionUnit=DataGridSelectionUnit.FullRow
             };
+            var showHidden=new CheckBox{Content="Show hidden",Margin=new Thickness(6,8,10,0),VerticalAlignment=VerticalAlignment.Center};
+            DockPanel.SetDock(showHidden,Dock.Top);
+            root.Children.Add(showHidden);
+            Action refreshFull=()=>{records.ItemsSource=HistoryRows(Int32.MaxValue,showHidden.IsChecked==true);};
+            showHidden.Checked+=(s,e)=>refreshFull();
+            showHidden.Unchecked+=(s,e)=>refreshFull();
+            Button restoreInFull;AddButton(foot,"Restore selected",()=>{
+                RestoreSelectedHistory(records.SelectedItems.OfType<HistoryRow>().ToList(),refreshFull);
+            },out restoreInFull);
+            Button hideInFull;AddButton(foot,"Remove from history view...",()=>{
+                HideSelectedHistory(records.SelectedItems.OfType<HistoryRow>().ToList(),refreshFull);
+            },out hideInFull);
             Button renameInFull;AddButton(foot,"Fix Playnite titles...",()=>{
                 RenameSelectedHistoryTitles(records.SelectedItems.OfType<HistoryRow>().ToList());
-                records.ItemsSource=HistoryRows(Int32.MaxValue);
+                refreshFull();
             },out renameInFull);
             Button undoInFull;AddButton(foot,"Undo selected (latest first)",()=>{
                 UndoSelectedHistory(records.SelectedItems.OfType<HistoryRow>().ToList());
-                records.ItemsSource=HistoryRows(Int32.MaxValue);
+                refreshFull();
             },out undoInFull);
             records.ToolTip="Ctrl-click and Shift-click select multiple history operations. Undo only the latest consecutive operations.";
             records.Columns.Add(new DataGridTextColumn {Header="Date",Binding=new Binding("When"),Width=150});
@@ -1035,7 +1059,8 @@ namespace SmartMetadataMatcher
             records.Columns.Add(new DataGridTextColumn {Header="Fields applied",Binding=new Binding("Fields"),Width=new DataGridLength(1,DataGridLengthUnitType.Star)});
             records.Columns.Add(new DataGridTextColumn {Header="State",Binding=new Binding("Result"),Width=100,
                 ElementStyle=ResultStyle()});
-            records.ItemsSource=HistoryRows(Int32.MaxValue);
+            records.Columns.Add(new DataGridTextColumn {Header="Visibility",Binding=new Binding("VisibilityLabel"),Width=90});
+            refreshFull();
             root.Children.Add(records);detail.Content=root;detail.ShowDialog();
         }
         private void RefreshVisibility()
@@ -1969,53 +1994,101 @@ namespace SmartMetadataMatcher
             autoBatchButton.IsEnabled=true;undoButton.IsEnabled=true;
             scanSize.IsEnabled=true; cancelButton.IsEnabled=false;cancelButton.Visibility=Visibility.Collapsed;
         }
+        // Hide is deliberately reversible and does NOT touch the enrichment journal.
+        // Open operations still block unsafe undo even if hidden from the table.
+        private void HideSelectedHistory(List<HistoryRow> selected,Action refreshDetail)
+        {
+            if(busy)return;
+            var ids=(selected??new List<HistoryRow>()).Where(r=>r!=null && !r.Hidden)
+                .Select(r=>r.OperationId).Where(id=>id!=Guid.Empty).Distinct().ToList();
+            if(ids.Count==0)
+            { api.Dialogs.ShowMessage("Select one or more visible history rows to remove from the list.",
+                "Smart Metadata Matcher");return; }
+            if(api.Dialogs.ShowMessage("Hide "+ids.Count+" operation(s) from Recent Updates and the default History view?\n\n"+
+                "This does NOT delete metadata, games, ROM files or undo records. You can restore hidden entries in Full history. Hidden applied operations still count toward the undo stack.",
+                "Remove from history view",MessageBoxButton.YesNo,MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
+            var updated=new HashSet<Guid>(hiddenOperations);
+            foreach(var id in ids)updated.Add(id);
+            try{historyVisibility.Save(updated);hiddenOperations=updated;RefreshHistory();if(refreshDetail!=null)refreshDetail();}
+            catch(Exception ex){api.Dialogs.ShowErrorMessage(ex.Message,"History visibility update failed");}
+        }
+        private void RestoreSelectedHistory(List<HistoryRow> selected,Action refreshDetail)
+        {
+            if(busy)return;
+            var ids=(selected??new List<HistoryRow>()).Where(r=>r!=null && r.Hidden)
+                .Select(r=>r.OperationId).Where(id=>id!=Guid.Empty).Distinct().ToList();
+            if(ids.Count==0)
+            { api.Dialogs.ShowMessage("Enable Show hidden, then select hidden entries to restore.",
+                "Smart Metadata Matcher");return; }
+            var updated=new HashSet<Guid>(hiddenOperations);
+            foreach(var id in ids)updated.Remove(id);
+            try{historyVisibility.Save(updated);hiddenOperations=updated;RefreshHistory();if(refreshDetail!=null)refreshDetail();}
+            catch(Exception ex){api.Dialogs.ShowErrorMessage(ex.Message,"History visibility restore failed");}
+        }
         private void RenameSelectedHistoryTitles(List<HistoryRow> selected)
         {
             if(busy)return;
             if(selected==null || selected.Count==0)
-            { api.Dialogs.ShowMessage("Select one or more Recent Updates rows. Use Ctrl-click or Shift-click for multiple.",
+            { api.Dialogs.ShowMessage("Select one or more Applied entries in Recent Updates or Full History.",
                 "Smart Metadata Matcher");return; }
-            if(selected.Any(x=>x.Result!="Applied"))
-            { api.Dialogs.ShowMessage("Undone history entries cannot be renamed again. Select applied records only.",
+            // A mixed history selection should not silently make the whole action inert.
+            // Ignore Undone records, and collapse repeated operations for one game.
+            var applied=selected.Where(x=>x.Result=="Applied").GroupBy(x=>x.GameId)
+                .Select(g=>g.First()).ToList();
+            var skipped=selected.Count-applied.Count;
+            if(applied.Count==0)
+            { api.Dialogs.ShowMessage("No Applied operations selected. Undone records are historical and cannot be renamed.",
                 "Smart Metadata Matcher");return; }
-            if(selected.Count>20)
-            { api.Dialogs.ShowMessage("Select at most 20 titles for a supervised rename.",
+            if(applied.Count>20)
+            { api.Dialogs.ShowMessage("Select at most 20 distinct games for a supervised rename.",
                 "Smart Metadata Matcher");return; }
             if(!JournalAllowsNewWrites())return;
             var committed=enrichmentJournal.Committed();
             var targets=new List<Tuple<Guid,string,long,string,string,bool>>();
-            var seen=new HashSet<Guid>();
-            foreach(var row in selected)
+            var library=api.Database.Games.Where(g=>g!=null).Select(g=>Tuple.Create(g.Id,g.Name,
+                g.Platforms==null?"":String.Join(", ",g.Platforms.Select(p=>p.Name)))).ToList();
+            foreach(var row in applied)
             {
-                var previous=committed.FirstOrDefault(x=>x.OperationId==row.OperationId);
+                // Choose the newest open identity for the game, not an older
+                // selected journal event which might have a stale AfterName.
+                var previous=committed.FirstOrDefault(x=>x.GameId==row.GameId &&
+                    EnrichmentPlan.IsSafeTitle(x.CatalogTitle));
                 var game=api.Database.Games[row.GameId];
-                if(previous==null || game==null || !seen.Add(row.GameId) ||
-                   !EnrichmentPlan.IsExpected(game.Name,previous.AfterName) ||
-                   !EnrichmentPlan.IsSafeTitle(previous.CatalogTitle))
+                if(previous==null || game==null ||
+                   !EnrichmentPlan.IsExpected(game.Name,previous.AfterName))
                 {
-                    api.Dialogs.ShowMessage("Selection includes a stale, missing or repeated game. Refresh history and select again; no changes made.",
+                    api.Dialogs.ShowMessage("At least one selected game changed since its latest recorded import. " +
+                        "Refresh the library/history before renaming; no changes made.",
                         "Smart Metadata Matcher");return;
                 }
-                var wanted=EnrichmentPlan.SuggestedDisplayTitle(game.Name,previous.CatalogTitle);
-                if(String.Equals(game.Name,wanted,StringComparison.Ordinal))continue;
                 var platform=game.Platforms==null?"":String.Join(", ",game.Platforms.Select(p=>p.Name));
-                var library=api.Database.Games.Where(g=>g!=null).Select(g=>Tuple.Create(g.Id,g.Name,
-                    g.Platforms==null?"":String.Join(", ",g.Platforms.Select(p=>p.Name))));
-                bool collision=EnrichmentPlan.HasCollision(wanted,game.Id,platform,library);
+                var wanted=EnrichmentPlan.SuggestedUniqueDisplayTitle(game.Name,previous.CatalogTitle,
+                    game.Id,platform,library);
+                if(String.IsNullOrWhiteSpace(wanted))
+                {
+                    api.Dialogs.ShowMessage("Cannot assign a unique, verified title for "+game.Name+
+                        " on platform "+platform+". Resolve that collision manually in Playnite; no changes made.",
+                        "Smart Metadata Matcher");return;
+                }
+                if(String.Equals(game.Name,wanted,StringComparison.Ordinal))
+                { skipped++;continue; }
+                var collision=EnrichmentPlan.HasCollision(wanted,game.Id,platform,library);
                 targets.Add(Tuple.Create(row.GameId,game.Name,previous.IgdbId,previous.CatalogTitle,wanted,collision));
+                for(var i=0;i<library.Count;i++)if(library[i].Item1==game.Id)
+                    {library[i]=Tuple.Create(game.Id,wanted,platform);break;}
             }
             if(targets.Count==0)
-            { api.Dialogs.ShowMessage("The selected games already have their catalog display titles.",
+            { api.Dialogs.ShowMessage("All eligible selected games already have their approved display titles.",
                 "Smart Metadata Matcher");return; }
-            var lines=targets.Select(x=>x.Item2+" → "+x.Item5+
-                (x.Item6?"  [DUPLICATE TITLE ON THIS PLATFORM]":""));
-            var question="Rename "+targets.Count+" PLAYNITE display title(s)?\n\n"+
+            var lines=targets.Select(x=>x.Item2+" → "+x.Item5);
+            var question="Update "+targets.Count+" PLAYNITE display title(s)?\n\n"+
                 String.Join("\n",lines)+"\n\n"+
-                "This changes only Playnite game names (and non-custom sorting names). " +
-                "ROM filenames, installation paths, emulator commands and launch settings are untouched.\n\n"+
-                "Duplicate titles are explicitly permitted for THIS approved operation; distinct games will not be merged. " +
-                "Each rename is journaled and undoable in reverse order.\n\nProceed?";
-            if(api.Dialogs.ShowMessage(question,"Confirm Playnite title-only update",
+                (skipped>0?skipped+" selected history row(s) skipped (Undone, repeated or already correct).\n\n":"")+
+                "A same-platform duplicate receives a platform suffix such as (GBA). " +
+                "This only changes Playnite display names and non-custom sorting names. " +
+                "ROM files, paths, emulator settings and launch actions are untouched.\n\n"+
+                "Each change is journaled and undoable. Proceed?";
+            if(api.Dialogs.ShowMessage(question,"Confirm Playnite display-name cleanup",
                 MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)return;
             int count=0;
             try
@@ -2028,8 +2101,9 @@ namespace SmartMetadataMatcher
                     foreach(var r in results.Where(r=>r.GameId==x.Item1))r.CurrentName=live.Name;
                 }
                 grid.Items.Refresh();RefreshHistory();RefreshVisibility();UpdatePreview();
-                api.Dialogs.ShowMessage("Updated "+count+" Playnite display title(s). No ROM files renamed.",
-                    "Smart Metadata Matcher");
+                api.Dialogs.ShowMessage("Updated "+count+" Playnite display title(s). " +
+                    (skipped>0?skipped+" ineligible/repeated selection(s) skipped. ":"")+
+                    "No ROM files renamed.","Smart Metadata Matcher");
             }
             catch(Exception ex)
             {

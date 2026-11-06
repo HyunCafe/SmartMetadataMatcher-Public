@@ -247,3 +247,6 @@ Scan games, then review and mark candidates in the same dialog (search and stric
 
 ### History (v0.4.15 private preview)
 New operations record UTC timestamps and display local apply dates. Undo is retained as a read-only history state; older v2 log entries with no timestamp display Unknown (legacy). Undo remains latest-consecutive only. No ROM paths or emulator settings are modified by the Playnite display-title correction action. Test backups and exact-field undo on your own Playnite library before additional bulk imports.
+
+### Private v0.4.16 preview notes
+Recent Updates supports a reversible **Remove from recent** action; use Full History > **Show hidden** > **Restore selected** to recover hidden entries. Hidden applied records still count toward stack undo safety. **Fix Playnite titles** operates only on already committed identities, proposes a `(GBA)`-style suffix on same-platform collisions, requires confirmation and affects Playnite display/sort names only.

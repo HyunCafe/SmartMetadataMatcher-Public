@@ -32,7 +32,7 @@ try {
         throw "Version mismatch: YAML=$yamlVersion source=$sourceVersion compiled=$dllVersion"
     }
     New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-    $name = "SmartMetadataMatcher-$yamlVersion-dated-history-preview-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
+    $name = "SmartMetadataMatcher-$yamlVersion-title-visibility-preview-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
     $zip = Join-Path $releaseDir ($name + '.zip')
     $pext = Join-Path $releaseDir ($name + '.pext')
     if (Test-Path -LiteralPath $pext) { throw "Refusing to overwrite $pext" }
@@ -48,6 +48,6 @@ try {
     $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $pext).Hash
     Write-Host "SUCCESS: $pext"
     Write-Host "SHA256: $hash"
-    Write-Host 'DATED HISTORY PREVIEW: applied and undone operations retained, UTC timestamps for new operations, legacy history dates unknown. Playnite writes unchanged; no production bulk writes.'
+    Write-Host 'TITLE/VISIBILITY PREVIEW: user-confirmed platform suffix for duplicates, mixed Applied/Undone history selection, reversible hiding. No production bulk writes.'
 }
 finally { Pop-Location }

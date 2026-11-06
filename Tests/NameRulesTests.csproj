@@ -13,6 +13,7 @@
     <Compile Include="../Source/CatalogCore.cs" Link="CatalogCore.cs" />
     <Compile Include="CatalogCoreTests.cs" />
     <Compile Include="../Source/CatalogIgnored.cs" Link="CatalogIgnored.cs" />
+    <Compile Include="../Source/HistoryVisibilityStore.cs" Link="HistoryVisibilityStore.cs" />
     <Compile Include="CatalogIgnoredTests.cs" />
     <Compile Include="../Source/MetadataPlan.cs" Link="MetadataPlan.cs" />
     <Compile Include="../Source/MetadataJournal.cs" Link="MetadataJournal.cs" />
