@@ -77,6 +77,7 @@ internal static class Program
         MetadataPlanTests.Run();
         EnrichmentPlanTests.Run();
         EnrichmentJobPlanTests.Run();
+        CatalogBatchProgressTests.Run();
         DiagnosticCsvTests.Run();
         RenameJournalTests.Run();
         Console.WriteLine("PASS: " + checks + " focused checks. No Playnite database accessed.");

@@ -1,3 +1,11 @@
+
+## v0.4.23 — unified final approval and recovery visibility (private preview)
+- Replaced the separate backup prompt and single-line manual confirmation with one scrollable final approval window shared by manual and strict planning. User must confirm a restorable Playnite library and extension-data backup before Apply is enabled.
+- Included the current Playnite title, platform, candidate, exact IGDB ID and intended Playnite title for every proposed import. The list is a planning preview; the exact live IGDB ID/platform and field state are still revalidated before writing.
+- Added per-game batch progress, explicit stop-after-current wording, and a close-window safeguard while an operation runs. An interrupted/ambiguous journal remains fail-closed.
+- Added Tools > Recovery status, a read-only inspection of unresolved media stages and uncommitted enrichment operations. It cannot delete or repair files automatically.
+- Retained supervised five-game validation limit and per-operation journals; no production bulk unlock until Playnite import/undo and crash-recovery testing.
+
 ## 0.4.21 decision: user-approved identity memory
 - Only explicit per-game approval persists an ID; similarity is not correctness probability.
 - A user-confirmed match can be manually reviewed and imported but may not enter unattended strict automatic plans.

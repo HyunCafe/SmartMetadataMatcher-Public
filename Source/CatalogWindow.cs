@@ -143,6 +143,8 @@ namespace SmartMetadataMatcher
         private CheckBox useCatalogTitle;
         private Button cancelButton;
         private TextBlock summary;
+        private ProgressBar batchProgress;
+        private TextBlock batchProgressText;
         private DataGrid grid;
         private List<CatalogInput> queue = new List<CatalogInput>();
         private readonly List<CatalogViewRow> results = new List<CatalogViewRow>();
@@ -364,6 +366,12 @@ namespace SmartMetadataMatcher
             var owner=api.Dialogs.GetCurrentAppWindow();
             if(owner!=null && owner!=window)window.Owner=owner;
             window.WindowStartupLocation=WindowStartupLocation.CenterOwner;
+            window.Closing+=(s,e)=>{
+                if(!busy)return;
+                e.Cancel=true;
+                Cancel();
+                summary.Text="Stopping at a safe boundary. Finish the current operation before closing.";
+            };
             var root=new DockPanel{Margin=new Thickness(8),Background=Deep()};
 
             var top=new StackPanel{Margin=new Thickness(4,2,4,0)};
@@ -426,7 +434,7 @@ namespace SmartMetadataMatcher
             useCatalogTitle.Checked+=(s,e)=>UpdatePreview();
             useCatalogTitle.Unchecked+=(s,e)=>UpdatePreview();
             actions.Children.Add(useCatalogTitle);
-            AddButton(actions,"Cancel",Cancel,out cancelButton);
+            AddButton(actions,"Stop after current game",Cancel,out cancelButton);
             cancelButton.IsEnabled=false;cancelButton.Visibility=Visibility.Collapsed;
 
             // Legacy testing controls still exist for compatibility but are not primary UI.
@@ -447,7 +455,15 @@ namespace SmartMetadataMatcher
             tools.ToolTip="Diagnostics, title review, history and legacy supervised testing";
             AddButton(auxiliary,"Close",()=>window.Close(),out close);
             summary=Caption("Scan games, review matches, then approve only the updates you want. Scanning does not change Playnite.",12);
-            summary.Foreground=Muted();summary.Margin=new Thickness(1,2,0,9);top.Children.Add(summary);
+            summary.Foreground=Muted();summary.Margin=new Thickness(1,2,0,5);top.Children.Add(summary);
+            batchProgress=new ProgressBar {Height=7,Minimum=0,Maximum=1,Value=0,
+                Visibility=Visibility.Collapsed,Foreground=Accent(),Background=PanelBrush(),
+                Margin=new Thickness(1,1,4,1),BorderThickness=new Thickness(0)};
+            top.Children.Add(batchProgress);
+            batchProgressText=Caption("",12);batchProgressText.Foreground=Muted();
+            batchProgressText.Visibility=Visibility.Collapsed;
+            batchProgressText.Margin=new Thickness(1,0,0,6);
+            top.Children.Add(batchProgressText);
             var divider=new Border{BorderBrush=StrokeBrush(),BorderThickness=new Thickness(0,0,0,1),
                 Margin=new Thickness(0,0,0,3)};top.Children.Add(divider);
 
@@ -1083,20 +1099,10 @@ namespace SmartMetadataMatcher
                     "each supervised import to five marked games. Unmark the others for this test. " +
                     "The production workflow will not expose separate one/five/25 buttons.",
                     "Smart Metadata Matcher");return;}
-                var prompt=manualSingle ?
-                    "MANUAL identity confirmation: this match is not eligible for strict automation. " +
-                    "Only continue if you personally checked its IGDB ID, game title, platform and edition. " +
-                    "A wrong identity could fill empty fields with wrong data. " :
-                    "Every marked game passed the strict planning gate, but its identity is not guaranteed. ";
-                var backup=api.Dialogs.ShowMessage(prompt+
-                    "Confirm you have a recent backup of your Playnite library AND extension data. " +
-                    "A separate approval will list every game before writes. " +
-                    "Existing populated metadata and game files are not intentionally overwritten. " +
-                    "Proceed to final review?","Private supervised import — backup required",
-                    MessageBoxButton.YesNo,MessageBoxImage.Warning);
-                if(backup!=MessageBoxResult.Yes)return;
-                // Leave the modal review window before opening the existing
-                // confirmation dialog, avoiding nested dialog ownership issues.
+                // One final scrollable approval dialog includes the actual plan and
+                // a required backup acknowledgement. Avoid double confirmation.
+                // Leave the modal review window before the confirmation dialog,
+                // avoiding nested dialog ownership issues.
                 var reviewedRows=selected.Select(x=>x.SourceRow).ToList();
                 var excludedCount=lines.Count-reviewedRows.Count;
                 dialog.Close();
@@ -1670,6 +1676,9 @@ namespace SmartMetadataMatcher
             var history = new MenuItem { Header = "View full metadata-import history..." };
             history.Click += (s,e) => ShowFullHistory();
             menu.Items.Add(history);
+            var recovery=new MenuItem {Header="Recovery status — inspect journals (read-only)..."};
+            recovery.Click+=(s,e)=>ShowRecoveryStatus();
+            menu.Items.Add(recovery);
             var columns = new MenuItem { Header = "Show technical matching columns", IsCheckable = true,
                 IsChecked = diagnosticColumnsVisible };
             columns.Click += (s,e) => { diagnosticColumnsVisible = columns.IsChecked; UpdateDiagnosticColumns(); };
@@ -1738,7 +1747,12 @@ namespace SmartMetadataMatcher
         }
         private void Cancel()
         {
-            if (cancellation != null) cancellation.Cancel();
+            if (cancellation != null && !cancellation.IsCancellationRequested)
+            {
+                cancellation.Cancel();
+                if(busy && batchProgressText!=null && batchProgressText.Visibility==Visibility.Visible)
+                    batchProgressText.Text="Stop requested — completing the current game safely; no further games will begin.";
+            }
         }
         private static CatalogViewRow RestoreSavedResult(CatalogInput input,CatalogScanRecord saved)
         {
@@ -1837,6 +1851,8 @@ namespace SmartMetadataMatcher
             UpdateSelectionActions();
             cancellation=new CancellationTokenSource();
             var token=cancellation.Token;
+            if(batchProgress!=null)batchProgress.Visibility=Visibility.Collapsed;
+            if(batchProgressText!=null)batchProgressText.Visibility=Visibility.Collapsed;
             summary.Text="Searching IGDB for " + batch.Count + " games; " + cursor + " already processed. Read-only; you can cancel.";
             Task.Run(() =>
             {
@@ -1953,48 +1969,72 @@ namespace SmartMetadataMatcher
             RunBatch(safe,true,excluded);
         }
 
-        // Full, scrollable explicit approval. This shows ALL planned games, unlike
-        // a truncated Windows message box. Requires a real click to begin writes.
-        private bool ConfirmAutoPlan(List<BatchItem> items,bool rename,int excluded)
+        // One, scrollable final approval for manual and strict candidates.
+        // No writes occur until user checks the backup acknowledgement and approves.
+        private bool ConfirmImportPlan(List<BatchItem> items,bool automatic,int excluded)
         {
-            var dialog=new Window { Title="Smart Metadata Matcher - approve strict batch plan",
-                Width=1000,Height=620,MinWidth=650,MinHeight=420,
+            var dialog=new Window {Title="Smart Metadata Matcher — Final import review",
+                Width=1100,Height=680,MinWidth=720,MinHeight=480,
                 Owner=window,WindowStartupLocation=WindowStartupLocation.CenterOwner,
-                Background=Deep(),ResizeMode=ResizeMode.CanResize };
-            var body=new DockPanel { Margin=new Thickness(18) };
-            var head=new TextBlock {
-                Text="Review " + items.Count + " proposed IGDB matches before any Playnite changes. " +
-                    "This is NOT a probability guarantee. Correct title, platform and edition are your responsibility.",
-                TextWrapping=TextWrapping.Wrap,FontSize=15,Foreground=Muted(),Margin=new Thickness(0,0,0,12) };
-            DockPanel.SetDock(head,Dock.Top);body.Children.Add(head);
-            var footer=new StackPanel {Orientation=Orientation.Horizontal,
-                HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};
-            var approve=new Button {Content="Approve and apply " + items.Count + " games",
-                Padding=new Thickness(16,9,16,9),Margin=new Thickness(0,0,12,0),
-                Background=Accent(),Foreground=Deep(),FontWeight=FontWeights.SemiBold};
-            var cancel=new Button {Content="Cancel - keep library unchanged",
-                Padding=new Thickness(16,9,16,9),Background=PanelBrush(),Foreground=Muted()};
-            approve.Click+=(s,e)=>{dialog.DialogResult=true;};
-            cancel.Click+=(s,e)=>{dialog.DialogResult=false;};
-            footer.Children.Add(approve);footer.Children.Add(cancel);
+                Background=Deep(),ResizeMode=ResizeMode.CanResize};
+            var body=new DockPanel {Margin=new Thickness(16)};
+            var heading=new StackPanel {Margin=new Thickness(0,0,0,10)};
+            DockPanel.SetDock(heading,Dock.Top);body.Children.Add(heading);
+            var title=Caption("Review "+items.Count+" Playnite update"+(items.Count==1?"":"s"),20);
+            title.Foreground=Accent();title.FontWeight=FontWeights.SemiBold;
+            heading.Children.Add(title);
+            var note=Caption("Verify each matched game, platform, edition and proposed Playnite title. " +
+                (automatic?"All identities passed strict planning; live IGDB evidence is still checked.":
+                "Supervised selection — review identities yourself; a label is not a guarantee.")+
+                " Only missing metadata fields are filled. Nothing below renames ROM files or launch paths.",13);
+            note.TextWrapping=TextWrapping.Wrap;heading.Children.Add(note);
+            if(excluded>0)
+            {
+                var skipped=Caption(excluded+" other candidate(s) are excluded or require review.",12);
+                skipped.Foreground=Caution();heading.Children.Add(skipped);
+            }
+            var footer=new StackPanel {Margin=new Thickness(0,10,0,0)};
             DockPanel.SetDock(footer,Dock.Bottom);body.Children.Add(footer);
-            var header="STRICT AUTO-PLAN (one approval, up to 25 games)\n"+
-                "Only empty fields are filled. ROMs and launch settings are untouched.\n"+
-                "Playnite display names are cleaned during import; same-platform duplicates get a platform tag.\n"+
-                "Excluded or review-required in this scan: " + excluded + " record(s).\n"+
-                "Each success gets its own persistent undo record. Cancel stops future games, not completed ones.\n\n";
-            var lines=items.Select((x,i)=>(i+1).ToString("00") + ". " +x.Name+
-                "  ->  " +x.PlannedTitle+"  [IGDB: "+x.Candidate+" / "+x.IgdbId+"; "+x.Platform+"]");
-            var preview=new TextBox {Text=header+String.Join("\n",lines)+
-                "\n\nWARNING: A wrong catalog identity would import incorrect information. " +
-                "Only approve after examining this entire list.",IsReadOnly=true,
-                FontFamily=new FontFamily("Consolas"),FontSize=13,TextWrapping=TextWrapping.Wrap,
-                VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,
-                Background=PanelBrush(),Foreground=Muted(),
-                BorderBrush=StrokeBrush(),Padding=new Thickness(12)};
-            body.Children.Add(preview);dialog.Content=body;
+            var backup=new CheckBox {Content="I verified a restorable backup of my Playnite library AND extension data.",
+                IsChecked=false,Margin=new Thickness(0,0,0,9),Foreground=Muted(),FontSize=13};
+            footer.Children.Add(backup);
+            var reminder=Caption("Cancel stops before the next game; completed games remain applied and undoable. " +
+                "An interrupted journal or artwork stage blocks further writes until recovery review.",12);
+            reminder.TextWrapping=TextWrapping.Wrap;footer.Children.Add(reminder);
+            var actions=new StackPanel {Orientation=Orientation.Horizontal,
+                HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,10,0,0)};
+            footer.Children.Add(actions);
+            Button approve,cancel;
+            AddButton(actions,"Apply "+items.Count+" reviewed game"+(items.Count==1?"":"s"),
+                ()=>{dialog.DialogResult=true;},out approve);
+            approve.Background=Accent();approve.Foreground=Deep();approve.FontWeight=FontWeights.SemiBold;
+            approve.IsEnabled=false;
+            backup.Checked+=(s,e)=>approve.IsEnabled=true;
+            backup.Unchecked+=(s,e)=>approve.IsEnabled=false;
+            AddButton(actions,"Cancel — no changes",()=>{dialog.DialogResult=false;},out cancel);
+            var table=NewTable();table.IsReadOnly=true;
+            table.SelectionMode=DataGridSelectionMode.Single;
+            table.Columns.Add(new DataGridTextColumn {Header="Playnite title",Binding=new Binding("Name"),Width=200});
+            table.Columns.Add(new DataGridTextColumn {Header="Platform",Binding=new Binding("Platform"),Width=155});
+            table.Columns.Add(new DataGridTextColumn {Header="IGDB match",Binding=new Binding("Candidate"),Width=230});
+            table.Columns.Add(new DataGridTextColumn {Header="IGDB ID",Binding=new Binding("CatalogId"),Width=100});
+            table.Columns.Add(new DataGridTextColumn {Header="Playnite title after import",Binding=new Binding("PlannedTitle"),
+                Width=new DataGridLength(1,DataGridLengthUnitType.Star)});
+            table.ItemsSource=items.Select(x=>new ImportReviewRow {
+                Name=x.Name,Platform=x.Platform,Candidate=x.Candidate,
+                CatalogId=x.IgdbId.ToString(),PlannedTitle=x.PlannedTitle
+            }).ToList();
+            body.Children.Add(table);
+            dialog.Content=body;
             return dialog.ShowDialog()==true;
+        }
+        private sealed class ImportReviewRow
+        {
+            public string Name {get;set;}
+            public string Platform {get;set;}
+            public string Candidate {get;set;}
+            public string CatalogId {get;set;}
+            public string PlannedTitle {get;set;}
         }
 
         // Retain the five-game manually marked path for ambiguous or special cases.
@@ -2014,6 +2054,63 @@ namespace SmartMetadataMatcher
                     "Smart Metadata Matcher");return;
             }
             RunBatch(marked,false,0);
+        }
+
+        // Diagnostic view only; never clears logs or deletes media.
+        private void ShowRecoveryStatus()
+        {
+            if(busy)
+            {
+                api.Dialogs.ShowMessage("Finish or stop the current operation first.","Smart Metadata Matcher");
+                return;
+            }
+            var report=new StringBuilder();
+            report.AppendLine("RECOVERY STATUS — read-only");
+            report.AppendLine("No import, undo, repair or journal mutation is performed here.");
+            report.AppendLine();
+            try
+            {
+                var stages=enrichmentJournal.MediaStaging.Unresolved();
+                var entries=enrichmentJournal.OpenEntries();
+                var pending=entries.Where(e=>!e.Committed).ToList();
+                report.AppendLine("Unresolved media stages: "+stages.Count);
+                report.AppendLine("Uncommitted metadata journal operations: "+pending.Count);
+                report.AppendLine("Open committed (potentially undoable) operations: "+entries.Count(e=>e.Committed));
+                report.AppendLine();
+                foreach(var stage in stages.Take(20))
+                {
+                    report.AppendLine("Media stage "+stage.OperationId.ToString("N")+
+                        " / game "+stage.GameId.ToString("N"));
+                    foreach(var media in stage.Media)
+                        report.AppendLine("  "+media.Key+": "+media.Value);
+                }
+                foreach(var e in pending.Take(20))
+                    report.AppendLine("Uncommitted operation "+e.OperationId.ToString("N")+
+                        " / game "+e.GameId.ToString("N"));
+                if(stages.Count==0 && pending.Count==0)
+                    report.AppendLine("No unresolved staging/journal operations detected by these checks.");
+                else report.AppendLine("RECOVERY REQUIRED. Preserve full Playnite and extension-data backups; "+
+                    "do not delete ledgers or guess which artwork to remove.");
+            }
+            catch(Exception ex)
+            {
+                report.AppendLine("RECOVERY CHECK FAILED: "+ex.Message);
+                report.AppendLine("Fail closed: imports must remain blocked until journals are reviewed.");
+            }
+            var dialog=new Window {Title="Smart Metadata Matcher — Recovery status (read-only)",
+                Width=880,Height=540,MinWidth=580,MinHeight=340,Owner=window,
+                WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=Deep()};
+            var panel=new DockPanel {Margin=new Thickness(14)};
+            var close=new Button {Content="Close",Padding=new Thickness(15,7,15,7),
+                HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,9,0,0)};
+            close.Click+=(s,e)=>dialog.Close();
+            DockPanel.SetDock(close,Dock.Bottom);panel.Children.Add(close);
+            var details=new TextBox {Text=report.ToString(),IsReadOnly=true,TextWrapping=TextWrapping.Wrap,
+                FontFamily=new FontFamily("Consolas"),FontSize=13,Padding=new Thickness(12),
+                HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,
+                VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
+                Background=PanelBrush(),Foreground=Muted(),BorderBrush=StrokeBrush()};
+            panel.Children.Add(details);dialog.Content=panel;dialog.ShowDialog();
         }
 
         private bool JournalAllowsNewWrites()
@@ -2073,7 +2170,6 @@ namespace SmartMetadataMatcher
             var plannedLibrary=api.Database.Games.Where(g=>g!=null).Select(g=>
                 Tuple.Create(g.Id,g.Name,g.Platforms==null?"":
                     String.Join(", ",g.Platforms.Select(p=>p.Name)))).ToList();
-            var proposed=new List<string>();
             foreach(var item in items)
             {
                 var wanted=rename?EnrichmentPlan.SuggestedUniqueDisplayTitle(
@@ -2083,28 +2179,18 @@ namespace SmartMetadataMatcher
                 // accidentally receive a duplicate name in the SAME approved plan.
                 var pos=plannedLibrary.FindIndex(x=>x.Item1==item.Row.GameId);
                 if(pos>=0)plannedLibrary[pos]=Tuple.Create(item.Row.GameId,item.PlannedTitle,item.Platform);
-                proposed.Add(item.Name+" → "+item.PlannedTitle+" [IGDB "+item.IgdbId+"]"+
-                    (rename && !EnrichmentPlan.IsSafeTitle(wanted)?
-                        " (title requires manual review; other metadata can proceed)":""));
             }
-            var question="Import missing metadata for "+items.Count+" marked games?\n\n"+
-                String.Join("\n",proposed)+"\n\n"+
-                "Only missing fields will be filled: description, artwork, release year, genres, developers, " +
-                "publishers and series when provided by IGDB. The proposed Playnite display titles " +
-                "are included automatically in this approved import; same-platform duplicates get a platform tag. " +
-                "No game files, launch settings or existing media will be overwritten. " +
-                "Every successful game is independently journaled and can be undone in reverse order.";
-            if(automatic)
-            {
-                if(!ConfirmAutoPlan(items,rename,excluded))return;
-            }
-            else if(api.Dialogs.ShowMessage(question,"Confirm supervised batch enrichment (up to 5)",
-                MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)return;
+            // Both manual and strict plans share the same final approval,
+            // including exact title proposals and a required backup acknowledgement.
+            if(!ConfirmImportPlan(items,automatic,excluded))return;
             if(!JournalAllowsNewWrites()) return;
             var credentialId=clientId.Text;var credentialSecret=secret.Password;
             busy=true;scanButton.IsEnabled=false;applyButton.IsEnabled=false;batchButton.IsEnabled=false;
             autoBatchButton.IsEnabled=false;
             undoButton.IsEnabled=false;scanSize.IsEnabled=false;cancelButton.IsEnabled=true;cancelButton.Visibility=Visibility.Visible;
+            batchProgress.Visibility=Visibility.Visible;batchProgress.Maximum=items.Count;batchProgress.Value=0;
+            batchProgressText.Visibility=Visibility.Visible;
+            batchProgressText.Text=CatalogBatchProgress.Describe(items.Count,0,0,"Starting live IGDB validation",false,false);
             cancellation=new CancellationTokenSource();var token=cancellation.Token;
             Task.Run(()=>{
                 int completed=0,failed=0;var errors=new List<string>();
@@ -2116,6 +2202,11 @@ namespace SmartMetadataMatcher
                     foreach(var item in items)
                     {
                         if(token.IsCancellationRequested){cancelled=true;break;}
+                        window.Dispatcher.BeginInvoke(new Action(()=>{
+                            if(!window.IsVisible)return;
+                            batchProgressText.Text=CatalogBatchProgress.Describe(items.Count,completed,failed,
+                                "Checking "+item.Name,token.IsCancellationRequested,false);
+                        }));
                         try
                         {
                             var cat=client.FetchById(item.IgdbId,token);
@@ -2148,7 +2239,8 @@ namespace SmartMetadataMatcher
                             token.ThrowIfCancellationRequested();
                             // SDK database and WPF state only on Playnite's UI thread.
                             window.Dispatcher.Invoke(new Action(()=>{
-                                if(token.IsCancellationRequested || !window.IsVisible)return;
+                                if(token.IsCancellationRequested || !window.IsVisible)
+                                    throw new OperationCanceledException("Import stopped before next Playnite write.");
                                 CatalogEnrichmentWriter.ApplyOne(api,enrichmentJournal,item.Row.GameId,
                                     item.Name,item.Platform,item.Description,item.Cover,item.Icon,
                                     item.Background,item.Sorting,cat,cover,icon,background,rename,item.Extra,
@@ -2159,9 +2251,9 @@ namespace SmartMetadataMatcher
                                 lastApplied=item.Row;
                                 completed++;
                                 grid.Items.Refresh();RefreshHistory();RefreshVisibility();
-                                summary.Text=(automatic?"Strict batch":"Supervised batch")+
-                                    " progress: "+(completed+failed)+" / "+items.Count+
-                                    "; "+completed+" applied; "+failed+" failed.";
+                                batchProgress.Value=completed+failed;
+                                batchProgressText.Text=CatalogBatchProgress.Describe(items.Count,completed,failed,
+                                    "Last applied: "+item.Name,token.IsCancellationRequested,false);
                             }));
                         }
                         catch(OperationCanceledException){cancelled=true;break;}
@@ -2182,6 +2274,9 @@ namespace SmartMetadataMatcher
                                 item.Row.Evidence="Apply failed: "+ex.Message;
                                 item.Row.AutoPlanEligible=false;
                                 grid.Items.Refresh();
+                                batchProgress.Value=Math.Min(items.Count,completed+failed);
+                                batchProgressText.Text=CatalogBatchProgress.Describe(items.Count,completed,failed,
+                                    "Error: "+item.Name,token.IsCancellationRequested,recoveryRequired);
                             }));
                             if(recoveryRequired)
                             {
@@ -2192,12 +2287,19 @@ namespace SmartMetadataMatcher
                         if(token.WaitHandle.WaitOne(350)){cancelled=true;break;}
                     }
                 }
-                catch(Exception ex){failed++;errors.Add("Batch stopped: "+ex.Message);}
+                catch(Exception ex){
+                    if(completed+failed<items.Count)failed++;
+                    recoveryRequired=true; // unknown outer failure: stop, require inspection
+                    errors.Add("Batch stopped unexpectedly: "+ex.Message);
+                }
                 window.Dispatcher.BeginInvoke(new Action(()=>{
                     if(!window.IsVisible)return;
+                    batchProgress.Value=Math.Min(items.Count,completed+failed);
+                    batchProgressText.Text=CatalogBatchProgress.Describe(items.Count,completed,failed,"",
+                        cancelled,recoveryRequired);
                     EndApply();
                     if(lastApplied!=null)FocusCompleted(lastApplied);
-                    var report="Applied "+completed+" of "+items.Count+" confirmed games; "+failed+
+                    var report="Applied "+completed+" of "+items.Count+" reviewed games; "+failed+
                         " failures"+(recoveryRequired?"; RECOVERY REQUIRED before further writes":
                             cancelled?"; cancelled before remaining items":"")+
                         ". Confirmed changes have individual undo records.";
