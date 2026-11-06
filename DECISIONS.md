@@ -330,3 +330,7 @@ A cached *Strong candidate* remains saved, read-only identity evidence and may n
 ## v0.5.6: reduce worst-case scan progress loss without altering identity safety
 
 Use the existing atomic read-only cache after every 10 completed scans; flush the short tail at normal scan termination, cancellation or provider error. Do not replace the cache schema or make cached matches eligible for strict import without live refresh. No one-file-per-game writes, separate database, new dependencies or implicit Playnite writes. A hard shutdown can still lose at most the uncheckpointed short tail (assuming the last file replacement reached durable storage); post-crash filesystem durability is not guaranteed. Cache failures must preserve in-memory progress and surface a warning rather than abort read-only discovery.
+
+## Post-v0.5.8 recovery fault-matrix decision
+
+Measure and assert documented fail-closed behaviors with synthetic durable ledger events before refactoring import/undo recovery paths. Exercise actual existing journal classes against disposable files, without invoking Playnite AddFile or modifying its live database. A passing synthetic matrix does not establish atomicity between Playnite and the two journals or prove real process-crash recovery. Keep production sources and extension version 0.5.8 unchanged.

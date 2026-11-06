@@ -146,3 +146,12 @@ Never upload project files or publish to GitHub as part of local build/verificat
 ## Post-v0.5.7 performance instrumentation (development-only)
 
 A read-only synthetic benchmark for the existing journal replay and durable staging paths is available at `Tools/Benchmark-Journals.ps1` (300 and 3,000 operations; optional 10,000). This is tooling-only; plugin binaries remain v0.5.7, and no journal schema or import code is changed. Actual Windows timings and any optimization decision remain pending. Large-batch performance claims require measurements, not theoretical complexity alone.
+
+## Post-v0.5.8 synthetic recovery matrix — development-only
+
+- [ ] Windows extension compile and all existing C# suites pass.
+- [ ] Isolated `--recovery-fault-matrix` assertions pass against disposable on-disk journals.
+- [ ] Read-only inspection leaves the exact synthetic journal bytes unchanged, including when malformed records block.
+- [ ] Existing stable tag, real journals, Playnite data, and media remain untouched.
+- [ ] **Separate live gate remains unresolved:** true interrupted `AddFile`/`Games.Update` fault injection on a disposable Playnite profile with a restore-tested backup; no test against primary profile.
+- [ ] No public release or claims of crash-proof recovery based solely on this matrix.

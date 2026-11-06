@@ -390,3 +390,7 @@ Long scans now save candidate results to the existing private cache after every 
 ## Private journal performance diagnostics
 
 From the project root on Windows with PowerShell 7, run `pwsh -NoProfile -File ./Tools/Benchmark-Journals.ps1`. The optional `-Large` switch adds a synthetic 10,000-operation case. This builds and tests the real v0.5.7 source, then benchmarks only disposable synthetic enrichment/media journals. It does not access Playnite's database, existing private journal data, ROM files, or network. The command does not create another `.pext`, bump the extension version or install anything. Timings depend on local hardware and filesystem; collect results before proposing journal replay optimizations.
+
+### Development-only recovery fault matrix (post-v0.5.8)
+
+Run `pwsh -NoProfile -File Tools/Test-Recovery-Faults.ps1` from the project checkout to compile the full plugin, run all offline checks and then replay the focused interruption matrix. It writes only synthetic logs in unique temporary directories, never contacts Playnite, and never packages a `.pext`. The suite covers durable event boundaries, not a real killed process, filesystem corruption during flush, or actual Playnite database writes.

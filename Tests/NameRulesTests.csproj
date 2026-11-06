@@ -55,6 +55,7 @@
     <Compile Include="DiagnosticCsvTests.cs" />
     <Compile Include="JournalReplayBenchmarkTests.cs" />
     <Compile Include="EnrichmentJournalReplayTests.cs" />
+    <Compile Include="JournalFaultMatrixTests.cs" />
     <Compile Include="NameRulesTests.cs" />
   </ItemGroup>
 </Project>

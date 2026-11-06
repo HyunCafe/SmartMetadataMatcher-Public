@@ -411,3 +411,10 @@
 - Preserve slash in IGDB query strings; correct combined Final Fantasy X/X-2 search variants; guarded legacy client fallback.
 - Prioritize non-Series gaps and add optional dashboard missing-field filter; original 837-game results remain accessible.
 - Extend regression tests for false candidates, numeral conflicts, discovery and Series-only isolation.
+
+## Development-only recovery fault matrix (post-v0.5.8)
+
+- Added a disposable cross-ledger interruption matrix for before/after Begin, media tracking, metadata Prepare, Handoff, Commit, undo and clean no-change stages.
+- Tests fail-closed handling of orphan handoffs, mismatched owners/media IDs, truncated records, unknown markers and out-of-sequence events.
+- Replays each state with fresh journal instances and verifies inspections never rewrite the underlying ledger bytes.
+- Test-only: no extension source changes, new `.pext`, journal migrations, crash injection into Playnite, or changes to real user data.

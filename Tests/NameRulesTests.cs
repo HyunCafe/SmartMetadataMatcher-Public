@@ -26,7 +26,9 @@ internal static class Program
     {
         if(args.Length!=0)
         {
-            if(args.Length==1 && args[0]=="--benchmark-journals")
+            if(args.Length==1 && args[0]=="--recovery-fault-matrix")
+                JournalFaultMatrixTests.Run();
+            else if(args.Length==1 && args[0]=="--benchmark-journals")
                 JournalReplayBenchmarkTests.RunBenchmark(false);
             else if(args.Length==1 && args[0]=="--benchmark-journals-large")
                 JournalReplayBenchmarkTests.RunBenchmark(true);
@@ -88,6 +90,7 @@ internal static class Program
         CatalogConfirmedIdentitiesTests.Run();
         CatalogMediaStagingJournalTests.Run();
         CatalogRecoveryConsistencyTests.Run();
+        JournalFaultMatrixTests.Run();
         MetadataPlanTests.Run();
         EnrichmentPlanTests.Run();
         HistoryViewFilterTests.Run();
