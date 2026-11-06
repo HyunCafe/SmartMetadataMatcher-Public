@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only, high-confidence v0.5.2 private candidate guard.
+"""Read-only, high-confidence v0.5.3 private candidate guard.
 
 Not a source security audit, transitive dependency audit or binary certification.
 Does not access network, Git, Playnite, credentials, or modify files.
@@ -11,7 +11,7 @@ import tempfile
 import shutil
 import xml.etree.ElementTree as ET
 
-EXPECTED_VERSION = "0.5.2"
+EXPECTED_VERSION = "0.5.3"
 EXPECTED_GUID = "11D77564-F56F-5BF3-9CBB-7BB0CB427537"
 EXPECTED_PACKAGES = {"PlayniteSDK": "[6.18.0]", "Microsoft.NETFramework.ReferenceAssemblies.net462": "[1.0.3]"}
 PRIVATE_PATTERNS = (
@@ -42,11 +42,11 @@ def audit(root):
         problems.append("Playnite plugin GUID changed")
     if "Name: Smart Metadata Matcher" not in manifest or "Author: HyunCafe" not in manifest:
         problems.append("Unexpected extension identity")
-    if 'AssemblyVersion("0.5.2.0")' not in plugin or 'AssemblyFileVersion("0.5.2.0")' not in plugin:
+    if 'AssemblyVersion("0.5.3.0")' not in plugin or 'AssemblyFileVersion("0.5.3.0")' not in plugin:
         problems.append("Assembly version is not aligned with RC")
     if 'AssemblyCompany("HyunCafe")' not in plugin:
         problems.append("Unexpected assembly publisher")
-    if 'private history usability' not in (root / "Source/CatalogWindow.cs").read_text(encoding="utf-8-sig"):
+    if 'private batch reliability' not in (root / "Source/CatalogWindow.cs").read_text(encoding="utf-8-sig"):
         problems.append("Dashboard batch-unlock label missing")
     def properties(tree):
         return {n.tag: (n.text or "").strip() for n in tree.iter() if n.tag in
@@ -70,8 +70,8 @@ def audit(root):
     for required in ("Tools/Verify-RC.py", "Tools/Verify-Package.py", "Tools/Test-Package-Integrity.py"):
         if required not in build or not (root / required).is_file():
             problems.append("Missing build-time verification: " + required)
-    if 'private-history-ux-' not in build:
-        problems.append("Release package must be labeled private history usability")
+    if 'private-no-change-' not in build:
+        problems.append("Release package must be labeled private batch reliability")
     for pattern in ("*.csv", "*.log", "*.env", "*.pext", "*.pdb", "bin/", "obj/", "__pycache__/", "*.py[cod]"):
         if pattern not in ignore:
             problems.append("Privacy/build exclusion missing: " + pattern)
@@ -81,6 +81,18 @@ def audit(root):
         problems.append("Compact history must show all entries, not 10")
     if 'LatestSelectedUndoPrefix(history.Select' not in (root / 'Source/CatalogWindow.cs').read_text(encoding='utf-8-sig'):
         problems.append("Mixed history undo must use safe newest-first prefix")
+    writer=(root / 'Source/CatalogEnrichmentWriter.cs').read_text(encoding='utf-8-sig')
+    progress=(root / 'Source/CatalogBatchProgress.cs').read_text(encoding='utf-8-sig')
+    review=(root / 'Source/CatalogWindow.cs').read_text(encoding='utf-8-sig')
+    if not all(k in writer for k in ('CleanNoChange(e,imported.Count',
+        'journal.MediaStaging.AbandonClean(e.OperationId);',
+        'return CatalogApplyResult.Skipped();','sharedReferenceWriteAttempted')):
+        problems.append('No-change skip must be proven clean and close the staging ledger')
+    if not all(k in review for k in ('if(outcome.NoChanges)',
+        'completed+skipped+failed', 'skipped (no safe changes)')):
+        problems.append('Batch no-change counting and UI wiring must remain complete')
+    if '" skipped  •  "' not in progress:
+        problems.append('Batch progress must separately show skipped outcomes')
     for p in list((root / 'Source').glob('*.cs')) + [root/'Tools/Build-Preview.ps1']:
         try: content=p.read_text(encoding='utf-8-sig')
         except (OSError, UnicodeError):
@@ -103,15 +115,15 @@ def self_test():
     with tempfile.TemporaryDirectory(prefix='smm-rc-audit-') as folder:
         shadow=Path(folder)
         for relative in (".gitignore","extension.yaml","RELEASE_READINESS.md","SmartMetadataMatcher.csproj",
-                         "Tests/NameRulesTests.csproj","Source/Plugin.cs","Source/CatalogWindow.cs",
+                         "Tests/NameRulesTests.csproj","Source/Plugin.cs","Source/CatalogWindow.cs","Source/CatalogEnrichmentWriter.cs","Source/CatalogBatchProgress.cs",
                          "Tools/Build-Preview.ps1","Tools/Verify-RC.py","Tools/Verify-Package.py",
                          "Tools/Test-Package-Integrity.py"):
             target=shadow/relative;target.parent.mkdir(parents=True,exist_ok=True)
             shutil.copyfile(root/relative,target)
         assert not audit(shadow), audit(shadow)
-        p=shadow/'extension.yaml';p.write_text(p.read_text().replace('Version: 0.5.2','Version: 0.4.32'))
+        p=shadow/'extension.yaml';p.write_text(p.read_text().replace('Version: 0.5.3','Version: 0.4.32'))
         assert any('version' in x for x in audit(shadow))
-        p.write_text(p.read_text().replace('Version: 0.4.32','Version: 0.5.2'))
+        p.write_text(p.read_text().replace('Version: 0.4.32','Version: 0.5.3'))
         p=shadow/'Source/Plugin.cs';p.write_text(p.read_text()+ '\n// C:\\Users\\privateuser\\secrets.txt\n')
         assert any('private path' in x for x in audit(shadow))
         p.write_text(p.read_text().replace('// C:\\Users\\privateuser\\secrets.txt',''))

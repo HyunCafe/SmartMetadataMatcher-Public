@@ -20,6 +20,19 @@ internal static class CatalogBatchProgressTests
         var blocked=CatalogBatchProgress.Describe(5,2,1,"",true,true);
         Assert(blocked.Contains("RECOVERY REQUIRED")&&!blocked.Contains("Stopping"),"recovery overrides cancellation");
         Assert(!CatalogBatchProgress.Describe(2,2,0,"",false,false).Contains("RECOVERY"),"normal completion");
+        var skipped=CatalogBatchProgress.Describe(30,20,9,1,"No changes",false,false);
+        Assert(skipped.Contains("30 / 30 checked") && skipped.Contains("20 applied") &&
+            skipped.Contains("9 skipped") && skipped.Contains("1 failed"),"skip counter and checked total");
+        Assert(CatalogBatchProgress.Describe(4,1,2,1,"",false,true).Contains("RECOVERY REQUIRED"),
+            "recovery warning preserved with skips");
+        bool invalidSkip=false;
+        try{CatalogBatchProgress.Describe(2,1,2,0,"",false,false);}
+        catch(ArgumentOutOfRangeException){invalidSkip=true;}
+        Assert(invalidSkip,"skips counted toward total capacity");
+        bool negativeSkip=false;
+        try{CatalogBatchProgress.Describe(2,0,-1,0,"",false,false);}
+        catch(ArgumentOutOfRangeException){negativeSkip=true;}
+        Assert(negativeSkip,"negative skip rejected");
         foreach(var bad in new[]{new[]{0,0,0},new[]{3,-1,0},new[]{3,1,-1},new[]{3,3,1}})
         {
             bool rejected=false;

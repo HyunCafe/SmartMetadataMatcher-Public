@@ -35,6 +35,22 @@ namespace SmartMetadataMatcher
         }
     }
 
+    // A committed change and a verified no-op are different outcomes. A no-op
+    // has no field journal or undo operation, and is returned only after the
+    // staging ledger has been durably closed as clean.
+    internal sealed class CatalogApplyResult
+    {
+        internal EnrichmentEntry Entry { get; private set; }
+        internal bool NoChanges { get { return Entry==null; } }
+        private CatalogApplyResult(EnrichmentEntry entry){Entry=entry;}
+        internal static CatalogApplyResult Applied(EnrichmentEntry entry)
+        {
+            if(entry==null)throw new ArgumentNullException("entry");
+            return new CatalogApplyResult(entry);
+        }
+        internal static CatalogApplyResult Skipped(){return new CatalogApplyResult(null);}
+    }
+
     // All Playnite writes occur on its UI dispatcher. Existing values remain untouched.
     // Existing metadata, game files, emulators and Playnite actions are never changed.
     internal static class CatalogEnrichmentWriter
@@ -56,7 +72,7 @@ namespace SmartMetadataMatcher
             }
             finally { try { if(File.Exists(temp)) File.Delete(temp); } catch { } }
         }
-        internal static EnrichmentEntry ApplyOne(IPlayniteAPI api, EnrichmentJournal journal,Guid gameId,
+        internal static CatalogApplyResult ApplyOne(IPlayniteAPI api, EnrichmentJournal journal,Guid gameId,
             string expectedName,string expectedPlatform,string expectedDescription,string expectedCover,
             string expectedIcon,string expectedBackground,string expectedSorting,CatalogGame catalog,
             byte[] cover,byte[] icon,byte[] background,bool rename,GameExtrasSnapshot expectedExtras,
@@ -150,6 +166,7 @@ namespace SmartMetadataMatcher
             bool prepared=false;
             bool mediaUploadUncertain=false;
             bool sharedReferenceWriteAttempted=false;
+            bool noChangeAbandonAttempted=false;
             // Begin is durably flushed BEFORE AddFile or shared metadata creation.
             // A crash with an open Begin fails closed rather than silently reusing
             // an incompletely staged media operation.
@@ -221,10 +238,19 @@ namespace SmartMetadataMatcher
                     e.AfterSeries=catalog.SeriesNames.Select(v=>api.Database.Series.Add(v).Id).Distinct().ToList();
                     e.ChangedSeries=e.AfterSeries.Count>0;
                 }
-                if(!(e.ChangedName || e.ChangedDescription || e.ChangedCover ||
-                     e.ChangedIcon || e.ChangedBackground || e.ChangedRelease ||
-                     e.ChangedGenres || e.ChangedDevelopers || e.ChangedPublishers || e.ChangedSeries))
-                    throw new InvalidOperationException("No safe missing fields or title change to apply. " + (e.Note??""));
+                if(!EnrichmentPlan.HasChanges(e))
+                {
+                    // Reject an apparent no-op if ANY Playnite media or global
+                    // entity write was attempted. Its uncertain effects must
+                    // remain fail-closed, not be silently counted as skipped.
+                    if(!EnrichmentPlan.CleanNoChange(e,imported.Count,
+                        mediaUploadUncertain,sharedReferenceWriteAttempted))
+                        throw new InvalidOperationException(
+                            "Uncertain external staging during an otherwise empty import; recovery review required.");
+                    noChangeAbandonAttempted=true;
+                    journal.MediaStaging.AbandonClean(e.OperationId);
+                    return CatalogApplyResult.Skipped();
+                }
                 journal.Prepare(e); prepared=true;
                 journal.MediaStaging.HandOff(e.OperationId);
                 if(e.ChangedName) game.Name=e.AfterName;
@@ -242,11 +268,11 @@ namespace SmartMetadataMatcher
                 // Should a process crash between Update and Commit, undo still sees P and
                 // can safely reconcile all before/after fields without guessing.
                 journal.Commit(e.OperationId);
-                return e;
+                return CatalogApplyResult.Applied(e);
             }
             catch
             {
-                if(!prepared)
+                if(!prepared && !noChangeAbandonAttempted)
                 {
                     bool cleanupSucceeded=true;
                     foreach(var id in imported)

@@ -45,6 +45,26 @@ namespace SmartMetadataMatcher
             }
             return prefix;
         }
+        // Pure result gate. A zero-field result is safe to SKIP only when no
+        // media upload and no globally shared Playnite entity creation was
+        // attempted. Uncertain cases remain hard failures with an open stage.
+        internal static bool HasChanges(EnrichmentEntry e)
+        {
+            if(e==null)throw new ArgumentNullException("e");
+            return e.ChangedName || e.ChangedSorting || e.ChangedDescription ||
+                e.ChangedCover || e.ChangedIcon || e.ChangedBackground ||
+                e.ChangedRelease || e.ChangedGenres || e.ChangedDevelopers ||
+                e.ChangedPublishers || e.ChangedSeries;
+        }
+        internal static bool CleanNoChange(EnrichmentEntry e,int importedMediaCount,
+            bool mediaUploadUncertain,bool sharedReferenceWriteAttempted)
+        {
+            if(importedMediaCount<0)throw new ArgumentOutOfRangeException("importedMediaCount");
+            return !HasChanges(e) && importedMediaCount==0 &&
+                CatalogEnrichmentNeeds.MayAbandonCleanStage(true,
+                    mediaUploadUncertain,sharedReferenceWriteAttempted);
+        }
+
         internal static bool BatchEligible(string status,bool completed,string catalogId)
         {
             long id;

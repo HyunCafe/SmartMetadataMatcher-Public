@@ -93,6 +93,30 @@ internal static class EnrichmentPlanTests
         finally{if(Directory.Exists(visibilityDir))Directory.Delete(visibilityDir,true);}
         Check(EnrichmentPlan.SuggestedDisplayTitle("007 Nightfire", "007 Nightfire") ==
             "007 Nightfire", "three digit identifiers preserved");
+        // Every affected metadata field blocks a false no-change classification.
+        var none=new EnrichmentEntry();
+        Check(!EnrichmentPlan.HasChanges(none),"empty change plan has no mutations");
+        Check(EnrichmentPlan.CleanNoChange(none,0,false,false),"zero-write plan can be skipped");
+        Check(!EnrichmentPlan.CleanNoChange(none,1,false,false),"staged media precludes skip");
+        Check(!EnrichmentPlan.CleanNoChange(none,0,true,false),"uncertain artwork precludes skip");
+        Check(!EnrichmentPlan.CleanNoChange(none,0,false,true),"shared metadata Add precludes skip");
+        bool rejectedNegative=false;
+        try{EnrichmentPlan.CleanNoChange(none,-1,false,false);}
+        catch(ArgumentOutOfRangeException){rejectedNegative=true;}
+        Check(rejectedNegative,"invalid media count rejected");
+        foreach(var field in new[]{"ChangedName","ChangedSorting","ChangedDescription",
+            "ChangedCover","ChangedIcon","ChangedBackground","ChangedRelease",
+            "ChangedGenres","ChangedDevelopers","ChangedPublishers","ChangedSeries"})
+        {
+            var e=new EnrichmentEntry();
+            var info=typeof(EnrichmentEntry).GetField(field,
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic |
+                System.Reflection.BindingFlags.Public);
+            if(info==null)throw new Exception("Missing journal field "+field);
+            info.SetValue(e,true);
+            Check(EnrichmentPlan.HasChanges(e) && !EnrichmentPlan.CleanNoChange(e,0,false,false),
+                "changed "+field+" cannot be skipped");
+        }
         Check(EnrichmentPlan.IsLatestUndoPrefix(undoHistory,new[]{op3}),
             "newest operation can be selected for undo");
         Check(EnrichmentPlan.IsLatestUndoPrefix(undoHistory,new[]{op2,op3}),

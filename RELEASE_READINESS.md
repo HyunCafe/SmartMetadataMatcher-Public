@@ -1,3 +1,17 @@
+# v0.5.3 Private Clean No-Change Handling — Acceptance (CURRENT)
+
+**Source baseline:** v0.5.2 `365a7754ac333e376632d59021d72de2c1a3711a` on local main; stable rollback tag `v0.5.0-private-stable` preserved. No GitHub remote.
+
+**Behavior:** differentiate Applied, clean Skipped and Failed results in reviewed sequential batches. Zero-field, zero-external-write results may be skipped only after the media-stage ledger is durably closed clean. Unexpected upload/shared-reference activity remains a stopping error. One-game import follows the same outcome policy.
+
+**Automated gate:** Windows WPF full build, C# offline regression suites, source/privacy guards, package byte validation, local Git commit only after success. This isolated environment cannot compile Windows WPF or prove Playnite runtime.
+
+**Minimal live gate:** if a genuinely no-change game arises during normal use, confirm it says Skipped (no undo entry), the next approved game continues, and Tools → Recovery Status has no unresolved/inconsistent stages. Do not modify or undo successful games merely to manufacture this condition.
+
+**Preserved:** v0.5.2 history/undo UX, v0.5.1 unlimited strict and five-item supervised policy, v0.5.0 private stable baseline, stable plugin GUID, private Playnite data/journal formats, and all ROM/launch paths. No public release claim or binary-dependency security certification.
+
+---
+
 # v0.5.2 Private History-UX Acceptance (CURRENT)
 
 **Source:** v0.5.1 `b6c35dd1e5d9a9980032312e2f0a8b4a4fb3dce1`, local-only, clean required.

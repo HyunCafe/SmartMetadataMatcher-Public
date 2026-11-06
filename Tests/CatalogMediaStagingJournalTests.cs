@@ -38,6 +38,15 @@ internal static class CatalogMediaStagingJournalTests
             var op2=Guid.NewGuid();j.Begin(op2,Guid.NewGuid());j.Track(op2,"background","file2");
             j.AbandonClean(op2);
             Check(j.Unresolved().Count==0,"verified cleanup closes stage");
+            // A no-change import closes a stage WITHOUT AddFile or field journaling.
+            // The next game's Begin must still be possible.
+            var cleanNoChange=Guid.NewGuid();j.Begin(cleanNoChange,Guid.NewGuid());
+            j.AbandonClean(cleanNoChange);
+            Check(j.AllStages().Single(x=>x.OperationId==cleanNoChange).Outcome=="A",
+                "empty no-change stage durably closed");
+            var afterSkip=Guid.NewGuid();j.Begin(afterSkip,Guid.NewGuid());
+            j.AbandonClean(afterSkip);
+            Check(j.Unresolved().Count==0,"next game may begin after clean no-change skip");
             var interrupted=Guid.NewGuid();j.Begin(interrupted,Guid.NewGuid());
             Check(new CatalogMediaStagingJournal(dir).Unresolved().Single().OperationId==interrupted,
                 "interruption before AddFile result survives restart");

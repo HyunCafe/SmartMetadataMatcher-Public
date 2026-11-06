@@ -1,3 +1,11 @@
+## v0.5.3 — Private clean no-change batch handling (pending Windows/Playnite acceptance)
+
+- A live IGDB item with **no actual safe metadata or title changes** is now **Skipped**, not a hard batch failure. No Playnite update and no field/undo record are created; the empty media stage is durably closed clean before proceeding.
+- Skip is permitted **only when no media upload and no globally shared metadata Add operation was attempted**, no field change is reported, and the clean stage closure succeeds. Anything uncertain still fails closed, stops the batch and requires recovery review.
+- Batch progress and summary distinguish **Applied / Skipped / Failed**; a skipped row is unmarked and labeled `No changes available` until refreshed. Single-item imports show the same outcome without falsely reporting a completed operation.
+- Preserve Playnite title/platform/identity rechecks, strict batch criteria, five supervised limit, backup approval, journal compatibility and per-game undo. No ROM, emulator, media deletion or remote changes.
+- Regression coverage checks all eleven possible field flags, staged-media/global-reference uncertainty, invalid counters and correct total progress; live WPF+writer compilation and Playnite runtime remain unverified here.
+
 ## v0.5.2 — private update-history clarity and safe mixed-selection undo (pending Windows acceptance)
 
 - The dashboard **Update history** now lists every visible committed operation with scrolling and virtualization, removing the hidden 10-row cap. Hidden entries remain accessible in Full History.

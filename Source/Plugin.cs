@@ -7,9 +7,9 @@ using Playnite.SDK.Plugins;
 [assembly: AssemblyTitle("Smart Metadata Matcher")]
 [assembly: AssemblyCompany("HyunCafe")]
 [assembly: AssemblyProduct("Smart Metadata Matcher")]
-[assembly: AssemblyDescription("Private history usability: readable, reversible metadata operations") ]
-[assembly: AssemblyVersion("0.5.2.0")]
-[assembly: AssemblyFileVersion("0.5.2.0")]
+[assembly: AssemblyDescription("Private batch reliability: clean no-change skips and progress") ]
+[assembly: AssemblyVersion("0.5.3.0")]
+[assembly: AssemblyFileVersion("0.5.3.0")]
 
 namespace SmartMetadataMatcher
 {

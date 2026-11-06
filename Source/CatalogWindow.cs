@@ -92,8 +92,8 @@ namespace SmartMetadataMatcher
         public string VisibilityLabel { get { return Hidden?"Hidden":"Shown"; } }
     }
 
-    // Early read-only integration checkpoint. Bulk application is intentionally NOT enabled
-    // until candidate accuracy, rate limits, catalog terms and recovery are live-validated.
+    // User-approved imports are sequential and journaled; automatic strict
+    // eligibility still requires fresh corroborated IGDB identity evidence.
     internal sealed class CatalogWindow
     {
         private readonly IPlayniteAPI api;
@@ -412,7 +412,7 @@ namespace SmartMetadataMatcher
         internal void Show()
         {
             window=api.Dialogs.CreateWindow(new WindowCreationOptions{ShowMinimizeButton=false});
-            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private history usability";
+            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private batch reliability";
             window.Width=1610;window.Height=935;window.MinWidth=1120;window.MinHeight=675;
             var owner=api.Dialogs.GetCurrentAppWindow();
             if(owner!=null && owner!=window)window.Owner=owner;
@@ -2992,10 +2992,10 @@ namespace SmartMetadataMatcher
             undoButton.IsEnabled=false;scanSize.IsEnabled=false;cancelButton.IsEnabled=true;cancelButton.Visibility=Visibility.Visible;
             batchProgress.Visibility=Visibility.Visible;batchProgress.Maximum=items.Count;batchProgress.Value=0;
             batchProgressText.Visibility=Visibility.Visible;
-            batchProgressText.Text=CatalogBatchProgress.Describe(items.Count,0,0,"Starting live IGDB validation",false,false);
+            batchProgressText.Text=CatalogBatchProgress.Describe(items.Count,0,0,0,"Starting live IGDB validation",false,false);
             cancellation=new CancellationTokenSource();var token=cancellation.Token;
             Task.Run(()=>{
-                int completed=0,failed=0;var errors=new List<string>();
+                int completed=0,skipped=0,failed=0;var errors=new List<string>();
                 bool cancelled=false,recoveryRequired=false,stoppedOnError=false;
                 CatalogViewRow lastApplied=null;
                 try
@@ -3006,7 +3006,7 @@ namespace SmartMetadataMatcher
                         if(token.IsCancellationRequested){cancelled=true;break;}
                         window.Dispatcher.BeginInvoke(new Action(()=>{
                             if(!window.IsVisible)return;
-                            batchProgressText.Text=CatalogBatchProgress.Describe(items.Count,completed,failed,
+                            batchProgressText.Text=CatalogBatchProgress.Describe(items.Count,completed,skipped,failed,
                                 "Checking "+item.Name,token.IsCancellationRequested,false);
                         }));
                         try
@@ -3043,19 +3043,32 @@ namespace SmartMetadataMatcher
                             window.Dispatcher.Invoke(new Action(()=>{
                                 if(token.IsCancellationRequested || !window.IsVisible)
                                     throw new OperationCanceledException("Import stopped before next Playnite write.");
-                                CatalogEnrichmentWriter.ApplyOne(api,enrichmentJournal,item.Row.GameId,
+                                var outcome=CatalogEnrichmentWriter.ApplyOne(api,enrichmentJournal,item.Row.GameId,
                                     item.Name,item.Platform,item.Description,item.Cover,item.Icon,
                                     item.Background,item.Sorting,cat,cover,icon,background,rename,item.Extra,
                                     item.PlannedTitle,item.Draft);
-                                item.Row.PreviousStatus=item.Row.Status;
-                                item.Row.IsCompleted=true;item.Row.Marked=false;item.Row.Status="Completed";
-                                item.Row.CurrentName=api.Database.Games[item.Row.GameId].Name;
-                                lastApplied=item.Row;
-                                completed++;
+                                item.Row.Marked=false;
+                                if(outcome.NoChanges)
+                                {
+                                    skipped++;
+                                    item.Row.PreviousStatus=item.Row.Status;
+                                    item.Row.Status="No changes available";
+                                    item.Row.AutoPlanEligible=false;
+                                    item.Row.Evidence="IGDB supplied no safe new fields for this game; no Playnite update or undo record was created. Refresh later if IGDB changes.";
+                                }
+                                else
+                                {
+                                    item.Row.PreviousStatus=item.Row.Status;
+                                    item.Row.IsCompleted=true;item.Row.Status="Completed";
+                                    item.Row.CurrentName=api.Database.Games[item.Row.GameId].Name;
+                                    lastApplied=item.Row;
+                                    completed++;
+                                }
                                 grid.Items.Refresh();RefreshHistory();RefreshVisibility();
-                                batchProgress.Value=completed+failed;
-                                batchProgressText.Text=CatalogBatchProgress.Describe(items.Count,completed,failed,
-                                    "Last applied: "+item.Name,token.IsCancellationRequested,false);
+                                batchProgress.Value=completed+skipped+failed;
+                                batchProgressText.Text=CatalogBatchProgress.Describe(items.Count,completed,skipped,failed,
+                                    (outcome.NoChanges?"No changes: ":"Last applied: ")+item.Name,
+                                    token.IsCancellationRequested,false);
                             }));
                         }
                         catch(OperationCanceledException){cancelled=true;break;}
@@ -3076,8 +3089,8 @@ namespace SmartMetadataMatcher
                                 item.Row.Evidence="Apply failed: "+ex.Message;
                                 item.Row.AutoPlanEligible=false;
                                 grid.Items.Refresh();
-                                batchProgress.Value=Math.Min(items.Count,completed+failed);
-                                batchProgressText.Text=CatalogBatchProgress.Describe(items.Count,completed,failed,
+                                batchProgress.Value=Math.Min(items.Count,completed+skipped+failed);
+                                batchProgressText.Text=CatalogBatchProgress.Describe(items.Count,completed,skipped,failed,
                                     "Error: "+item.Name,token.IsCancellationRequested,recoveryRequired);
                             }));
                             // Stop on the first failure, including otherwise recoverable
@@ -3091,19 +3104,19 @@ namespace SmartMetadataMatcher
                     }
                 }
                 catch(Exception ex){
-                    if(completed+failed<items.Count)failed++;
+                    if(completed+skipped+failed<items.Count)failed++;
                     recoveryRequired=true; // unknown outer failure: stop, require inspection
                     errors.Add("Batch stopped unexpectedly: "+ex.Message);
                 }
                 window.Dispatcher.BeginInvoke(new Action(()=>{
                     if(!window.IsVisible)return;
-                    batchProgress.Value=Math.Min(items.Count,completed+failed);
-                    batchProgressText.Text=CatalogBatchProgress.Describe(items.Count,completed,failed,"",
+                    batchProgress.Value=Math.Min(items.Count,completed+skipped+failed);
+                    batchProgressText.Text=CatalogBatchProgress.Describe(items.Count,completed,skipped,failed,"",
                         cancelled,recoveryRequired);
                     EndApply();
                     if(lastApplied!=null)FocusCompleted(lastApplied);
-                    var report="Applied "+completed+" of "+items.Count+" reviewed games; "+failed+
-                        " failures"+(recoveryRequired?"; RECOVERY REQUIRED before further writes":
+                    var report="Reviewed "+items.Count+" games: "+completed+" applied, "+skipped+
+                        " skipped (no safe changes), "+failed+" failures"+(recoveryRequired?"; RECOVERY REQUIRED before further writes":
                             cancelled?"; cancelled before remaining items":
                             stoppedOnError?"; stopped at first failed game":"")+
                         ". Confirmed changes have individual undo records.";
@@ -3225,17 +3238,29 @@ namespace SmartMetadataMatcher
                         try
                         {
                             if(!window.IsVisible || token.IsCancellationRequested) return;
-                            var entry=CatalogEnrichmentWriter.ApplyOne(api,enrichmentJournal,row.GameId,
+                            var outcome=CatalogEnrichmentWriter.ApplyOne(api,enrichmentJournal,row.GameId,
                                 originalName,platform,originalDescription,originalCover,originalIcon,
                                 originalBackground,originalSorting,catalog,cover,icon,background,nameRequested,originalExtras,
                                 approvedTitle,selectedDraft);
+                            if(outcome.NoChanges)
+                            {
+                                row.Marked=false;
+                                row.PreviousStatus=row.Status;
+                                row.Status="No changes available";
+                                row.AutoPlanEligible=false;
+                                row.Evidence="IGDB supplied no safe new fields for this game. No Playnite update or undo record was created.";
+                                grid.Items.Refresh();RefreshVisibility();UpdatePreview();
+                                summary.Text="Skipped: no safe metadata or title changes available. No Playnite data was modified.";
+                                api.Dialogs.ShowMessage(summary.Text,"Smart Metadata Matcher");
+                                return;
+                            }
                             row.PreviousStatus=row.Status;
                             row.IsCompleted=true;
                             row.Marked=false;
                             row.Status="Completed";
                             row.CurrentName=api.Database.Games[row.GameId].Name;
                             grid.Items.Refresh(); RefreshHistory();FocusCompleted(row);
-                            var message=CatalogEnrichmentWriter.Summary(entry);
+                            var message=CatalogEnrichmentWriter.Summary(outcome.Entry);
                             if(notices.Count>0) message += "\n"+String.Join("\n",notices);
                             summary.Text=message;
                             api.Dialogs.ShowMessage(message,"Smart Metadata Matcher");
