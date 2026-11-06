@@ -134,3 +134,7 @@ Never upload project files or publish to GitHub as part of local build/verificat
 - Offline tests must simulate checkpoint success every ten, abrupt restart after partial batches, normal/cancelled short-tail flush and failed-save preservation of last good results.
 - Manual test should be read-only: scan 12+ games, close/reopen the dashboard and confirm valid cached progress is restored. No need for a fresh 837-game full rescan or any import/undo.
 - Unverified: real sudden process death/fault injection and filesystem-level persistence guarantees; do not test against the primary Playnite profile.
+
+## Post-v0.5.7 performance instrumentation (development-only)
+
+A read-only synthetic benchmark for the existing journal replay and durable staging paths is available at `Tools/Benchmark-Journals.ps1` (300 and 3,000 operations; optional 10,000). This is tooling-only; plugin binaries remain v0.5.7, and no journal schema or import code is changed. Actual Windows timings and any optimization decision remain pending. Large-batch performance claims require measurements, not theoretical complexity alone.

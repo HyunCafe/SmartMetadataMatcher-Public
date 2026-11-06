@@ -22,8 +22,17 @@ internal static class Program
         Expect(row.Proposed == wanted, original + " -> " + wanted + " (got: " + row.Proposed + ")");
         Expect(row.Status == wantedStatus, original + " status: " + wantedStatus + " (got " + row.Status + ")");
     }
-    private static void Main()
+    private static void Main(string[] args)
     {
+        if(args.Length!=0)
+        {
+            if(args.Length==1 && args[0]=="--benchmark-journals")
+                JournalReplayBenchmarkTests.RunBenchmark(false);
+            else if(args.Length==1 && args[0]=="--benchmark-journals-large")
+                JournalReplayBenchmarkTests.RunBenchmark(true);
+            else throw new ArgumentException("Unknown test-runner option");
+            return;
+        }
         var roms = new List<GameDescriptor>
         {
             G("01 Pokemon Fire Red"), G("02 Pokemon Leaf Green"), G("03 Crash Bandicoot 2"),
@@ -82,6 +91,7 @@ internal static class Program
         MetadataPlanTests.Run();
         EnrichmentPlanTests.Run();
         HistoryViewFilterTests.Run();
+        JournalReplayBenchmarkTests.Run();
         EnrichmentJobPlanTests.Run();
         CatalogBatchProgressTests.Run();
         CatalogBatchPolicyTests.Run();

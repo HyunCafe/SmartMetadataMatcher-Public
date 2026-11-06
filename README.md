@@ -382,3 +382,7 @@ Open **IGDB settings** and enter your Twitch Developer application's Client ID a
 ## v0.5.6 — resumable read-only scans
 
 Long scans now save candidate results to the existing private cache after every 10 completed games, not just when the batch ends. If Playnite exits unexpectedly, reopen the Matcher to reload still-valid saved results; the last incomplete checkpoint may need rescanning. Ordinary cancellation and IGDB errors also save the final partial set. Results are read-only evidence and **never** grant permission to import without current live verification. Use **Tools → Rescan all** only to intentionally archive past cached results and start fresh. No changes to ROMs, launch settings, or Playnite game metadata during scanning.
+
+## Private journal performance diagnostics
+
+From the project root on Windows with PowerShell 7, run `pwsh -NoProfile -File ./Tools/Benchmark-Journals.ps1`. The optional `-Large` switch adds a synthetic 10,000-operation case. This builds and tests the real v0.5.7 source, then benchmarks only disposable synthetic enrichment/media journals. It does not access Playnite's database, existing private journal data, ROM files, or network. The command does not create another `.pext`, bump the extension version or install anything. Timings depend on local hardware and filesystem; collect results before proposing journal replay optimizations.
