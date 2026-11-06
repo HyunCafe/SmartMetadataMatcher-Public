@@ -91,6 +91,23 @@ internal static class EnrichmentJobPlanTests
             "uncommitted journal globally blocks new writes");
         Assert(!EnrichmentPlan.HasUnresolvedJournalEntry(new[]{new EnrichmentEntry{Committed=true}}),
             "committed journal does not block next operation");
+        // Display state must never turn a cached Strong match into import authorization.
+        Assert(EnrichmentJobPlanner.DashboardStatus("Strong candidate",false,false,true,false,false)=="Refresh required",
+            "cached Strong candidate explicitly requires refresh");
+        Assert(EnrichmentJobPlanner.DashboardStatus("Strong candidate",false,false,false,true,false)=="Ready for review",
+            "fresh Strict match is only review-ready, not automatically applied");
+        Assert(EnrichmentJobPlanner.DashboardStatus("Strong candidate",false,false,false,false,false)=="Needs review",
+            "a Strong text label alone never grants readiness");
+        Assert(EnrichmentJobPlanner.DashboardStatus("Review",false,false,true,false,false)=="Needs review",
+            "saved ambiguous matches remain review cases");
+        Assert(EnrichmentJobPlanner.DashboardStatus("Review",false,false,true,false,true)=="Confirmed — review",
+            "user confirmed still requires live check and approval");
+        Assert(EnrichmentJobPlanner.DashboardStatus("Review",true,false,false,true,true)=="Completed",
+            "completed state takes precedence over other labels");
+        Assert(EnrichmentJobPlanner.DashboardStatus("Strong candidate",false,true,false,true,false)=="Ignored",
+            "ignored state takes precedence over strict evidence");
+        Assert(EnrichmentJobPlanner.DashboardStatus("Unmatched",false,false,false,false,false)=="Unmatched",
+            "unmatched status is explicit");
         Console.WriteLine("PASS: "+checks+" pure job-plan and recovery-gate checks.");
     }
 }

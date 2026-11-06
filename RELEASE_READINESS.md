@@ -1,4 +1,4 @@
-# v0.5.3 Private Clean No-Change Handling — Acceptance (CURRENT)
+# v0.5.3 Private Clean No-Change Handling — Acceptance (historical checkpoint)
 
 **Source baseline:** v0.5.2 `365a7754ac333e376632d59021d72de2c1a3711a` on local main; stable rollback tag `v0.5.0-private-stable` preserved. No GitHub remote.
 
@@ -12,7 +12,7 @@
 
 ---
 
-# v0.5.2 Private History-UX Acceptance (CURRENT)
+# v0.5.2 Private History-UX Acceptance (historical checkpoint)
 
 **Source:** v0.5.1 `b6c35dd1e5d9a9980032312e2f0a8b4a4fb3dce1`, local-only, clean required.
 **Scope:** 10-row compact history limit removed; clear Undo metadata versus Unhide history labels; safe mixed-selection undo with already-undone rows ignored.
@@ -21,7 +21,7 @@
 **Manual gate:** review all visible entries using scrolling; select Applied+Undone mixed entries, confirm skipped counts and undo only newest active records. Verify Recovery Status read-only, no unresolved/inconsistent stage.
 **Unknown:** independently injected crash recovery, broad user-study confirmation, transitive binary security review. 30-game batch was reported successful, not proof of arbitrary 100+ batch fault recovery.
 
-# v0.5.1 Private Batch-Unlock Acceptance (CURRENT)
+# v0.5.1 Private Batch-Unlock Acceptance (historical checkpoint)
 
 **Status: development candidate; Windows build and live 26+ item acceptance pending.**
 
@@ -108,3 +108,8 @@ Never upload project files or publish to GitHub as part of local build/verificat
 - [ ] Windows full WPF compile and C# test suites on user machine.
 - [ ] In Playnite refresh eight false-Unmatched cases, THE FINALS and Final Fantasy X/X-2; export CSV.
 - [ ] Independent single-item batch undo and crash-injection gates (deferred to isolated Playnite test).
+
+## v0.5.4 private UX gate
+- Confirm cached Strong rows show **Refresh required** in the main list while remaining reviewable, and only fresh strict-ready matches appear as Ready for review.
+- Confirm the review button **Select all ready (N)** describes its complete scope and user-confirmed identity batches remain supervised.
+- Run full Windows WPF build, pure offline suites and package verification before local Git commit. No runtime changes to writer or undo.

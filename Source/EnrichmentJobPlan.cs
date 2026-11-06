@@ -25,6 +25,20 @@ namespace SmartMetadataMatcher
 
     internal static class EnrichmentJobPlanner
     {
+        // Text in the main results grid is an ACTION hint, not a matching score
+        // or a permission to write. Never infer strict eligibility from Status.
+        internal static string DashboardStatus(string status, bool completed, bool ignored,
+            bool fromSavedScan, bool strictEvidence, bool userConfirmed)
+        {
+            if(completed)return "Completed";
+            if(ignored)return "Ignored";
+            if(userConfirmed)return "Confirmed — review";
+            if(fromSavedScan && !strictEvidence && status=="Strong candidate")return "Refresh required";
+            if(status=="Strong candidate")return strictEvidence ? "Ready for review" : "Needs review";
+            if(status=="Review" || status=="Confirmed")return "Needs review";
+            return status=="Unmatched" ? "Unmatched" : "Needs review";
+        }
+
         internal static List<EnrichmentPlanDecision> Create(
             IEnumerable<EnrichmentCandidate> source,
             IEnumerable<Tuple<Guid,string,string>> library,

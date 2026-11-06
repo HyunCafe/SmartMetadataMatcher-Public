@@ -47,6 +47,10 @@ namespace SmartMetadataMatcher
         public bool FromSavedScan { get; set; }
         public bool UserConfirmed { get; set; }
         public bool PreviousAutoPlanEligible { get; set; }
+        // Main list shows the next action. Raw Status remains available to the
+        // planner, CSV exporter and evidence diagnostics without modification.
+        public string DisplayStatus { get { return EnrichmentJobPlanner.DashboardStatus(
+            Status,IsCompleted,IsIgnored,FromSavedScan,AutoPlanEligible,UserConfirmed); } }
     }
 
     internal sealed class PreviewFieldRow
@@ -316,10 +320,10 @@ namespace SmartMetadataMatcher
             var style=new Style(typeof(TextBlock));
             style.Setters.Add(new Setter(TextBlock.ForegroundProperty,Good()));
             foreach(var pair in new[]{
-                Tuple.Create("Review",Caution()),Tuple.Create("Unmatched",Attention()),
-                Tuple.Create("Ignored",Quiet())})
+                Tuple.Create("Needs review",Caution()),Tuple.Create("Refresh required",Caution()),
+                Tuple.Create("Unmatched",Attention()),Tuple.Create("Ignored",Quiet())})
             {
-                var trigger=new DataTrigger{Binding=new Binding("Status"),Value=pair.Item1};
+                var trigger=new DataTrigger{Binding=new Binding("DisplayStatus"),Value=pair.Item1};
                 trigger.Setters.Add(new Setter(TextBlock.ForegroundProperty,pair.Item2));
                 style.Triggers.Add(trigger);
             }
@@ -412,7 +416,7 @@ namespace SmartMetadataMatcher
         internal void Show()
         {
             window=api.Dialogs.CreateWindow(new WindowCreationOptions{ShowMinimizeButton=false});
-            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private batch reliability";
+            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private readiness UX";
             window.Width=1610;window.Height=935;window.MinWidth=1120;window.MinHeight=675;
             var owner=api.Dialogs.GetCurrentAppWindow();
             if(owner!=null && owner!=window)window.Owner=owner;
@@ -520,10 +524,10 @@ namespace SmartMetadataMatcher
 
             var tabs=new WrapPanel{Margin=new Thickness(0,0,0,9)};top.Children.Add(tabs);
             resultView=new ComboBox{Visibility=Visibility.Collapsed};
-            resultView.Items.Add("Active queue");resultView.Items.Add("Completed");
+            resultView.Items.Add("Candidates");resultView.Items.Add("Completed");
             resultView.Items.Add("Needs review");resultView.Items.Add("Ignored");resultView.Items.Add("All results");
             resultView.SelectionChanged+=(s,e)=>RefreshVisibility();resultView.SelectedIndex=0;
-            MakeTab("Active queue",0,tabs);MakeTab("Completed",1,tabs);
+            MakeTab("Candidates",0,tabs);MakeTab("Completed",1,tabs);
             MakeTab("Needs review",2,tabs);MakeTab("Ignored",3,tabs);MakeTab("All results",4,tabs);
 
             var filterBar=new Grid{Margin=new Thickness(0,0,0,9)};
@@ -533,8 +537,8 @@ namespace SmartMetadataMatcher
             var filters=new WrapPanel();Grid.SetColumn(filters,0);filterBar.Children.Add(filters);
             AddButton(filters,"Select highlighted",ToggleHighlightedSelection,out selectionToggleButton);
             selectionToggleButton.ToolTip="Works on highlighted rows (Ctrl/Shift to highlight several). Checked games are selected for the next import.";
-            AddButton(filters,"Select visible ready",ToggleVisibleReadySelection,out visibleToggleButton);
-            visibleToggleButton.ToolTip="Select or deselect eligible games currently visible after filtering.";
+            AddButton(filters,"Select visible candidates",ToggleVisibleReadySelection,out visibleToggleButton);
+            visibleToggleButton.ToolTip="Mark visible candidate matches for the review window. Saved matches require a fresh IGDB check before strict import.";
             AddButton(filters,"Clear selection",()=>{
                 foreach(var r in results)r.Marked=false;
                 grid.Items.Refresh();UpdateSelectionActions();
@@ -589,7 +593,7 @@ namespace SmartMetadataMatcher
             Column("Current title","CurrentName",235);
             Column("Platform","Platform",155);
             Column("Best IGDB candidate","Candidate",245);
-            Column("Result","Status",128);
+            Column("Next step","DisplayStatus",170);
             ((DataGridTextColumn)grid.Columns[4]).ElementStyle=CandidateStatusStyle();
             Column("Score*","MatchScore",72);
             Column("IGDB ID","IgdbId",90);
@@ -604,7 +608,7 @@ namespace SmartMetadataMatcher
             grid.Columns[3].Width=new DataGridLength(1.15,DataGridLengthUnitType.Star);
             grid.Columns[3].MinWidth=160;
             grid.Columns[2].Width=154;
-            grid.Columns[4].Width=128;
+            grid.Columns[4].Width=170;
             grid.Columns[7].Width=136;
             UpdateDiagnosticColumns();
             grid.SelectionChanged+=(s,e)=>{UpdatePreview();UpdateSelectionActions();};
@@ -863,11 +867,15 @@ namespace SmartMetadataMatcher
         {
             if(busy)return;
             var dialog=new Window {Title="Smart Metadata Matcher — IGDB settings",
-                Width=600,Height=340,MinWidth=480,MinHeight=290,Owner=window,
+                Width=650,Height=390,MinWidth=500,MinHeight=330,Owner=window,
                 WindowStartupLocation=WindowStartupLocation.CenterOwner,
                 Background=Deep(),ResizeMode=ResizeMode.CanResize};
             var body=new DockPanel {Margin=new Thickness(18)};
             var fields=new StackPanel();body.Children.Add(fields);
+            var intro=Caption("IGDB game searches need a Twitch Developer application's Client ID and Client Secret. " +
+                "Create these in the official Twitch Developer Console. They are kept in encrypted " +
+                "local settings for your Windows account, never included in the source or exports.",12);
+            intro.Foreground=Muted();intro.Margin=new Thickness(0,0,0,10);fields.Children.Add(intro);
             fields.Children.Add(Caption("Twitch developer Client ID",13));
             var id=new TextBox {Text=clientId.Text,MinHeight=32,FontSize=14,
                 Margin=new Thickness(0,0,0,11)};
@@ -1445,8 +1453,9 @@ namespace SmartMetadataMatcher
                     int canAdd=CatalogBatchPolicy.AvailableSelectionSlots(
                         strictRows.Count(x=>!x.Marked),markedCount(),
                         lines.Any(x=>x.Marked&&x.UserConfirmed));
-                    markReady.Content=canAdd>0?"Select "+canAdd+" ready":
-                        strictRows.Any(x=>x.Marked)?"Deselect ready games":"No ready matches";
+                    markReady.Content=canAdd>0?(lines.Any(x=>x.Marked&&x.UserConfirmed)?
+                        "Add "+canAdd+" (supervised max 5)":"Select all ready ("+canAdd+")"):
+                        strictRows.Any(x=>x.Marked)?"Deselect ready matches":"No ready matches";
                     markReady.IsEnabled=canAdd>0 || strictRows.Any(x=>x.Marked);
                 }
                 if(refreshSelected!=null){
@@ -1526,7 +1535,7 @@ namespace SmartMetadataMatcher
                 }
             },out editDraft);
             editDraft.ToolTip="Stage a custom Playnite title, description and field choices without writing to the library.";
-            AddButton(selectionTools,"Select next ready",()=>{
+            AddButton(selectionTools,"Select all ready",()=>{
                 var readyRows=lines.Where(x=>x.Ready&&!x.Archived&&!x.UserConfirmed).ToList();
                 int slots=CatalogBatchPolicy.AvailableSelectionSlots(
                     readyRows.Count(x=>!x.Marked),markedCount(),
@@ -1538,7 +1547,7 @@ namespace SmartMetadataMatcher
                     foreach(var row in readyRows)row.Marked=false;
                 refreshRows();
             },out markReady);
-            markReady.ToolTip="Select all remaining independently strict-ready matches. " +
+            markReady.ToolTip="Select all remaining freshly verified strict-ready matches, not just the next 25. " +
                 "You may select fewer manually. User-confirmed selections are limited to five. " +
                 "Every import still requires final approval and a verified backup.";
             AddButton(selectionTools,"Clear selection",()=>{
@@ -1703,7 +1712,7 @@ namespace SmartMetadataMatcher
             int completed=results.Count(x=>x.IsCompleted);
             int review=results.Count(x=>!x.IsCompleted&&!x.IsIgnored&&!ReadyForSelection(x));
             int ignored=results.Count(x=>x.IsIgnored);
-            var labels=new[]{"Active queue ("+active+")","Completed ("+completed+")",
+            var labels=new[]{"Candidates ("+active+")","Completed ("+completed+")",
                 "Needs review ("+review+")","Ignored ("+ignored+")","All results ("+results.Count+")"};
             for(int i=0;i<tabButtons.Count;i++)
                 SetTabContent(tabButtons[i],labels[i],i,i==resultView.SelectedIndex);
@@ -2126,9 +2135,10 @@ namespace SmartMetadataMatcher
             previewDetails.Text="IGDB: "+(row.Candidate??"—")+"  •  "+row.Platform;
             if(previewState!=null)
             {
-                previewState.Text=row.IsCompleted?"Completed — you may enrich newly supported missing fields":row.IsIgnored?"Ignored":
-                    row.UserConfirmed?"Identity confirmed by you — exact live check still required":
-                    catalogReady?"Strong candidate — still requires identity confirmation":"Needs manual review";
+                previewState.Text=row.IsCompleted?"Completed — check again for newly supported missing fields":row.IsIgnored?"Ignored":
+                    row.UserConfirmed?"Confirmed by you — final live verification still required":
+                    row.FromSavedScan && !row.AutoPlanEligible?"Saved match — refresh IGDB before strict import":
+                    catalogReady?"Ready for review — final verification required":"Needs manual review";
                 previewState.Foreground=row.IsCompleted?Good():catalogReady?Accent():Caution();
             }
             int proposed=0;
@@ -2198,9 +2208,9 @@ namespace SmartMetadataMatcher
                 "Deselect highlighted ("+highlighted.Count+")";
             selectionToggleButton.IsEnabled=!busy&&highlighted.Count>0;
             if(visibleToggleButton!=null){
-                visibleToggleButton.Content=visible.Count==0?"No ready games in view":
-                    visibleNeedMark?"Select visible ready ("+visible.Count+")":
-                    "Deselect visible ready ("+visible.Count+")";
+                visibleToggleButton.Content=visible.Count==0?"No candidates in view":
+                    visibleNeedMark?"Select visible candidates ("+visible.Count+")":
+                    "Deselect visible candidates ("+visible.Count+")";
                 visibleToggleButton.IsEnabled=!busy&&visible.Count>0;
             }
             int selected=results.Count(x=>x.Marked && CanSelectForImport(x));

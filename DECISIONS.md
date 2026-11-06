@@ -306,3 +306,6 @@ Use Playnite's supported MainView.OpenEditDialog for editing any game metadata r
 - Use one bounded exact-name API fallback only on Unmatched results, not on every game.
 - Filter Series-only candidates in the UI by default without dropping them from the queue/cache/export.
 - Do not refactor the metadata writer, undo, recovery, or journals to address discovery regressions.
+
+## v0.5.4 private — action labels, not new trust rules
+A cached *Strong candidate* remains saved, read-only identity evidence and may not become strict-import-ready until refreshed. The main grid now says **Refresh required**, while the internal `Status` and `AutoPlanEligible` flags remain untouched. Select-all actions describe their actual scope. No auto-approval, API, writer or undo change was approved in this UX milestone.

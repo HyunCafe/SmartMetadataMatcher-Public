@@ -360,3 +360,10 @@ In Review Matches, use **Select next 25 ready** (or hand-pick a smaller group) t
 - Series-only games remain in the scan queue, sorted after games missing other fields.
 - Low-similarity same-platform title anchors may appear for **manual review** but never gain automatic import eligibility.
 - When ordinary search yields no usable match, the plugin can try one bounded exact-name IGDB request before returning Unmatched.
+
+### Understanding match statuses (v0.5.4 private)
+- **Ready for review**: fresh independent evidence can enter final review, *not* a guarantee that every field will change.
+- **Refresh required**: a saved Strong candidate must be revalidated from the review window before strict batch approval.
+- **Confirmed — review**: previously chosen identity is still subject to exact live IGDB/platform verification and approval.
+- **Needs review / Unmatched**: game/edition needs human intervention or no suitable identity was found.
+- **Select all ready (N)** in Review Matches selects every currently strict-ready match, not a limited batch. Clear/mark individual entries to import a smaller subset.

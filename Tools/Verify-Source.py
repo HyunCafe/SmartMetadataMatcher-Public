@@ -121,6 +121,16 @@ if not (root / "Tools/Verify-Package.py").is_file():
 if "Tools/Verify-Package.py" not in (root / "Tools/Build-Preview.ps1").read_text(encoding="utf-8-sig"):
     problems.append("Package verifier must run before reporting build success")
 
+
+# v0.5.4: UI status must distinguish cached evidence from verified, and
+# selection text must accurately describe selecting all (not just the next N).
+if not all(x in view for x in ('Column("Next step","DisplayStatus",170)',
+    'Select all ready', 'Select visible candidates',
+    'Saved match — refresh IGDB before strict import')):
+    problems.append("v0.5.4 readiness and bulk-selection UI wording missing")
+if 'DashboardStatus(' not in (root/'Source/EnrichmentJobPlan.cs').read_text(encoding='utf-8-sig'):
+    problems.append("v0.5.4 dashboard readiness policy missing")
+
 if problems:
     for problem in problems:
         print("STOP:", problem)

@@ -1,3 +1,9 @@
+## v0.5.4 — First-use readiness and selection clarity (private)
+- Main result list now shows the next step, separating fresh strict matches ready for review from saved matches needing refresh; underlying matching evidence and export status remain unchanged.
+- Active tab and selection text no longer imply cached results are immediately import-ready; bulk review selection says **Select all ready**, never **Select next ready**.
+- Preview and IGDB settings provide plain-language next actions; no new network requests or credentials exposure.
+- Added pure readiness-label regression tests and release guards. No changes to matching thresholds, metadata writer, undo, caches, or recovery journal format.
+
 ## v0.5.3 — Private clean no-change batch handling (pending Windows/Playnite acceptance)
 
 - A live IGDB item with **no actual safe metadata or title changes** is now **Skipped**, not a hard batch failure. No Playnite update and no field/undo record are created; the empty media stage is durably closed clean before proceeding.
