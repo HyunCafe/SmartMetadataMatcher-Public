@@ -217,3 +217,10 @@
 - Simplify review dialog headings, selection labels, match status and approval action; preserve exact confirmation, test cap and recovery safeguards.
 - Improve selected-row status contrast and use softer amber for review, muted coral for unmatched. Group uncommon history actions in a dropdown.
 - No changes to IGDB matching logic, import writer, ROM paths, or journal schema.
+
+## v0.4.19 — Direct actions and cautious undated IGDB matches
+- Removed the main results More menu and Recent Updates History actions menu.
+- Exposed direct, context-sensitive Ignore/Restore, Clear selection, Restore changes, and Remove from recent actions with clear titles and tooltips.
+- Kept Full History as the place to restore hidden entries and inspect journal events.
+- Promoted unique, exact structured-platform matches with substantive summary evidence when the release year is unavailable; known generic series and duplicate same-platform IDs remain review.
+- Added Fire Dragon Game Boy positive/negative regression tests. ROM paths, metadata writer, journals, and approval boundaries unchanged.

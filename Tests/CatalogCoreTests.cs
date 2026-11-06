@@ -131,7 +131,24 @@ internal static class CatalogCoreTests
         Assert(shortDriv3r.Game.Id==194978 && shortDriv3r.MatchStatus=="Strong candidate","distinctive short title with dated same-platform release");
         var fireDragon=CatalogCore.Choose(new CatalogInput{Name="09 Fire Dragon",Platform="Nintendo Game Boy"},
             new[]{new CatalogGame{Id=247297,Name="Fire Dragon",PlatformIds=new List<long>{33}}});
-        Assert(fireDragon.MatchStatus=="Review","undated generic title remains review");
+        Assert(fireDragon.MatchStatus=="Review","undated short title without catalog context stays review");
+        var contextualFire=CatalogCore.Choose(new CatalogInput{Name="09 Fire Dragon",Platform="Nintendo Game Boy"},
+            new[]{new CatalogGame{Id=247297,Name="Fire Dragon",PlatformIds=new List<long>{33},
+                Summary="Game Boy edition of the unlicensed Fire Dragon game, published by Gowin for the handheld system."}});
+        Assert(contextualFire.MatchStatus=="Strong candidate" && CatalogCore.CanAutoPlan(contextualFire),
+            "unique exact undated Game Boy title with platform ID and context is eligible for approved import");
+        var wrongFire=CatalogCore.Choose(new CatalogInput{Name="09 Fire Dragon",Platform="Nintendo Game Boy"},
+            new[]{new CatalogGame{Id=247297,Name="Fire Dragon",PlatformIds=new List<long>{18},
+                Summary="Game Boy edition of the unlicensed Fire Dragon game, published by Gowin for the handheld system."}});
+        Assert(wrongFire.MatchStatus=="Review" && !CatalogCore.CanAutoPlan(wrongFire),
+            "descriptive text cannot override mismatched structured platform ID");
+        var duplicatedFire=CatalogCore.Choose(new CatalogInput{Name="09 Fire Dragon",Platform="Nintendo Game Boy"},
+            new[]{new CatalogGame{Id=247297,Name="Fire Dragon",PlatformIds=new List<long>{33},
+                    Summary="Game Boy edition of the unlicensed Fire Dragon game, published by Gowin for the handheld system."},
+                  new CatalogGame{Id=247298,Name="Fire Dragon",PlatformIds=new List<long>{33},
+                    Summary="Another catalog record for Fire Dragon, same Game Boy system, which must remain ambiguous."}});
+        Assert(duplicatedFire.MatchStatus=="Review" && !CatalogCore.CanAutoPlan(duplicatedFire),
+            "multiple exact same-platform IDs still require manual review even with descriptions");
         var abbreviated=CatalogCore.Choose(new CatalogInput{Name="05 Super Mario Adv",Platform=gba},
             new[]{new CatalogGame{Id=81197,Name="Super Mario Advance",PlatformIds=new List<long>{24},FirstReleaseYear=2001}});
         Assert(abbreviated.MatchStatus=="Strong candidate" && CatalogCore.CanAutoPlan(abbreviated),

@@ -62,6 +62,10 @@ namespace SmartMetadataMatcher
         public bool UniqueExactSamePlatform { get; set; }
         public bool StructuredPlatformEvidence { get; set; }
         public bool GenericTitleAmbiguity { get; set; }
+        // Rare undated games can be fully identified by exact title, unique
+        // structured platform ID and substantive catalog context. Never derived
+        // from the score alone, and never valid for a known generic-series title.
+        public bool UndatedExactContextEvidence { get; set; }
     }
 
     // Read-only identity resolution. Neither score nor a 'Strong candidate' label is a
@@ -291,7 +295,8 @@ namespace SmartMetadataMatcher
         {
             if(match==null || match.Input==null || match.Game==null ||
                match.MatchStatus!="Strong candidate" || !match.PlatformMatches ||
-               match.Game.Id<=0 || match.Game.FirstReleaseYear<1970 ||
+               match.Game.Id<=0 ||
+               (match.Game.FirstReleaseYear<1970 && !match.UndatedExactContextEvidence) ||
                match.Score<0.995 || match.Game.PlatformIds==null) return false;
             long platformId=PlatformId(match.Input.Platform);
             if(platformId<=0 || !match.Game.PlatformIds.Contains(platformId)) return false;
@@ -400,22 +405,32 @@ namespace SmartMetadataMatcher
             // correct platform. Multiple exact same-platform IGDB IDs must be reviewed.
             var exactPlatform=ordered.Where(x=>x.Item1.PlatformMatches && x.Item2>=0.99999 && x.Item3).ToList();
             bool uniqueExact=exactPlatform.Count==1 && exactPlatform[0].Item1.Game.Id==top.Game.Id;
-            // Generic unknown releases still need review; a distinctive one-word
-            // title with catalog year and correct platform need not be penalized.
+            // An unknown release date is absence of evidence, not a conflicting
+            // platform. Undated short titles need additional catalog context.
+            // Keep explicitly ambiguous series such as Mario Kart in review.
+            bool catalogPlatformId=expectedPlatformId>0 && top.Game.PlatformIds!=null &&
+                top.Game.PlatformIds.Contains(expectedPlatformId);
+            bool undatedContext=top.Game.FirstReleaseYear<1970 && catalogPlatformId &&
+                uniqueExact && first.Item3 && first.Item2>=0.99999 &&
+                !String.Equals(TitleKey(normalized),"mariokart",StringComparison.Ordinal) &&
+                !String.IsNullOrWhiteSpace(top.Game.Summary) &&
+                top.Game.Summary.Trim().Length>=40;
             var generic=TitleKey(normalized)=="mariokart" ||
                 (normalized.Length<12 && CleanPunctuation(normalized).Split(' ').Length<=2 &&
-                 top.Game.FirstReleaseYear==0);
+                 top.Game.FirstReleaseYear<1970 && !undatedContext);
             bool high=top.PlatformMatches && first.Item2>=0.985 && first.Item3 && uniqueExact && !generic;
             top.ExactTrustedTitleEvidence=first.Item3;
             top.UniqueExactSamePlatform=uniqueExact;
             top.StructuredPlatformEvidence=expectedPlatformId>0 &&
                 top.Game.PlatformIds!=null && top.Game.PlatformIds.Contains(expectedPlatformId);
             top.GenericTitleAmbiguity=generic;
+            top.UndatedExactContextEvidence=undatedContext;
             top.MatchStatus=high?"Strong candidate":"Review";
             top.Reason+="; "+(first.Item3?"exact title/alias evidence":"fuzzy/broad title evidence")+
                 "; "+ordered.Count+" unique candidate(s); next-best "+top.RunnerUp.ToString("0.00",CultureInfo.InvariantCulture)+
                 (exactPlatform.Count>1?"; multiple exact same-platform records need review":"")+
-                (generic?"; short/generic title needs review":"");
+                (generic?"; short/generic title needs review":"")+
+                (undatedContext?"; date unavailable, exact platform/title with catalog context":"");
             return top;
         }
     }

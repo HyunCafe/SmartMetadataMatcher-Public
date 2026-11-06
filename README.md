@@ -256,3 +256,6 @@ The approved metadata import also cleans the Playnite display name. Numbered and
 
 ### Simplified selection (v0.4.18)
 Highlight one or more results (Ctrl/Shift) and use the single Select highlighted / Deselect highlighted button. Select visible ready toggles only eligible games visible under the active filter; it never marks hidden games. Alternatively check rows directly. Review & apply displays the number selected. Clear all and Ignore/restore are under More. The review dialog presents selected games and requires the same separate backup and game-by-game approval before supervised import.
+
+### Direct review/history controls (v0.4.19)
+The results toolbar exposes Select highlighted, Select visible ready, Clear selection (when useful), Ignore/Restore highlighted, and Review & apply. Recent Updates has Restore changes (undo) and Remove from recent directly; neither action permanently deletes the journal. Full History restores hidden rows. Undated exact matches may become ready only with additional structured platform/context evidence; all writes still require approval.

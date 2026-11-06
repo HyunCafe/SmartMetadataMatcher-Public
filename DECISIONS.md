@@ -177,3 +177,7 @@ Manual exception: exactly one marked Strong candidate may be tested via the exis
 - Common actions near their content: scan at top; select and review beside the results table; advanced actions in menus. Highlighted rows and import checkboxes remain intentionally distinct, with explicit tooltips.
 - One context-aware select/deselect button replaces separate mark/unmark; second toggles visible ready rows within current filter. No hidden expansion into the entire library.
 - Review dialog must label the ready state as subject to identity verification; supervised write cap and approvals remain until production recovery is validated.
+
+## v0.4.19 decision
+- Prefer direct visible action buttons over opaque More menus. Keep batch selection, explicit review/approval, and reversible remove-from-recent semantics.
+- Missing release year is not automatically a mismatch. Require exact unique title, structured platform ID, and substantive summary to admit undated games into the user-approved strict plan. Reject platform conflicts and repeated identical catalog identities.

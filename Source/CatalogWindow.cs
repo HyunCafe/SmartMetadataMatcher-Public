@@ -104,6 +104,8 @@ namespace SmartMetadataMatcher
         private readonly List<Button> tabButtons = new List<Button>();
         private TextBox catalogSearch;
         private Button selectionToggleButton, visibleToggleButton, reviewSelectionButton;
+        private Button clearImportSelectionButton, ignoreHighlightedButton;
+        private Button restoreHistoryButton, removeRecentButton;
         private ComboBox platformFilter;
         private DataGrid historyGrid;
         private RowDefinition historyRow;
@@ -400,37 +402,19 @@ namespace SmartMetadataMatcher
             var actions=new WrapPanel{VerticalAlignment=VerticalAlignment.Center};
             Grid.SetColumn(actions,0);toolbar.Children.Add(actions);
             AddButton(actions,"Scan games",StartScan,out scanButton);Decorate(scanButton,"\uE72C");
-            // Menu rather than an Expander: no second toolbar suddenly appears.
-            // Keep the established ComboBox/CheckBox state as the one source of truth.
-            scanSize=new ComboBox{Visibility=Visibility.Collapsed};
+            // Native ComboBox matches the All platforms filter; no custom menu.
+            actions.Children.Add(Caption("Scan size",12));
+            scanSize=new ComboBox{Width=125,Height=32,FontSize=13,Margin=new Thickness(8,0,12,4)};
             scanSize.Items.Add("20 games");scanSize.Items.Add("50 games");
             scanSize.Items.Add("All remaining");scanSize.SelectedIndex=1;
-            useCatalogTitle=new CheckBox{IsChecked=true,Visibility=Visibility.Collapsed};
+            scanSize.ToolTip="Choose how many remaining games to scan; scanning is read-only.";
+            actions.Children.Add(scanSize);
+            useCatalogTitle=new CheckBox{Content="Clean titles on import",IsChecked=true,
+                VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,0,12,4),FontSize=12};
+            useCatalogTitle.ToolTip="Rename only Playnite display titles during approved imports; ROM files and launch paths are untouched.";
             useCatalogTitle.Checked+=(s,e)=>UpdatePreview();
             useCatalogTitle.Unchecked+=(s,e)=>UpdatePreview();
-            Button scanOptionsButton=null;
-            AddButton(actions,"Scan: 50  ▾",()=>{
-                if(busy)return;
-                var menu=new ContextMenu{Background=PanelBrush(),Foreground=Muted(),BorderBrush=StrokeBrush()};
-                var sizes=new[]{"20 games","50 games","All remaining"};
-                for(int i=0;i<sizes.Length;i++){
-                    int choice=i;
-                    var entry=new MenuItem{Header=sizes[i],IsCheckable=true,IsChecked=scanSize.SelectedIndex==i};
-                    entry.Click+=(ss,ee)=>{
-                        scanSize.SelectedIndex=choice;
-                        scanOptionsButton.Content=choice==2?"Scan: All  ▾":
-                            "Scan: "+(choice==0?"20":"50")+"  ▾";
-                    };
-                    menu.Items.Add(entry);
-                }
-                menu.Items.Add(new Separator());
-                var titleChoice=new MenuItem{Header="Clean Playnite display titles on approved import",
-                    IsCheckable=true,IsChecked=useCatalogTitle.IsChecked==true};
-                titleChoice.Click+=(ss,ee)=>{useCatalogTitle.IsChecked=titleChoice.IsChecked;};
-                menu.Items.Add(titleChoice);
-                menu.PlacementTarget=scanOptionsButton;menu.IsOpen=true;
-            },out scanOptionsButton);
-            scanOptionsButton.ToolTip="Choose games per scan and whether a safe catalog-title rename is allowed";
+            actions.Children.Add(useCatalogTitle);
             AddButton(actions,"Cancel",Cancel,out cancelButton);
             cancelButton.IsEnabled=false;cancelButton.Visibility=Visibility.Collapsed;
 
@@ -473,22 +457,14 @@ namespace SmartMetadataMatcher
             selectionToggleButton.ToolTip="Works on highlighted rows (Ctrl/Shift to highlight several). Checked games are selected for the next import.";
             AddButton(filters,"Select visible ready",ToggleVisibleReadySelection,out visibleToggleButton);
             visibleToggleButton.ToolTip="Select or deselect eligible games currently visible after filtering.";
-            Button moreSelection=null;
-            AddButton(filters,"More  ▾",()=>{
-                var menu=new ContextMenu{Background=PanelBrush(),Foreground=Muted(),BorderBrush=StrokeBrush()};
-                var clear=new MenuItem{Header="Clear all import selections"};
-                clear.Click+=(ss,ee)=>{
-                    foreach(var r in results)r.Marked=false;
-                    grid.Items.Refresh();UpdateSelectionActions();
-                };
-                menu.Items.Add(clear);
-                var ignore=new MenuItem{Header="Ignore / restore highlighted game"};
-                ignore.Click+=(ss,ee)=>ToggleIgnored();
-                menu.Items.Add(ignore);
-                menu.PlacementTarget=moreSelection;menu.IsOpen=true;
-            },out moreSelection);
-            moreSelection.ToolTip="Less common selection actions, including ignore and restore.";
-            AddButton(filters,"Review matches",ShowPlanReview,out reviewSelectionButton);
+            AddButton(filters,"Clear selection",()=>{
+                foreach(var r in results)r.Marked=false;
+                grid.Items.Refresh();UpdateSelectionActions();
+            },out clearImportSelectionButton);
+            clearImportSelectionButton.ToolTip="Uncheck every game selected for import. Does not delete or ignore games.";
+            AddButton(filters,"Ignore highlighted",ToggleIgnored,out ignoreHighlightedButton);
+            ignoreHighlightedButton.ToolTip="Ignore or restore the highlighted game. Only unresolved games can be ignored.";
+            AddButton(filters,"Review & apply",ShowPlanReview,out reviewSelectionButton);
             Decorate(reviewSelectionButton,"\uE896",true);
             reviewSelectionButton.ToolTip="Review selected games and approve proposed Playnite metadata changes.";
             reviewSelectionButton.Foreground=Deep();
@@ -565,23 +541,20 @@ namespace SmartMetadataMatcher
             title.FontWeight=FontWeights.SemiBold;
             Button fullHistory;AddButton(historyHeading,"View full history...",ShowFullHistory,out fullHistory);
             Decorate(fullHistory,"\uE8A7");DockPanel.SetDock(fullHistory,Dock.Right);
-            Button historyActions=null;
-            AddButton(historyHeading,"History actions  ▾",()=>{
-                var menu=new ContextMenu{Background=PanelBrush(),Foreground=Muted(),BorderBrush=StrokeBrush()};
-                var undo=new MenuItem{Header="Undo selected (latest first)"};
-                undo.Click+=(ss,ee)=>UndoSelectedHistory(historyGrid.SelectedItems.OfType<HistoryRow>().ToList());
-                menu.Items.Add(undo);
-                var rename=new MenuItem{Header="Fix titles on earlier imports..."};
-                rename.Click+=(ss,ee)=>RenameSelectedHistoryTitles(historyGrid.SelectedItems.OfType<HistoryRow>().ToList());
-                menu.Items.Add(rename);
-                var hide=new MenuItem{Header="Hide selected from Recent Updates..."};
-                hide.Click+=(ss,ee)=>HideSelectedHistory(historyGrid.SelectedItems.OfType<HistoryRow>().ToList(),null);
-                menu.Items.Add(hide);
-                menu.PlacementTarget=historyActions;menu.IsOpen=true;
-            },out historyActions);
-            historyActions.ToolTip="Rare actions for selected history rows. Hiding does not remove undo records.";
-            DockPanel.SetDock(historyActions,Dock.Right);
+            // Primary history actions remain visible; there is no nested menu.
+            // The first button reverses committed changes; the second only hides
+            // history rows. Their distinct labels prevent accidental data loss.
+            AddButton(historyHeading,"Restore changes",()=>
+                UndoSelectedHistory(historyGrid.SelectedItems.OfType<HistoryRow>().ToList()),out restoreHistoryButton);
+            restoreHistoryButton.ToolTip="Restore earlier Playnite metadata using undo records. Only the newest consecutive operations can be reversed.";
+            DockPanel.SetDock(restoreHistoryButton,Dock.Right);
+            AddButton(historyHeading,"Remove from recent",()=>
+                HideSelectedHistory(historyGrid.SelectedItems.OfType<HistoryRow>().ToList(),null),out removeRecentButton);
+            removeRecentButton.ToolTip="Hide selected history rows without deleting games, metadata, or undo records. Restore in Full history.";
+            DockPanel.SetDock(removeRecentButton,Dock.Right);
             historyHeading.Children.Add(title);
+            restoreHistoryButton.IsEnabled=false;
+            removeRecentButton.IsEnabled=false;
             historyGrid=NewTable();historyGrid.SelectionMode=DataGridSelectionMode.Extended;
             historyGrid.SelectionUnit=DataGridSelectionUnit.FullRow;
             historyGrid.ToolTip="Click, Ctrl-click or Shift-click to select operations. Undo only supports the latest consecutive operations.";
@@ -596,6 +569,10 @@ namespace SmartMetadataMatcher
                 var selected=historyGrid.SelectedItems.OfType<HistoryRow>().ToList();
                 title.Text=selected.Count==0?"◷  Recent updates":
                     "◷  Recent updates ("+selected.Count+" selected)";
+                if(restoreHistoryButton!=null)
+                    restoreHistoryButton.IsEnabled=!busy && selected.Any(x=>x.Result=="Applied");
+                if(removeRecentButton!=null)
+                    removeRecentButton.IsEnabled=!busy && selected.Any(x=>!x.Hidden);
             };
             historyGrid.MouseDoubleClick+=(s,e)=>{
                 var selected=historyGrid.SelectedItem as HistoryRow;if(selected==null)return;
@@ -1461,8 +1438,8 @@ namespace SmartMetadataMatcher
         private void UpdateSelectionActions()
         {
             if(grid==null || selectionToggleButton==null)return;
-            var highlighted=grid.SelectedItems.OfType<CatalogViewRow>()
-                .Where(CanSelectForImport).ToList();
+            var highlightedRows=grid.SelectedItems.OfType<CatalogViewRow>().ToList();
+            var highlighted=highlightedRows.Where(CanSelectForImport).ToList();
             var visible=VisibleReadyRows();
             bool highlightsNeedMark=highlighted.Any(x=>!x.Marked);
             bool visibleNeedMark=visible.Any(x=>!x.Marked);
@@ -1476,8 +1453,18 @@ namespace SmartMetadataMatcher
                     "Deselect visible ready ("+visible.Count+")";
                 visibleToggleButton.IsEnabled=!busy&&visible.Count>0;
             }
+            int selected=results.Count(x=>x.Marked && CanSelectForImport(x));
+            if(clearImportSelectionButton!=null){
+                clearImportSelectionButton.Visibility=selected>0?Visibility.Visible:Visibility.Collapsed;
+                clearImportSelectionButton.IsEnabled=!busy&&selected>0;
+            }
+            if(ignoreHighlightedButton!=null){
+                var active=highlightedRows.FirstOrDefault();
+                ignoreHighlightedButton.Content=active!=null && active.IsIgnored?
+                    "Restore highlighted":"Ignore highlighted";
+                ignoreHighlightedButton.IsEnabled=!busy && active!=null && !active.IsCompleted;
+            }
             if(reviewSelectionButton!=null){
-                int selected=results.Count(x=>x.Marked && CanSelectForImport(x));
                 reviewSelectionButton.Content=selected>0?
                     "Review & apply ("+selected+")":"Review matches";
                 reviewSelectionButton.IsEnabled=!busy&&results.Count>0;
