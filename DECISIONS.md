@@ -226,3 +226,6 @@ Use a separate durable media-staging ledger instead of rewriting legacy field-un
 ## v0.4.24 decision checkpoint
 Accepted: cross-journal safety validation, fail-closed orphan/mismatch detection, clear non-guaranteed field preview and unchanged undo format.
 Deferred: automated media cleanup, unrestricted bulk imports, cross-run execution resume and GitHub release until disposable-profile recovery testing.
+
+### v0.4.27 duplicate identity policy
+Allow multiple distinct Playnite records to match one IGDB record when the catalog title and normalized platform agree; this is not, by itself, suspicious. Do not weaken individual strict evidence or exact-ID/platform revalidation. Distinct catalog titles or conflicting platforms for a repeated ID still require review. Distinguish duplicate display names automatically with stable console suffixes, keep approved import previews and Playnite write validation aligned, and never touch the underlying ROM filename or launch path. No automatic import authorization.

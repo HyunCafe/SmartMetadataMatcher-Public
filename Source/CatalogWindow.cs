@@ -2086,8 +2086,9 @@ namespace SmartMetadataMatcher
         }
         // Optional one-confirmation batch: no marking games one by one.
         // Nothing is written before a scrollable approval dialog is accepted.
-        // Deliberately exclude same-platform title collisions and competing IGDB
-        // IDs within the scanned results. More ambiguous items stay reviewable.
+        // Equivalent duplicated Playnite entries may be imported independently;
+        // conflicting catalog IDs and ambiguous identities stay reviewable.
+        // Display-title collisions use safe console suffixes during approval.
         private void AutoPlan()
         {
             if(busy) return;
@@ -2106,7 +2107,7 @@ namespace SmartMetadataMatcher
             if(safe.Count==0)
             {
                 api.Dialogs.ShowMessage("No strict candidates ready for preflight in this scan. " +
-                    "Review uncertain identities and duplicate IGDB IDs, or scan more games. " +
+                    "Review uncertain or conflicting catalog identities, or scan more games. " +
                     "No metadata changes were made.","Smart Metadata Matcher");
                 return;
             }

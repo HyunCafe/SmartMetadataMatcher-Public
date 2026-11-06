@@ -64,7 +64,8 @@ namespace SmartMetadataMatcher
             return catalog.Trim();
         }
         // Pure, user-reviewable Playnite display-name proposal. When the canonical
-        // title already exists on the SAME platform, append a short platform tag.
+        // title already exists in the library (including another console),
+        // append a short platform tag to distinguish the Playnite display name.
         // No ROM paths, game IDs, launches or files are touched here.
         internal static string PlatformDisplaySuffix(string platform)
         {
@@ -89,11 +90,15 @@ namespace SmartMetadataMatcher
             var clean=SuggestedDisplayTitle(original,catalog);
             if(!IsSafeTitle(clean))return "";
             var all=(library??Enumerable.Empty<Tuple<Guid,string,string>>()).ToList();
-            if(!HasCollision(clean,gameId,platform,all))return clean;
+            // This is a display-name choice, not a game-identity decision:
+            // matching title on any console should be distinguished visibly.
+            if(!all.Any(x=>x.Item1!=gameId && IdentityKey(x.Item2)==IdentityKey(clean)))
+                return clean;
             var suffix=PlatformDisplaySuffix(platform);
             if(suffix.Length==0)return ""; // Unknown platform: require explicit manual decision.
             var tagged=clean+" ("+suffix+")";
-            if(!IsSafeTitle(tagged) || HasCollision(tagged,gameId,platform,all))
+            if(!IsSafeTitle(tagged) || all.Any(x=>x.Item1!=gameId &&
+                IdentityKey(x.Item2)==IdentityKey(tagged)))
                 return ""; // Still ambiguous; never invent #2/#3 labels.
             return tagged;
         }

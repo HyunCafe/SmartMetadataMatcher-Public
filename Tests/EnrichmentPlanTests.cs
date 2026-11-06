@@ -53,6 +53,14 @@ internal static class EnrichmentPlanTests
         Check(EnrichmentPlan.SuggestedUniqueDisplayTitle("05 Super Mario Adv","Super Mario Advance",
             gbaId,"Nintendo DS",gbaGames)=="Super Mario Advance (NDS)",
             "platform tag based on requested platform");
+        var crossPlatform=new[]{Tuple.Create(Guid.NewGuid(),"Donkey Kong","Nintendo Game Boy")};
+        Check(EnrichmentPlan.SuggestedUniqueDisplayTitle("04 Donkey Kong","Donkey Kong",
+            gbaId,"Nintendo Game Boy Advance",crossPlatform)=="Donkey Kong (GBA)",
+            "different-console duplicate title uses GBA label automatically");
+        Check(EnrichmentPlan.SuggestedUniqueDisplayTitle("04 Donkey Kong","Donkey Kong",
+            gbaId,"Nintendo Game Boy Advance",new[]{
+                Tuple.Create(Guid.NewGuid(),"Donkey Kong","Nintendo Game Boy Advance")})=="Donkey Kong (GBA)",
+            "same-console duplicate title uses GBA label automatically");
         gbaGames.Add(Tuple.Create(Guid.NewGuid(),"Super Mario Advance (GBA)","Nintendo Game Boy Advance"));
         Check(EnrichmentPlan.SuggestedUniqueDisplayTitle("05 Super Mario Adv","Super Mario Advance",
             gbaId,"Nintendo Game Boy Advance",gbaGames)=="",

@@ -290,3 +290,6 @@ The plugin records artwork staging separately from its field undo records. If an
 
 ### v0.4.24 Recovery Consistency (private preview)
 The read-only Recovery Status panel now verifies closed artwork handoffs have matching metadata intents, and blocks new writes on orphan/mismatched records. The final approval displays potential changes inferred from the previous scan. Actual imported fields depend on a fresh exact-ID fetch and live Playnite preflight; it does not rename ROMs. Keep using small supervised tests until recovery is verified in a disposable Playnite profile.
+
+#### Equivalent game duplicates (v0.4.27)
+If two Playnite entries match the same exact IGDB title and console, the duplicate ID alone no longer blocks supervised enrichment. The plugin automatically proposes a console-suffixed Playnite display name when a clean title exists elsewhere in the library (including a different console). Every game still requires independent identity evidence, live platform verification, backup acknowledgement and approval; ROM filenames and launch paths are never renamed. When even the suffixed name collides, the original display name is preserved pending manual cleanup.

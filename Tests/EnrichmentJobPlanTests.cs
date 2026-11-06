@@ -35,13 +35,26 @@ internal static class EnrichmentJobPlanTests
         Assert(plan.Single(x=>x.GameId==b).AllowRename,"noncolliding rename allowed");
         var doubled=rows.Concat(new[]{Candidate(c,1172,"Golden Sun")}).ToList();
         plan=EnrichmentJobPlanner.Create(doubled,names,true,false);
-        Assert(plan.Count(x=>x.Code=="DuplicateCatalogId")==2,
-            "duplicate IGDB ID across full scan blocks both identities");
-        Assert(plan.Count(x=>x.ReadyForPreflight)==1,"unrelated strict ID remains eligible");
+        Assert(plan.Count(x=>x.ReadyForPreflight)==3,
+            "equivalent same-ID same-platform Playnite duplicates remain eligible");
+        Assert(plan.Single(x=>x.GameId==a).RenameReason.Contains("Golden Sun (GBA)"),
+            "numbered copy receives platform suffix automatically");
         doubled[2].Ignored=true;
         plan=EnrichmentJobPlanner.Create(doubled,names,true,false);
-        Assert(plan.Single(x=>x.GameId==a).Code=="DuplicateCatalogId",
-            "ignored record cannot hide an IGDB duplicate already known to the scan");
+        Assert(plan.Single(x=>x.GameId==a).ReadyForPreflight &&
+            plan.Single(x=>x.GameId==c).Code=="Ignored",
+            "ignored equivalent library entry does not block eligible copy");
+        doubled[2].Ignored=false;
+        doubled[2].CandidateTitle="Golden Sun Special Edition";
+        plan=EnrichmentJobPlanner.Create(doubled,names,true,false);
+        Assert(plan.Count(x=>x.Code=="ConflictingCatalogId")==2,
+            "same IGDB ID with distinct catalog identities is not silently accepted");
+        doubled[2].CandidateTitle="Golden Sun";
+        doubled[2].Platform="Nintendo DS";
+        plan=EnrichmentJobPlanner.Create(doubled,names,true,false);
+        Assert(plan.Count(x=>x.Code=="ConflictingCatalogId")==2,
+            "cross-platform same-ID collision stays reviewable without independent proof");
+        doubled[2].Platform="Game Boy Advance";
         rows[0].StrictEvidence=false;
         plan=EnrichmentJobPlanner.Create(rows,names,false,false);
         Assert(plan.Single(x=>x.GameId==a).Code=="NeedsReview", "strong label alone cannot authorize preflight");
@@ -59,8 +72,9 @@ internal static class EnrichmentJobPlanTests
             "explicit user-confirmed ID may enter supervised preflight without strict score");
         var manualDuplicate=rows.Concat(new[]{Candidate(c,1172,"Golden Sun")}).ToList();
         plan=EnrichmentJobPlanner.Create(manualDuplicate,names,false,false);
-        Assert(plan.Single(x=>x.GameId==a).Code=="DuplicateCatalogId",
-            "user confirmation never bypasses duplicate IGDB ID gate");
+        Assert(plan.Single(x=>x.GameId==a).ReadyForPreflight &&
+            plan.Single(x=>x.GameId==c).ReadyForPreflight,
+            "user-confirmed and strict equivalent copies retain separate supervised approval");
         rows[0].UserConfirmed=false;rows[0].Status="Strong candidate";
         rows[0].StrictEvidence=true; rows[0].Marked=false;rows[1].Marked=true;
         plan=EnrichmentJobPlanner.Create(rows,names,true,true);

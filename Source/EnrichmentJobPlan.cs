@@ -37,11 +37,23 @@ namespace SmartMetadataMatcher
             // in duplicate detection, not merely the first N eligible rows.
             // Distinct GameIds avoid counting the same game twice if it is visible
             // in both history and the current scan.
-            var repeatedIds=new HashSet<long>(rows.Select(x=>new { Row=x, Id=ParseId(x.CatalogId) })
+            // Two Playnite records may legitimately represent the same IGDB game.
+            // Repeating an ID is not an identity conflict when the catalog's own
+            // title AND the concrete console agree. Keep conflicting ID reuse
+            // under review; each admitted row still needs strict independent
+            // evidence (or explicit user confirmation) and live platform preflight.
+            var repeatedGroups=rows.Select(x=>new {Row=x,Id=ParseId(x.CatalogId)})
                 .Where(x=>x.Id>0 && x.Row.GameId!=Guid.Empty)
                 .GroupBy(x=>x.Id)
-                .Where(g=>g.Select(x=>x.Row.GameId).Distinct().Count()>1)
+                .Where(g=>g.Select(x=>x.Row.GameId).Distinct().Count()>1).ToList();
+            var conflictingIds=new HashSet<long>(repeatedGroups.Where(g=>
+                g.Any(x=>String.IsNullOrWhiteSpace(x.Row.CandidateTitle) ||
+                    String.IsNullOrWhiteSpace(CatalogCore.PlatformKey(x.Row.Platform))) ||
+                g.Select(x=>EnrichmentPlan.IdentityKey(x.Row.CandidateTitle)).Distinct().Count()!=1 ||
+                g.Select(x=>CatalogCore.PlatformKey(x.Row.Platform)).Distinct().Count()!=1)
                 .Select(g=>g.Key));
+            var equivalentIds=new HashSet<long>(repeatedGroups.Select(g=>g.Key)
+                .Where(id=>!conflictingIds.Contains(id)));
             var repeatedGames=new HashSet<Guid>(rows.Where(x=>x.GameId!=Guid.Empty)
                 .GroupBy(x=>x.GameId).Where(g=>g.Count()>1).Select(g=>g.Key));
             var decisions=new List<EnrichmentPlanDecision>();
@@ -62,8 +74,8 @@ namespace SmartMetadataMatcher
                 { decision.Code="PriorFailure";decision.Explanation="Prior apply failed; inspect before retrying"; }
                 else if(id<=0 || String.IsNullOrWhiteSpace(row.CandidateTitle))
                 { decision.Code="MissingIdentity";decision.Explanation="No valid IGDB identity"; }
-                else if(repeatedIds.Contains(id))
-                { decision.Code="DuplicateCatalogId";decision.Explanation="IGDB ID shared by multiple scanned games; verify separate editions"; }
+                else if(conflictingIds.Contains(id))
+                { decision.Code="ConflictingCatalogId";decision.Explanation="Same IGDB ID used with conflicting catalog titles or consoles; verify identity"; }
                 else if(!row.UserConfirmed && row.FromSavedScan && !row.StrictEvidence)
                 { decision.Code="CachedNeedsRefresh";decision.Explanation="Saved IGDB match — refresh selected games before a supervised batch import"; }
                 else if(!row.UserConfirmed && (!String.Equals(row.Status,"Strong candidate",StringComparison.Ordinal) || !row.StrictEvidence))
@@ -74,6 +86,8 @@ namespace SmartMetadataMatcher
                     decision.Explanation=row.UserConfirmed?
                         "Previously confirmed by you; still requires live IGDB ID/platform check and approval":
                         "Revalidate exact IGDB ID and current fields before any update";
+                    if(equivalentIds.Contains(id))
+                        decision.Explanation+="; equivalent library duplicate, distinguish display title on import";
                     decision.ReadyForPreflight=true;
                     if(!requestRename)decision.RenameReason="Playnite title cleanup disabled";
                     else

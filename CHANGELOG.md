@@ -280,3 +280,9 @@
 - Recovery Status shows unresolved and handed-off stages, clean abandons, pending operations and detailed reasons for blockers.
 - Final approval displays *potential* field changes beside the proposed Playnite title; a live IGDB/Playnite preflight still decides actual writes.
 - Added 17 recovery/preview regression checks, including persisted journal replay; preserved the supervised five-game limit pending live Playnite recovery testing.
+
+### 0.4.27 — Equivalent library duplicates and console-suffixed display names
+- Identical IGDB ID, official title and console across multiple Playnite game IDs no longer automatically blocks all otherwise-eligible games. Strict title/platform evidence (or explicit individual confirmation), live IGDB ID/platform checks, final approval and undo are still required.
+- Conflicting official titles or console identities sharing a catalog ID remain blocked for review. Ignored or completed equivalent records do not disqualify an independent eligible game.
+- Display-title cleanup adds a console suffix (e.g. `04 Donkey Kong` → `Donkey Kong (GBA)`) when the clean name exists on the same or another console. Does not modify ROM paths. A second suffix collision remains unmodified rather than generating invented edition numbers.
+- Regression tests use actual repeated-ID patterns identified in the full-library CSV.
