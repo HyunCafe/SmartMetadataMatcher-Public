@@ -51,6 +51,18 @@ for path in (root/"Tests").glob("*Tests.cs"):
     if stem + ".Run();" not in program:
         problems.append(f"Test suite not invoked: {stem}")
 
+# RC3 precision + CSV audit invariants: no low-confidence mislabeling,
+# consistent edition gate, and auditable missing-field export.
+core=(root/"Source/CatalogCore.cs").read_text(encoding="utf-8-sig")
+view=(root/"Source/CatalogWindow.cs").read_text(encoding="utf-8-sig")
+needs=(root/"Source/CatalogEnrichmentNeeds.cs").read_text(encoding="utf-8-sig")
+if not all(s in core for s in ("HasMaterialEditionDifference", "match.EditionConflict",
+    "editionConflict=HasMaterialEditionDifference", "first.Item2<0.55")):
+    problems.append("RC3 edition/irrelevant-candidate gates missing")
+if not all(s in view for s in ("Missing Playnite fields at export", "CandidateOverlap(mask,r.AvailableMetadata)",
+    "live==null?r.MissingMask:MissingMask(live)")) or "internal static string Describe(int mask)" not in needs:
+    problems.append("RC3 export missing live field gap/evidence columns")
+
 # Review navigation invariant: draft edits must preserve the current filter.
 # IGDB identity adoption is the only context-menu operation that may reset it.
 review_source = (root / "Source/CatalogWindow.cs").read_text(encoding="utf-8-sig")

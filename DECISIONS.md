@@ -1,3 +1,12 @@
+## Private RC3 — Precision and export audit (2026-11-06)
+
+- Corrected false edition warning for ordinary titles such as *Hogwarts Legacy*. Explicit `- Legacy` and `Legacy Mode` remain review-sensitive.
+- Exact alias matches with a material remaster/edition/client difference now require identity review (e.g., *The Falconeer* and *Realm of the Mad God Exalt*); matched edition titles are unaffected.
+- Rejects implausibly low-similarity candidate recommendations such as *THE FINALS* → *Final Fantasy IV*, retaining manual search; adds search-only article-free and collection punctuation variants.
+- Candidate CSV now includes nine-field Playnite gaps at export time, count, potential fills supported by scanned artwork/description evidence, and cached-result status. Scan evidence does not guarantee a write or validate the match.
+- No ROM, emulator, import writer, journal schema, five/25 batch-policy or Playnite library changes during build.
+- Existing RC2 checkpoint `91148ae` remains the rollback target. Windows compilation and live IGDB search remain unverified until performed locally.
+
 ## v0.5.0 RC1 — freeze core, ship verifiable private milestone
 
 - **Accepted:** preserve the v0.4.32 engine now that a two-game batch and clean Recovery Status were observed in Playnite; avoid speculative refactors during release candidate validation.

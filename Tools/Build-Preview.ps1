@@ -44,7 +44,7 @@ try {
         throw "Version mismatch: YAML=$yamlVersion source=$sourceVersion compiled=$dllVersion"
     }
     New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-    $name = "SmartMetadataMatcher-$yamlVersion-private-rc2-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [Guid]::NewGuid().ToString('N').Substring(0,6)
+    $name = "SmartMetadataMatcher-$yamlVersion-private-rc3-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [Guid]::NewGuid().ToString('N').Substring(0,6)
     $zip = Join-Path $releaseDir ($name + '.zip')
     $pext = Join-Path $releaseDir ($name + '.pext')
     if (Test-Path -LiteralPath $pext) { throw "Refusing to overwrite $pext" }
@@ -64,6 +64,6 @@ try {
     $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $pext).Hash
     Write-Host "SUCCESS: $pext"
     Write-Host "SHA256: $hash"
-    Write-Host 'PRIVATE RC2: matching, import writer and undo frozen; release guards and package integrity verified. Runtime exception gates remain documented.'
+    Write-Host 'PRIVATE RC3: read-only matching precision and CSV audit updated; import writer and undo unchanged. Runtime validation remains documented.'
 }
 finally { Pop-Location }

@@ -1,6 +1,15 @@
-# Smart Metadata Matcher — v0.5.0 private RC2
+## Private RC3 — Precision and export audit (2026-11-06)
 
-**Scope:** personal-use candidate for Playnite 10, not a public release or security certification. This checkpoint freezes the v0.4.32 IGDB matching rules, import writer, title planner, undo journals and recovery format. Upgrade changes affect build validation, packaging, version labels and release documentation only.
+- Corrected false edition warning for ordinary titles such as *Hogwarts Legacy*. Explicit `- Legacy` and `Legacy Mode` remain review-sensitive.
+- Exact alias matches with a material remaster/edition/client difference now require identity review (e.g., *The Falconeer* and *Realm of the Mad God Exalt*); matched edition titles are unaffected.
+- Rejects implausibly low-similarity candidate recommendations such as *THE FINALS* → *Final Fantasy IV*, retaining manual search; adds search-only article-free and collection punctuation variants.
+- Candidate CSV now includes nine-field Playnite gaps at export time, count, potential fills supported by scanned artwork/description evidence, and cached-result status. Scan evidence does not guarantee a write or validate the match.
+- No ROM, emulator, import writer, journal schema, five/25 batch-policy or Playnite library changes during build.
+- Existing RC2 checkpoint `91148ae` remains the rollback target. Windows compilation and live IGDB search remain unverified until performed locally.
+
+# Smart Metadata Matcher — v0.5.0 private RC3
+
+**Scope:** personal-use candidate for Playnite 10, not a public release or security certification. RC3 specifically refines read-only matching precision, adds search-only fallbacks and enhances the candidate CSV export. The import writer, title planner, undo journals, recovery format and batch policy remain unchanged.
 
 ## Verified from user live tests before RC1
 
@@ -49,8 +58,10 @@ Keep diagnostic exports and local scan data out of source control; `.gitignore` 
 
 Never upload project files or publish to GitHub as part of local build/verification. Preserve pre-RC backup and Git commit for rollback.
 
-## RC2 acceptance and boundaries
-- Source check: all nine supported metadata fields participate in read-only discovery and cache invalidation; completed/ignored games remain excluded.
-- Shared object mutation after staging Begin is treated as uncertain until journal preparation and handoff. Failed pre-journal stages block subsequent writes rather than silently claiming clean recovery.
-- The newly expanded queue may contain more games than RC1. Its legacy cached results are read-only; live IGDB/platform verification and separate approval remain required.
-- Live testing of a newly supported icon-only or genre-only game, and fault-injected reference-object Add failures in disposable Playnite data remain outstanding.
+## RC3 acceptance and boundaries
+- Verify exact Hogwarts Legacy identity is not downgraded because its title contains an ordinary word.
+- Verify catalog remaster/client mismatch triggers Review even if the provider supplies an exact alias (Falconeer, Realm of the Mad God Exalt).
+- Verify unrelated fuzzy results are not displayed as recommended candidates (THE FINALS), while article-free and collection-format queries are search-only discovery.
+- Verify candidate CSV records current nine-field Playnite gaps and a **potential** overlap from scanned description/cover/screenshot; it does not claim guaranteed metadata fill.
+- Retain RC2 nine-field discovery and fail-closed shared-reference staging. Cached catalog identities remain read-only until live revalidation and final approval.
+- Independent batch undo and controlled crash testing remain unverified; do not use the primary library for fault injection.

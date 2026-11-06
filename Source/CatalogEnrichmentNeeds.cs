@@ -38,6 +38,35 @@ namespace SmartMetadataMatcher
             while(mask!=0){count+=mask&1;mask>>=1;}
             return count;
         }
+        internal static string Describe(int mask)
+        {
+            Count(mask); // Reject unexpected bits instead of exporting misleading fields.
+            var names=new System.Collections.Generic.List<string>();
+            if((mask & 1)!=0)names.Add("Description");
+            if((mask & 2)!=0)names.Add("Cover");
+            if((mask & 4)!=0)names.Add("Background");
+            if((mask & 8)!=0)names.Add("Icon");
+            if((mask & 16)!=0)names.Add("Release date");
+            if((mask & 32)!=0)names.Add("Genres");
+            if((mask & 64)!=0)names.Add("Developers");
+            if((mask & 128)!=0)names.Add("Publishers");
+            if((mask & 256)!=0)names.Add("Series");
+            return names.Count==0?"None":String.Join("; ",names);
+        }
+        internal static string CandidateOverlap(int mask,string availableMetadata)
+        {
+            Count(mask);
+            // Current search only reports summary, cover and screenshot.
+            // This is a potential opportunity, NOT a guaranteed writer result.
+            var tokens=new System.Collections.Generic.HashSet<string>(
+                (availableMetadata??"").Split(new[]{' ', ',', ';', '|'},
+                    StringSplitOptions.RemoveEmptyEntries),StringComparer.OrdinalIgnoreCase);
+            int overlap=0;
+            if(tokens.Contains("description"))overlap|=mask & 1;
+            if(tokens.Contains("cover"))overlap|=mask & (2|8); // IGDB cover can supply icon.
+            if(tokens.Contains("screenshot"))overlap|=mask & 4;
+            return Describe(overlap);
+        }
         internal static int PrimaryCount(int mask)
         {
             return Count(mask & ((int)CatalogMissingField.Description |

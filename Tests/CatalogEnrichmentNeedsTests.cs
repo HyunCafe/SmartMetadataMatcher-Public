@@ -30,6 +30,17 @@ internal static class CatalogEnrichmentNeedsTests
         Check(!CatalogEnrichmentNeeds.MayAbandonCleanStage(false,false,false),"failed artwork cleanup cannot be abandoned");
         Check(CatalogEnrichmentNeeds.MayAbandonCleanStage(true,false,false),"clean no-write stage can be abandoned");
         Check(!CatalogEnrichmentNeeds.MayAbandonCleanStage(false,true,true),"combined failure stays unresolved");
+        Check(CatalogEnrichmentNeeds.Describe(8)=="Icon","single missing field identified");
+        Check(CatalogEnrichmentNeeds.Describe(0)=="None","no missing fields visible");
+        Check(CatalogEnrichmentNeeds.Describe(511).Contains("Series"),"all nine fields exported");
+        Check(CatalogEnrichmentNeeds.CandidateOverlap(1|2|4|8|16,
+            "description cover screenshot")=="Description; Cover; Background; Icon",
+            "only fields evidenced in scan presented as potential fills");
+        Check(CatalogEnrichmentNeeds.CandidateOverlap(16|32|64|128|256,
+            "description cover screenshot")=="None",
+            "scan must not promise release date, genres or companies");
+        Check(CatalogEnrichmentNeeds.CandidateOverlap(1|2|4,"")=="None",
+            "no proposed fill without scan evidence");
         bool rejected=false;
         try {CatalogEnrichmentNeeds.Count(1024);}catch(ArgumentOutOfRangeException){rejected=true;}
         Check(rejected,"unexpected mask bits rejected");

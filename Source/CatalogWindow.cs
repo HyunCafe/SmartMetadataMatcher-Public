@@ -388,7 +388,7 @@ namespace SmartMetadataMatcher
         internal void Show()
         {
             window=api.Dialogs.CreateWindow(new WindowCreationOptions{ShowMinimizeButton=false});
-            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private RC2";
+            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private RC3";
             window.Width=1610;window.Height=935;window.MinWidth=1120;window.MinHeight=675;
             var owner=api.Dialogs.GetCurrentAppWindow();
             if(owner!=null && owner!=window)window.Owner=owner;
@@ -3410,9 +3410,15 @@ namespace SmartMetadataMatcher
                 return "\""+value.Replace("\"","\"\"")+"\"";
             };
             var sb = new StringBuilder();
-            sb.AppendLine("Current title,Platform,IGDB candidate,Status,Heuristic score,IGDB ID,Release year,Unique candidates,Other candidates,Queries tried,Available metadata,Reason");
+            sb.AppendLine("Current title,Platform,IGDB candidate,Status,Heuristic score,IGDB ID,Release year,Unique candidates,Other candidates,Queries tried,Available metadata,Reason,Missing Playnite fields at export,Missing count,Potential fields from scanned candidate,Saved scan");
             foreach(var r in results)
-                sb.AppendLine(String.Join(",", new[]{r.CurrentName,r.Platform,r.Candidate,r.Status,r.MatchScore,r.IgdbId,r.ReleaseYear,r.FoundCount,r.Alternatives,r.Queries,r.AvailableMetadata,r.Evidence}.Select(cell)));
+            {
+                var live=api.Database.Games[r.GameId];
+                int mask=live==null?r.MissingMask:MissingMask(live);
+                sb.AppendLine(String.Join(",",new[]{r.CurrentName,r.Platform,r.Candidate,r.Status,r.MatchScore,r.IgdbId,r.ReleaseYear,r.FoundCount,r.Alternatives,r.Queries,r.AvailableMetadata,r.Evidence,
+                    CatalogEnrichmentNeeds.Describe(mask),CatalogEnrichmentNeeds.Count(mask).ToString(),
+                    CatalogEnrichmentNeeds.CandidateOverlap(mask,r.AvailableMetadata),r.FromSavedScan?"Yes":"No"}.Select(cell)));
+            }
             File.WriteAllText(save.FileName,sb.ToString(),new UTF8Encoding(true));
             api.Dialogs.ShowMessage("Exported " + results.Count + " candidate rows. No game files or credentials exported.","Smart Metadata Matcher");
         }

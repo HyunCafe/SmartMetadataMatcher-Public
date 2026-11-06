@@ -130,7 +130,7 @@ internal static class CatalogCoreTests
                 Aliases=new List<string>{"Anguna"},PlatformIds=new List<long>{24},FirstReleaseYear=2008}});
         Assert(anguna.MatchStatus=="Strong candidate" && !anguna.AliasOnlyUnrelatedTitle,
             "clear official-title prefix is not penalized as an unrelated alias");
-        foreach(var name in new[]{"Human: Fall Flat Legacy", "Nightingale - Legacy Mode",
+        foreach(var name in new[]{"Human: Fall Flat - Legacy", "Nightingale - Legacy Mode",
             "Monster Hunter Wilds Beta test", "PlanetSide 2 - Test", "Trackmania Starter Access"})
         {
             var options=CatalogCore.QueryVariants(name,"PC (Windows)");
@@ -155,6 +155,44 @@ internal static class CatalogCoreTests
                 Aliases=new List<string>{"Final Fantasy 2"},PlatformIds=new List<long>{38},FirstReleaseYear=2007}});
         Assert(ff2.Game.Id==121717 && ff2.MatchStatus=="Review",
             "canonical edition relevance breaks tied aliases, but duplicate exact matches still need review");
+        // RC3: regressions from the 837-row private RC2 library export.
+        var hogwarts=CatalogCore.Choose(new CatalogInput{Name="Hogwarts Legacy",Platform="PC (Windows)"},
+            new[]{new CatalogGame{Id=136625,Name="Hogwarts Legacy",PlatformIds=new List<long>{6},FirstReleaseYear=2023}});
+        Assert(hogwarts.MatchStatus=="Strong candidate" && CatalogCore.CanAutoPlan(hogwarts),
+            "a real game called Hogwarts Legacy is not an edition qualifier");
+        Assert(!CatalogCore.QueryVariants("Hogwarts Legacy","PC (Windows)").Any(q=>q.Text=="Hogwarts"),
+            "do not waste a broad IGDB search by stripping a real game's final word");
+        var falconeer=CatalogCore.Choose(new CatalogInput{Name="The Falconeer",Platform="PC (Windows)"},
+            new[]{new CatalogGame{Id=121709,Name="The Falconeer: Revolution Remaster",
+                Aliases=new List<string>{"The Falconeer"},PlatformIds=new List<long>{6},FirstReleaseYear=2020}});
+        Assert(falconeer.EditionConflict && falconeer.MatchStatus=="Review" && !CatalogCore.CanAutoPlan(falconeer),
+            "original game and remaster cannot silently share a strong identity");
+        var exalt=CatalogCore.Choose(new CatalogInput{Name="Realm of the Mad God Exalt",Platform="PC (Windows)"},
+            new[]{new CatalogGame{Id=8188,Name="Realm of the Mad God",
+                Aliases=new List<string>{"Realm of the Mad God Exalt"},PlatformIds=new List<long>{6},FirstReleaseYear=2011}});
+        Assert(exalt.EditionConflict && exalt.MatchStatus=="Review" && !CatalogCore.CanAutoPlan(exalt),
+            "Exalt client and base-game identity require review");
+        var authenticEdition=CatalogCore.Choose(new CatalogInput{Name="Sample Remastered",Platform="PC (Windows)"},
+            new[]{new CatalogGame{Id=801,Name="Sample Remastered",PlatformIds=new List<long>{6},FirstReleaseYear=2025}});
+        Assert(authenticEdition.MatchStatus=="Strong candidate" && CatalogCore.CanAutoPlan(authenticEdition),
+            "matching edition labels on both sides are safe");
+        var finals=CatalogCore.Choose(new CatalogInput{Name="THE FINALS",Platform="PC (Windows)"},
+            new[]{new CatalogGame{Id=146022,Name="Final Fantasy IV: The After Years",
+                PlatformIds=new List<long>{6},FirstReleaseYear=2013}});
+        Assert(finals.MatchStatus=="Unmatched" && finals.Game==null,
+            "unrelated Final Fantasy candidate must not appear as a recommended match for THE FINALS");
+        Assert(CatalogCore.QueryVariants("THE FINALS","PC (Windows)").Any(q=>q.Text=="FINALS"&&!q.StrongEvidence),
+            "article-free discovery may locate the correct Finals catalog identity");
+        var trueFinals=CatalogCore.Choose(new CatalogInput{Name="THE FINALS",Platform="PC (Windows)"},
+            new[]{new CatalogGame{Id=909091,Name="The Finals",PlatformIds=new List<long>{6},FirstReleaseYear=2023}});
+        Assert(trueFinals.MatchStatus=="Strong candidate" && CatalogCore.CanAutoPlan(trueFinals),
+            "the genuine Finals game remains a strict-ready match");
+        Assert(CatalogCore.QueryVariants("Final Fantasy X-X2 - HD Remaster","PC (Windows)")
+            .Any(q=>q.Text.Contains("X/X-2")&&!q.StrongEvidence),
+            "combined Final Fantasy title can search the storefront's slash notation");
+        Assert(CatalogCore.QueryVariants("Tomb Raider I-III Remastered Starring Lara Croft","PC (Windows)")
+            .Any(q=>q.Text=="Tomb Raider I-III Remastered"&&!q.StrongEvidence),
+            "remastered collection searches a shorter catalog variant without asserting identity");
         // v0.4.7: only exact, uniquely identified, dated, structured-platform
         // catalog matches may be included in the automatic planning queue.
         Assert(CatalogCore.CanAutoPlan(sonic),"strict auto gate accepts unique exact dated platform-ID match");
@@ -234,7 +272,8 @@ internal static class CatalogCoreTests
         var unrelatedNumber=CatalogCore.Choose(new CatalogInput{Name="Super Mario Advance 2 - Super Mario World",
             Platform=gba},new[]{new CatalogGame{Id=16747,Name="Super Mario World: Super Mario Advance 3",
             PlatformIds=new List<long>{24},FirstReleaseYear=2002}});
-        Assert(unrelatedNumber.MatchStatus=="Review" && !CatalogCore.CanAutoPlan(unrelatedNumber),
+        Assert((unrelatedNumber.MatchStatus=="Review" || unrelatedNumber.MatchStatus=="Unmatched") &&
+            !CatalogCore.CanAutoPlan(unrelatedNumber),
             "wrong sequel numeral cannot be promoted by reordering");
         var ambiguousWdl=CatalogCore.Choose(new CatalogInput{Name="WDL - World Destruction League - Thunder Tanks",
             Platform="Game Boy Color"},new[]{new CatalogGame{Id=17,Name="World Destruction League: Thunder Tanks",

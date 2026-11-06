@@ -71,6 +71,9 @@ namespace SmartMetadataMatcher
         // A completely unrelated canonical title requires user review.
         public bool AliasOnlyUnrelatedTitle { get; set; }
         public double CanonicalTitleSimilarity { get; set; }
+        // An official-title remaster/edition differs from the Playnite title.
+        // Even an exact IGDB alias does not make that edition interchangeable.
+        public bool EditionConflict { get; set; }
     }
 
     // Read-only identity resolution. Neither score nor a 'Strong candidate' label is a
@@ -233,6 +236,15 @@ namespace SmartMetadataMatcher
             var ampersand=Regex.Replace(primary,@"\band\b","&",RegexOptions.IgnoreCase);
             if(!String.Equals(primary,ampersand,StringComparison.OrdinalIgnoreCase))
                 add(ampersand,true);
+            // Search-only spelling alternatives: catalog results still require
+            // their own exact-title and platform checks before import.
+            var withoutArticle=Regex.Match(primary,@"^(?:The)\s+(?<rest>\p{L}{5,}(?:\s+.*)?)$",RegexOptions.IgnoreCase);
+            if(withoutArticle.Success) add(withoutArticle.Groups["rest"].Value,false);
+            var ffCollection=Regex.Replace(primary,@"(?i)\bX\s*[-/]\s*X\s*[-/]?\s*2\b","X/X-2");
+            if(!String.Equals(ffCollection,primary,StringComparison.OrdinalIgnoreCase))
+                add(ffCollection,false);
+            var starring=Regex.Match(primary,@"^(?<base>.+?\bRemaster(?:ed)?)\s+Starring\s+.+$",RegexOptions.IgnoreCase);
+            if(starring.Success) add(starring.Groups["base"].Value,false);
 
             if(kind=="gba") {
                 if(compact=="pokemonfirered") add("Pokemon FireRed Version",true);
@@ -276,9 +288,15 @@ namespace SmartMetadataMatcher
             // Read-only discovery for install/client/beta labels in the 318-game
             // audit. The base game is NEVER proven to be this exact edition.
             var extra=Regex.Match(primary,
-                @"^(?<base>.+?)(?:\s*[-:]\s*|\s+)(?:Legacy(?:\s+Mode)?|(?:DS\s+)?Beta(?:\s+Test)?|Playtest|Starter\s+Access|Test|Launcher|Mod\s+SDK)$",
+                @"^(?<base>.+?)(?:\s*[-:]\s*|\s+)(?:(?:DS\s+)?Beta(?:\s+Test)?|Playtest|Starter\s+Access|Test|Launcher|Mod\s+SDK)$",
                 RegexOptions.IgnoreCase);
             if(extra.Success) add(extra.Groups["base"].Value,false);
+            // 'Legacy' can be part of a game's actual name (Hogwarts Legacy).
+            // Strip it only with an explicit edition separator or 'Legacy Mode'.
+            var legacy=Regex.Match(primary,
+                @"^(?<base>.+?)(?:\s*[-:]\s*Legacy(?:\s+Mode)?|\s+Legacy\s+Mode)$",
+                RegexOptions.IgnoreCase);
+            if(legacy.Success) add(legacy.Groups["base"].Value,false);
             var dlc=Regex.Match(primary,@"^(?<base>.+?)\s*\+\s*.+?\s+DLC$",RegexOptions.IgnoreCase);
             if(dlc.Success) add(dlc.Groups["base"].Value,false);
             // A one-off known PSP packaging title. Search-only, since the
@@ -314,7 +332,7 @@ namespace SmartMetadataMatcher
                match.Game.Id<=0 ||
                (match.Game.FirstReleaseYear<1970 && !match.UndatedExactContextEvidence) ||
                match.Score<0.995 || match.AliasOnlyUnrelatedTitle ||
-               match.Game.PlatformIds==null) return false;
+               match.EditionConflict || match.Game.PlatformIds==null) return false;
             long platformId=PlatformId(match.Input.Platform);
             if(platformId<=0 || !match.Game.PlatformIds.Contains(platformId)) return false;
             return match.StructuredPlatformEvidence &&
@@ -369,9 +387,23 @@ namespace SmartMetadataMatcher
         // This intentionally errs on the side of manual review for translations.
         private static bool HasNonBaseEditionQualifier(string title)
         {
-            return Regex.IsMatch(title??"",
-                @"(?:^|[\s:-])(?:beta(?:\s+test)?|playtest|legacy(?:\s+mode)?|starter\s+access|mod\s+sdk|launcher|dlc)(?:$|[\s:-])",
-                RegexOptions.IgnoreCase);
+            var text=title??"";
+            return Regex.IsMatch(text,
+                @"(?:^|[\s:-])(?:beta(?:\s+test)?|playtest|starter\s+access|mod\s+sdk|launcher|dlc)(?:$|[\s:-])",
+                RegexOptions.IgnoreCase) ||
+                Regex.IsMatch(text,@"(?:[-:]\s*legacy(?:\s+mode)?|\s+legacy\s+mode)\s*$",
+                    RegexOptions.IgnoreCase);
+        }
+
+        private static bool HasMaterialEditionDifference(string requested,string official)
+        {
+            if(TitleKey(requested)==TitleKey(official)) return false;
+            // A matching platform and an exact alias are not enough to collapse
+            // a remaster, edition or client build into the base game's identity.
+            const string marker=@"(?:^|[^\p{L}\p{N}])(?:remaster(?:ed)?|exalt|redux|definitive|deluxe|ultimate|anniversary|director'?s\s+cut|warrior\s+edition)(?:$|[^\p{L}\p{N}])";
+            bool inputHas=Regex.IsMatch(requested??"",marker,RegexOptions.IgnoreCase);
+            bool officialHas=Regex.IsMatch(official??"",marker,RegexOptions.IgnoreCase);
+            return inputHas!=officialHas;
         }
 
         private static bool PlausiblyRelatedCanonicalTitle(string inputTitle,string officialTitle)
@@ -448,6 +480,14 @@ namespace SmartMetadataMatcher
             if(ordered.Count==0)
                 return new CatalogMatch { Input=input, MatchStatus="Unmatched",Reason="No IGDB candidate returned by "+variants.Count+" search variant(s)",Alternatives=new List<CatalogGame>() };
             var first=ordered[0];
+            // An irrelevant fuzzy IGDB result is not a useful proposed match.
+            // Keep the result unmatched and let the user search manually.
+            if(first.Item2<0.55 && !first.Item3)
+                return new CatalogMatch { Input=input,MatchStatus="Unmatched",
+                    Reason="IGDB returned candidates, but none has sufficient title relevance; best similarity "+
+                        first.Item2.ToString("0.00",CultureInfo.InvariantCulture)+". Search manually for the correct identity.",
+                    CandidatesFound=ordered.Count,Alternatives=ordered.Take(3).Select(x=>x.Item1.Game).ToList() };
+
             var top=first.Item1;
             top.CandidatesFound=ordered.Count;
             top.Alternatives=ordered.Skip(1).Take(3).Select(x=>x.Item1.Game).ToList();
@@ -473,14 +513,16 @@ namespace SmartMetadataMatcher
             bool unrelatedAlias=first.Item3 &&
                 !PlausiblyRelatedCanonicalTitle(normalized,top.Game.Name);
             bool nonBaseLabel=HasNonBaseEditionQualifier(normalized);
+            bool editionConflict=HasMaterialEditionDifference(normalized,top.Game.Name);
             bool high=top.PlatformMatches && first.Item2>=0.985 && first.Item3 &&
-                uniqueExact && !generic && !unrelatedAlias && !nonBaseLabel;
+                uniqueExact && !generic && !unrelatedAlias && !nonBaseLabel && !editionConflict;
             top.ExactTrustedTitleEvidence=first.Item3;
             top.UniqueExactSamePlatform=uniqueExact;
             top.StructuredPlatformEvidence=expectedPlatformId>0 &&
                 top.Game.PlatformIds!=null && top.Game.PlatformIds.Contains(expectedPlatformId);
             top.GenericTitleAmbiguity=generic;
             top.AliasOnlyUnrelatedTitle=unrelatedAlias;
+            top.EditionConflict=editionConflict;
             top.UndatedExactContextEvidence=undatedContext;
             top.MatchStatus=high?"Strong candidate":"Review";
             top.Reason+="; "+(first.Item3?"exact title/alias evidence":"fuzzy/broad title evidence")+
@@ -489,6 +531,7 @@ namespace SmartMetadataMatcher
                 (generic?"; short/generic title needs review":"")+
                 (unrelatedAlias?"; exact alias but unrelated official title — verify edition before import":"")+
                 (nonBaseLabel?"; beta/launcher/legacy/DLC qualifier requires manual edition review":"")+
+                (editionConflict?"; official title differs in remaster/edition/client qualifier — verify identity":"")+
                 (undatedContext?"; date unavailable, exact platform/title with catalog context":"");
             return top;
         }
