@@ -92,6 +92,7 @@ internal static class Program
         EnrichmentPlanTests.Run();
         HistoryViewFilterTests.Run();
         JournalReplayBenchmarkTests.Run();
+        EnrichmentJournalReplayTests.Run();
         EnrichmentJobPlanTests.Run();
         CatalogBatchProgressTests.Run();
         CatalogBatchPolicyTests.Run();

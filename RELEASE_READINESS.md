@@ -1,3 +1,11 @@
+## v0.5.8 private indexed journal replay — acceptance
+
+- **Source baseline:** local Git commit `2ed6804d3eb561ecd04f775a0a10979afd6281f3` (v0.5.7 plus benchmark-only tooling); must be clean with stable `v0.5.0-private-stable` tag.
+- **Windows gates:** full WPF compile, all offline tests (including indexed replay corruption/ordering suite), exact package verifier, 300/3000 synthetic timings, and local-only commit.
+- **Previous Windows measurements:** 300 operations = 6.95 ms metadata replay, 1.04 ms media replay, 31.22 ms one journal transaction; 3000 = 144.42 ms, 12.08 ms, 218.51 ms respectively. Synthetic diagnostic only.
+- **Runtime remaining:** focused history/Recovery Status inspection in Playnite; no bulk undo, intentional crash or real journal migration needed. No compiled dependency certification.
+- **Scope:** no data-file edits/migration, no journal/undo schema changes; no caching of recovery state or media ledgers.
+
 ## v0.5.7 private history filtering — acceptance gate
 
 - **Source baseline:** exact v0.5.6 local commit `59ba0870fbc74a97b5cba41e04cef05453826527` on clean `main`; retain original v0.5.0 private-stable annotated tag.

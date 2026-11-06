@@ -1,3 +1,7 @@
+## v0.5.8 — Optimize only measured replay bottleneck
+
+Benchmark measured 3000-record metadata replay at 144.42 ms versus 6.95 ms for 300 records. Use a replay-local operation-ID dictionary to remove O(n²) marker/duplicate searches while preserving full-log verification on every call. Defer media-stage session caching, compaction and recovery-state changes because they would risk stale state after interruption or external modification. Rebenchmark on Windows and retain rollback to v0.5.7.
+
 ## v0.5.7 — History view-only filtering
 
 - Allow compact and full history to show Applied, Undone or All recorded updates. Default is All to avoid hiding any operations.

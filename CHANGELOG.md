@@ -1,3 +1,9 @@
+## v0.5.8 — Indexed enrichment journal replay (2026-11-06)
+
+- Replaced repeated list-wide duplicate/commit/undo searches with a transient per-replay `Dictionary<Guid, EnrichmentEntry>`. Same P/C/U log data, oldest-to-newest replay, public history ordering and undo rules.
+- Added 400-operation mixed legacy/current marker regression and corruption rejection tests. Retains v0.5.7 synthetic benchmark.
+- No media-stage caching, log cleanup, format conversion, existing journal mutation, Playnite write-path change, dependency update or GitHub activity.
+
 ## v0.5.7 — Private searchable history and full-title readability (2026-11-06)
 
 - Compact Update History now filters All / Applied / Undone without limiting the number of retained rows; displays visible counts.

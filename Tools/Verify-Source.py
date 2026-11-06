@@ -165,6 +165,14 @@ if not all(x in view for x in ("HistoryViewFilter.Includes(",
 if 'HistoryViewFilterTests.Run();' not in program or 'Link="HistoryViewFilter.cs"' not in (root/'Tests/NameRulesTests.csproj').read_text(encoding='utf-8-sig'):
     problems.append("History presentation policy must compile and run in offline tests")
 
+journal=(root/'Source/EnrichmentJournal.cs').read_text(encoding='utf-8-sig')
+if not all(x in journal for x in ('var byId=new Dictionary<Guid,EnrichmentEntry>();',
+    'byId.ContainsKey(e.OperationId)', 'byId.Add(e.OperationId,e)',
+    'byId.TryGetValue(id,out e) || e.Undone')):
+    problems.append('Indexed journal replay must retain duplicate and undone validation')
+if 'EnrichmentJournalReplayTests.Run();' not in program:
+    problems.append('Indexed journal corruption/ordering tests not wired')
+
 if problems:
     for problem in problems:
         print("STOP:", problem)

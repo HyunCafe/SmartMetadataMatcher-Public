@@ -54,6 +54,7 @@
     <Compile Include="../Source/DiagnosticCsv.cs" Link="DiagnosticCsv.cs" />
     <Compile Include="DiagnosticCsvTests.cs" />
     <Compile Include="JournalReplayBenchmarkTests.cs" />
+    <Compile Include="EnrichmentJournalReplayTests.cs" />
     <Compile Include="NameRulesTests.cs" />
   </ItemGroup>
 </Project>

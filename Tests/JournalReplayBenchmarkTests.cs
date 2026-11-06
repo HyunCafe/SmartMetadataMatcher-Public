@@ -129,9 +129,9 @@ internal static class JournalReplayBenchmarkTests
     }
     internal static void RunBenchmark(bool large)
     {
-        Console.WriteLine("BENCH: Synthetic .NET Framework journal baseline; no Playnite data used.");
+        Console.WriteLine("BENCH: Synthetic .NET Framework journal measurements; no Playnite data used.");
         Console.WriteLine("BENCH: Median of three warm replays, plus one journal-only write cycle. No performance pass/fail thresholds.");
         foreach(var count in large?new[]{300,3000,10000}:new[]{300,3000})BenchmarkCount(count,true);
-        Console.WriteLine("PASS: synthetic journal benchmark completed; production code unchanged.");
+        Console.WriteLine("PASS: synthetic journal benchmark completed using current source; no real Playnite data accessed.");
     }
 }

@@ -106,6 +106,9 @@ namespace SmartMetadataMatcher
             lock(sync)
             {
                 var entries=new List<EnrichmentEntry>();
+                // Transient, replay-local index only. Never cache journal state across reads:
+                // external edits, crashes and restarts must still be validated from disk.
+                var byId=new Dictionary<Guid,EnrichmentEntry>();
                 if (!File.Exists(path)) return entries;
                 foreach(var line in File.ReadAllLines(path,Encoding.UTF8))
                 {
@@ -117,9 +120,10 @@ namespace SmartMetadataMatcher
                         try { e=Deserialize(parts[1]); }
                         catch(Exception ex) { throw new InvalidDataException("Invalid enrichment journal entry",ex); }
                         if(e==null || e.OperationId==Guid.Empty || e.GameId==Guid.Empty || e.IgdbId<=0 ||
-                           entries.Any(x=>x.OperationId==e.OperationId))
+                           byId.ContainsKey(e.OperationId))
                             throw new InvalidDataException("Invalid/duplicate enrichment operation");
                         entries.Add(e);
+                        byId.Add(e.OperationId,e);
                     }
                     else if((parts.Length==2 || parts.Length==3) &&
                             Guid.TryParseExact(parts[1],"N",out id) &&
@@ -134,8 +138,9 @@ namespace SmartMetadataMatcher
                                 throw new InvalidDataException("Invalid enrichment journal timestamp");
                             timestamp=new DateTime(ticks,DateTimeKind.Utc);
                         }
-                        var e=entries.LastOrDefault(x=>x.OperationId==id && !x.Undone);
-                        if(e==null) throw new InvalidDataException("Unmatched enrichment journal marker");
+                        EnrichmentEntry e;
+                        if(!byId.TryGetValue(id,out e) || e.Undone)
+                            throw new InvalidDataException("Unmatched enrichment journal marker");
                         if(parts[0]=="C")
                         {
                             if(e.Committed) throw new InvalidDataException("Duplicate enrichment commit");

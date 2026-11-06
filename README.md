@@ -1,3 +1,7 @@
+## v0.5.8 private — Faster journal history replay
+
+The enrichment journal replay now indexes operation identifiers in memory while parsing to avoid repeated linear scans. The index exists only during a full, verified replay; journals are always reread from disk and retain the exact prior on-disk format, ordering, legacy timestamp support, and fail-closed semantics. Media staging remains unchanged. Run the synthetic 300/3000-operation benchmark after building to compare with the v0.5.7 baseline; existing data is never used.
+
 ## v0.5.7 private — Find updates in history
 
 - Use **Show: All / Applied / Undone** above the dashboard's Update history list. All is the default and no 10-row cap exists.
