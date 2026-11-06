@@ -1,3 +1,7 @@
+## v0.4.32 — Preflight and package verification
+
+A final read-only selection check at import dispatch rejects duplicate Playnite game IDs, archived records, invalid catalog identities and stale strict-ready evidence. The build runs `Tools/Verify-Package.py` on the actual .pext, rejecting unexpected ZIP members, missing manifest/DLL, source-to-package byte mismatches, and known private path/identifier markers. Release verification is **not** a security certification; an isolated multi-game import/undo Playnite test is still required.
+
 ### v0.4.30 review filter correction
 Editing a staged title/description/field draft from the Review Matches context menu retains the existing filter (including **Selected for import**) and highlighted game. Only selecting a different IGDB identity can reset the review filter. The change does not affect metadata writes, undo, or ROM files.
 

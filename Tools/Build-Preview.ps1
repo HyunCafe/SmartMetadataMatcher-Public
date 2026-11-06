@@ -19,6 +19,8 @@ try {
     # expensive restoration/build; this personal development workflow uses Python.
     & python (Join-Path $root 'Tools/Verify-Source.py')
     if ($LASTEXITCODE -ne 0) { throw 'Source consistency verification failed' }
+    & python (Join-Path $root 'Tools/Test-Package-Integrity.py')
+    if ($LASTEXITCODE -ne 0) { throw 'Package verifier self-tests failed' }
     # Compile the full extension first: test-only projects do not compile WPF.
     # This fails fast on integration mistakes before running the offline suites.
     Run @('restore', $project, '--source', 'https://api.nuget.org/v3/index.json')
@@ -38,7 +40,7 @@ try {
         throw "Version mismatch: YAML=$yamlVersion source=$sourceVersion compiled=$dllVersion"
     }
     New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-    $name = "SmartMetadataMatcher-$yamlVersion-graduated-batches-preview-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
+    $name = "SmartMetadataMatcher-$yamlVersion-reliability-checkpoint-preview-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
     $zip = Join-Path $releaseDir ($name + '.zip')
     $pext = Join-Path $releaseDir ($name + '.pext')
     if (Test-Path -LiteralPath $pext) { throw "Refusing to overwrite $pext" }
@@ -51,9 +53,13 @@ try {
         Move-Item -LiteralPath $zip -Destination $pext
     }
     finally { if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force } }
+    # Verify EXACT package inventory, source-to-DLL identity and privacy markers
+    # after packaging. The package cannot be committed if this fails.
+    & python (Join-Path $root 'Tools/Verify-Package.py') $pext
+    if ($LASTEXITCODE -ne 0) { throw 'Packaged extension integrity verification failed' }
     $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $pext).Hash
     Write-Host "SUCCESS: $pext"
     Write-Host "SHA256: $hash"
-    Write-Host 'GRADUATED BATCH PREVIEW: strict-reviewed batches up to 25, supervised confirmations up to 5; first failure stops further writes. Existing writer and undo unchanged.'
+    Write-Host 'RELIABILITY PREVIEW: duplicate Playnite game preflight, independent duplicate catalog IDs, package integrity and privacy audit. Writer and undo unchanged.'
 }
 finally { Pop-Location }

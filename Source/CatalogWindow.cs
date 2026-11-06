@@ -2875,9 +2875,20 @@ namespace SmartMetadataMatcher
         private void RunBatch(List<CatalogViewRow> marked,bool automatic,int excluded)
         {
             if(!JournalAllowsNewWrites()) return;
-            if(busy || marked==null || !CatalogBatchPolicy.WithinLimit(marked.Count,automatic)) return;
-            if(automatic && marked.Any(x=>!x.AutoPlanEligible || x.IsIgnored || x.IsCompleted || x.FromHistory))
-            { api.Dialogs.ShowMessage("Auto-plan gate changed. Rescan first.","Smart Metadata Matcher");return; }
+            if(busy || marked==null) return;
+            var selectionError=CatalogBatchPolicy.ValidateSelection(marked.Select(x=>
+                new CatalogBatchSelection {
+                    GameId=x.GameId,IgdbId=x.IgdbId,CatalogTitle=x.Candidate,
+                    AutoReady=x.AutoPlanEligible,FromSavedScan=x.FromSavedScan,
+                    FromHistory=x.FromHistory,Ignored=x.IsIgnored,
+                    Completed=x.IsCompleted,UserConfirmed=x.UserConfirmed
+                }),automatic);
+            if(selectionError!=null)
+            {
+                api.Dialogs.ShowMessage(selectionError+". Refresh or review the selection again.",
+                    "Import preflight stopped");
+                return;
+            }
             if(String.IsNullOrWhiteSpace(clientId.Text)||String.IsNullOrWhiteSpace(secret.Password))
             {
                 api.Dialogs.ShowMessage("Enter IGDB credentials first.","Smart Metadata Matcher");return;

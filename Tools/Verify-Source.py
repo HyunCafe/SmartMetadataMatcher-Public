@@ -77,12 +77,19 @@ policy=(root / "Source/CatalogBatchPolicy.cs").read_text(encoding="utf-8-sig")
 if "StrictLimit = 25" not in policy or "SupervisedLimit = 5" not in policy:
     problems.append("Batch limits changed without review")
 if "CatalogBatchPolicy.WithinLimit(selected.Count,strictBatch)" not in review_source or \
-   "CatalogBatchPolicy.WithinLimit(marked.Count,automatic)" not in review_source:
+   "CatalogBatchPolicy.ValidateSelection(marked.Select" not in review_source:
     problems.append("Review and writer batch-size gates must agree")
 if "CatalogBatchPolicy.AvailableSelectionSlots(markedCount()," not in review_source:
     problems.append("Ready selection must be bounded before marking games")
 if "stoppedOnError=CatalogBatchPolicy.StopOnFailure(true);" not in review_source:
     problems.append("The import loop must stop after its first failure")
+
+if "CatalogBatchPolicy.ValidateSelection(marked.Select" not in review_source:
+    problems.append("Every import batch must pass explicit reviewed-selection validation")
+if not (root / "Tools/Verify-Package.py").is_file():
+    problems.append("Missing compiled-package integrity verifier")
+if "Tools/Verify-Package.py" not in (root / "Tools/Build-Preview.ps1").read_text(encoding="utf-8-sig"):
+    problems.append("Package verifier must run before reporting build success")
 
 if problems:
     for problem in problems:

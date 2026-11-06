@@ -1,3 +1,10 @@
+## v0.4.32 — Batch preflight and package integrity (private preview)
+
+- Reject duplicate Playnite **game IDs** in any submitted batch before network and write stages; allow distinct game records to share one verified IGDB ID.
+- Recheck cached/history-only/user-confirmed evidence on the strict batch path and enforce explicit status/ID/title/limit checks at the write dispatcher.
+- Require a post-build .pext integrity/privacy verifier and offline negative-case tests; only DLL + manifest may ship.
+- No changes to IGDB matching, ROMs, EnrichmentWriter, undo behavior or graduated batch limits. Larger-batch Playnite runtime test remains pending.
+
 ## v0.4.31 — Graduated supervised batches and fail-fast imports (private preview)
 - Normal Review Matches → Review & Apply supports up to 25 independently strict-ready games, with exact live IGDB ID/platform revalidation, final field/title preview, verified-backup acknowledgement, and per-game undo journals. No separate automatic-import button is required.
 - Select next ready picks only as many eligible games as the 25-game strict limit permits instead of selecting 200+ at once, with a direct Deselect ready state.

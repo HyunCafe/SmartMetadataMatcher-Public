@@ -1,3 +1,7 @@
+## v0.4.32 — Gate at dispatch and verify release artifacts
+
+Source-only gates are insufficient: reject repeated Playnite game IDs immediately before import, and validate packaged bytes match the just-built DLL and approved manifest. Preserve equivalent duplicate IGDB IDs across distinct Playnite records. Keep `25 strict / 5 supervised`; a real multi-game Playnite import is still required before production claims.
+
 ### v0.4.30 — Review context invariants
 - Draft edits are not catalog identity changes. Preserve review filter, highlighting and import marks when a draft is saved or reset.
 - IGDB alternative selection remains a distinct, explicitly confirmed operation that may change displayed status and selected view.
