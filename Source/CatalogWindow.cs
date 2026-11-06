@@ -44,6 +44,8 @@ namespace SmartMetadataMatcher
         public bool AutoPlanEligible { get; set; }
         public int MissingCount { get; set; }
         public bool FromSavedScan { get; set; }
+        public bool UserConfirmed { get; set; }
+        public bool PreviousAutoPlanEligible { get; set; }
     }
 
     internal sealed class PreviewFieldRow
@@ -102,6 +104,8 @@ namespace SmartMetadataMatcher
         private readonly CatalogIgnored ignoredStore;
         private readonly HistoryVisibilityStore historyVisibility;
         private readonly CatalogScanCache scanCache;
+        private readonly CatalogConfirmedIdentities confirmedIdentities;
+        private bool confirmedIdentitiesAvailable = true;
         private bool scanCacheAvailable = true;
         private int savedMatchesLoaded;
         private HashSet<Guid> hiddenOperations = new HashSet<Guid>();
@@ -157,6 +161,7 @@ namespace SmartMetadataMatcher
             ignoredStore = new CatalogIgnored(pluginDataPath);
             historyVisibility = new HistoryVisibilityStore(pluginDataPath);
             scanCache = new CatalogScanCache(pluginDataPath);
+            confirmedIdentities = new CatalogConfirmedIdentities(pluginDataPath);
             // Fail closed for malformed privacy/preferences state. Never silently
             // reset the user's hidden-record choices or mutate the undo journal.
             hiddenOperations = historyVisibility.Load();
@@ -685,6 +690,14 @@ namespace SmartMetadataMatcher
                     Evidence="Verified previously imported metadata (see history)"
                 });
             }
+            try { confirmedIdentities.Load(); }
+            catch(Exception ex)
+            {
+                confirmedIdentitiesAvailable=false;
+                api.Dialogs.ShowMessage("Confirmed identity decisions could not be read: "+ex.Message+
+                    "\nThey have not been overwritten. Scanning and ordinary reviewed imports remain available.",
+                    "Saved identity decisions need attention");
+            }
             ignoredIds=ignoredStore.Load();
             foreach(var ignored in api.Database.Games.Where(g=>g!=null && ignoredIds.Contains(g.Id) &&
                      !completedIds.Contains(g.Id)))
@@ -720,7 +733,9 @@ namespace SmartMetadataMatcher
                     CatalogScanRecord saved;
                     if(scanCache.TryGet(item,now,out saved))
                     {
-                        results.Add(RestoreSavedResult(item,saved));
+                        var restored=RestoreSavedResult(item,saved);
+                        ApplyRememberedIdentity(restored);
+                        results.Add(restored);
                         savedMatchesLoaded++;
                     }
                     else pending.Add(item);
@@ -819,7 +834,7 @@ namespace SmartMetadataMatcher
             var candidates=results.Select(x=>new EnrichmentCandidate {
                 GameId=x.GameId,CurrentName=x.CurrentName,Platform=x.Platform,
                 CandidateTitle=x.Candidate,CatalogId=x.IgdbId,Status=x.Status,
-                StrictEvidence=x.AutoPlanEligible,Completed=x.IsCompleted,Ignored=x.IsIgnored,
+                StrictEvidence=x.AutoPlanEligible,UserConfirmed=x.UserConfirmed,Completed=x.IsCompleted,Ignored=x.IsIgnored,
                 FromHistory=x.FromHistory,Marked=x.Marked,
                 PriorFailure=(x.Evidence??"").StartsWith("Apply failed:",StringComparison.Ordinal)
             }).ToList();
@@ -831,7 +846,7 @@ namespace SmartMetadataMatcher
                 lines.Add(new PlanPreviewRow {
                     SourceRow=r,Game=r.CurrentName??"",Catalog=r.Candidate??"",
                     Platform=r.Platform??"",CatalogId=r.IgdbId??"",
-                    IdentityStatus=d.ReadyForPreflight?"Ready — verify":
+                    IdentityStatus=d.Code=="UserConfirmed"?"Confirmed by you":d.ReadyForPreflight?"Ready — verify":
                         d.Code=="Completed"?"Completed":d.Code=="Ignored"?"Ignored":"Needs review",
                     Explanation=d.Explanation,RenameHandling=d.ReadyForPreflight?d.RenameReason:"Not planned",
                     Ready=d.ReadyForPreflight,Archived=d.Code=="Completed"||d.Code=="Ignored"
@@ -851,8 +866,9 @@ namespace SmartMetadataMatcher
             var title=Caption("Review matches and proposed changes",19);
             title.FontWeight=FontWeights.SemiBold;title.Foreground=Accent();heading.Children.Add(title);
             var counts=Caption("",14);
-            Action updateCounts=()=>counts.Text=markedCount()+" selected for import  •  "+ready+
-                " ready for review  •  "+review+" need attention  •  "+archived+" completed/ignored";
+            Action updateCounts=()=>counts.Text=markedCount()+" selected for import  •  "+
+                lines.Count(x=>x.Ready)+" ready  •  "+
+                lines.Count(x=>!x.Ready&&!x.Archived)+" need attention  •  "+archived+" completed/ignored";
             updateCounts();
             heading.Children.Add(counts);
             var warning=Caption("Check each game's title, platform and edition before approving. " +
@@ -950,6 +966,71 @@ namespace SmartMetadataMatcher
                 foreach(var row in lines)row.Marked=false;
                 refreshRows();
             },out clearMarked);
+            Button confirmIdentity=null;
+            AddButton(selectionTools,"Confirm highlighted identity...",()=>{
+                var current=table.SelectedItem as PlanPreviewRow;
+                if(current==null || current.SourceRow==null || current.Archived)
+                {api.Dialogs.ShowMessage("Highlight one unresolved match first.","Confirm IGDB identity");return;}
+                var source=current.SourceRow;
+                if(!confirmedIdentitiesAvailable)
+                {api.Dialogs.ShowMessage("Saved identity decisions are unreadable; resolve their local file before saving new ones.",
+                    "Identity storage unavailable");return;}
+                long id;
+                if(!Int64.TryParse(source.IgdbId,out id) || id<=0 || String.IsNullOrWhiteSpace(source.Candidate))
+                {api.Dialogs.ShowMessage("This result has no valid IGDB ID to confirm.","Confirm IGDB identity");return;}
+                // Never accept stale UI context. Does not alter the Playnite DB.
+                var live=api.Database.Games[source.GameId];
+                var livePlatform=live==null?"":live.Platforms==null?"":String.Join(", ",live.Platforms.Select(p=>p.Name));
+                if(live==null || !String.Equals(live.Name,source.CurrentName,StringComparison.Ordinal) ||
+                    !String.Equals(livePlatform,source.Platform,StringComparison.Ordinal))
+                {api.Dialogs.ShowMessage("The Playnite title/platform changed. Rescan before confirming.",
+                    "Confirm IGDB identity");return;}
+                if(source.UserConfirmed)
+                {
+                    if(api.Dialogs.ShowMessage("Forget the saved IGDB identity for "+source.CurrentName+"?\n"+
+                        "This does not undo metadata or delete the game.","Forget identity",
+                        MessageBoxButton.YesNo,MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
+                    try {confirmedIdentities.Forget(source.GameId);}
+                    catch(Exception ex){api.Dialogs.ShowErrorMessage(ex.Message,"Could not forget identity");return;}
+                    source.UserConfirmed=false;
+                    source.Status=String.IsNullOrWhiteSpace(source.PreviousStatus)?"Review":source.PreviousStatus;
+                    source.AutoPlanEligible=source.PreviousAutoPlanEligible;source.Marked=false;
+                    current.Ready=false;current.IdentityStatus="Needs review";
+                    current.Explanation="Saved identity removed; rescan to restore fresh strict evidence";
+                    current.RenameHandling="Not planned";
+                }
+                else
+                {
+                    var prompt="Remember this IGDB identity for the SAME Playnite game?\n\n"+
+                        "Playnite: "+source.CurrentName+"\nPlatform: "+source.Platform+
+                        "\nIGDB: "+source.Candidate+" (ID "+id+")\n\n"+
+                        "Confirm only after verifying game, platform and edition. " +
+                        "This saves a local decision, not permission to write. Every import still fetches the exact IGDB ID, " +
+                        "checks platform and current Playnite fields, and requires approval.";
+                    if(api.Dialogs.ShowMessage(prompt,"Confirm IGDB identity",
+                        MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)return;
+                    try {confirmedIdentities.Confirm(source.GameId,source.CurrentName,source.Platform,id,
+                        source.Candidate,DateTime.UtcNow);}
+                    catch(Exception ex){api.Dialogs.ShowErrorMessage(ex.Message,"Could not save identity");return;}
+                    source.PreviousStatus=source.Status;
+                    source.PreviousAutoPlanEligible=source.AutoPlanEligible;
+                    source.UserConfirmed=true;source.AutoPlanEligible=false;
+                    source.Status="Confirmed";
+                    current.Ready=true;current.IdentityStatus="Confirmed by you";
+                    current.Explanation="User-confirmed ID. Exact live ID/platform check and import approval still required.";
+                    var wanted=useCatalogTitle.IsChecked==true?EnrichmentPlan.SuggestedUniqueDisplayTitle(
+                        source.CurrentName,source.Candidate,source.GameId,source.Platform,library):source.CurrentName;
+                    current.RenameHandling=String.IsNullOrWhiteSpace(wanted)?"Keep original title":wanted;
+                }
+                // A confirmed row may have moved out of the current Needs-review
+                // filter. Keep the result visible rather than showing an empty view.
+                view.SelectedIndex=4;
+                refreshRows();
+            },out confirmIdentity);
+            confirmIdentity.ToolTip="Remember/forget an IGDB identity for this game only. Not automatic import approval.";
+            table.SelectionChanged+=(s,e)=>{if(confirmIdentity!=null){var r=table.SelectedItem as PlanPreviewRow;
+                confirmIdentity.Content=r!=null&&r.SourceRow!=null&&r.SourceRow.UserConfirmed?
+                    "Forget confirmed identity...":"Confirm highlighted identity...";}};
             Action focus=()=>{
                 var row=table.SelectedItem as PlanPreviewRow;
                 if(row==null){api.Dialogs.ShowMessage("No game selected. Choose a category with rows, " +
@@ -1008,7 +1089,8 @@ namespace SmartMetadataMatcher
                 var reviewedRows=selected.Select(x=>x.SourceRow).ToList();
                 var excludedCount=lines.Count-reviewedRows.Count;
                 dialog.Close();
-                window.Dispatcher.BeginInvoke(new Action(()=>RunBatch(reviewedRows,!manualSingle,excludedCount)));
+                bool userConfirmed=reviewedRows.Any(x=>x.UserConfirmed);
+                window.Dispatcher.BeginInvoke(new Action(()=>RunBatch(reviewedRows,!manualSingle&&!userConfirmed,excludedCount)));
             },out previewApply);
             previewApply.Background=Accent();previewApply.BorderBrush=Accent();
             previewApply.Foreground=Deep();previewApply.FontWeight=FontWeights.SemiBold;
@@ -1020,6 +1102,7 @@ namespace SmartMetadataMatcher
             // strict-ready matches exist, show all rather than an empty list.
             view.SelectedIndex=markedCount()>0?0:ready>0?1:4;
             dialog.Content=body;dialog.ShowDialog();
+            RefreshVisibility();UpdatePreview();
         }
 
         private void UpdateDiagnosticColumns()
@@ -1031,9 +1114,9 @@ namespace SmartMetadataMatcher
 
         private void UpdateTabs()
         {
-            int active=results.Count(x=>!x.IsCompleted&&!x.IsIgnored&&x.Status=="Strong candidate");
+            int active=results.Count(x=>!x.IsCompleted&&!x.IsIgnored&&ReadyForSelection(x));
             int completed=results.Count(x=>x.IsCompleted);
-            int review=results.Count(x=>!x.IsCompleted&&!x.IsIgnored&&x.Status!="Strong candidate");
+            int review=results.Count(x=>!x.IsCompleted&&!x.IsIgnored&&!ReadyForSelection(x));
             int ignored=results.Count(x=>x.IsIgnored);
             var labels=new[]{"Active queue ("+active+")","Completed ("+completed+")",
                 "Needs review ("+review+")","Ignored ("+ignored+")","All results ("+results.Count+")"};
@@ -1137,9 +1220,9 @@ namespace SmartMetadataMatcher
                 bool state;
                 switch(resultView.SelectedIndex)
                 {
-                    case 0: state=!row.IsCompleted && !row.IsIgnored && row.Status=="Strong candidate";break;
+                    case 0: state=!row.IsCompleted && !row.IsIgnored && ReadyForSelection(row);break;
                     case 1: state=row.IsCompleted;break;
-                    case 2: state=!row.IsCompleted && !row.IsIgnored && row.Status!="Strong candidate";break;
+                    case 2: state=!row.IsCompleted && !row.IsIgnored && !ReadyForSelection(row);break;
                     case 3: state=row.IsIgnored;break;
                     default: state=true;break;
                 }
@@ -1171,7 +1254,7 @@ namespace SmartMetadataMatcher
             var view=CollectionViewSource.GetDefaultView(grid.ItemsSource);
             if(view==null)return;
             foreach(var row in view.OfType<CatalogViewRow>())
-                if(!row.IsIgnored && EnrichmentPlan.BatchEligible(row.Status,row.IsCompleted,row.IgdbId))
+                if(!row.IsIgnored && !row.IsCompleted && (row.UserConfirmed || EnrichmentPlan.BatchEligible(row.Status,row.IsCompleted,row.IgdbId)))
                     row.Marked=true;
             grid.Items.Refresh();UpdateSelectionActions();
         }
@@ -1366,7 +1449,7 @@ namespace SmartMetadataMatcher
             bool haveDescription=game!=null&&!MetadataPlan.Missing(game.Description);
             bool sourceCover=MetadataPlan.SafeImageId(row.CatalogCoverImageId);
             bool sourceBackground=MetadataPlan.SafeImageId(row.CatalogScreenshotImageId);
-            bool catalogReady=(row.Status=="Strong candidate" || row.IsCompleted) && !row.IsIgnored;
+            bool catalogReady=(ReadyForSelection(row) || row.IsCompleted) && !row.IsIgnored;
             AddPreviewField("Name (Playnite only)",current,chosenName,
                 collision?"Needs manual title review":!rename?"Title cleanup disabled":
                     current==chosenName?"No change":"Included with approved import");
@@ -1417,6 +1500,7 @@ namespace SmartMetadataMatcher
             if(previewState!=null)
             {
                 previewState.Text=row.IsCompleted?"Completed — you may enrich newly supported missing fields":row.IsIgnored?"Ignored":
+                    row.UserConfirmed?"Identity confirmed by you — exact live check still required":
                     catalogReady?"Strong candidate — still requires identity confirmation":"Needs manual review";
                 previewState.Foreground=row.IsCompleted?Good():catalogReady?Accent():Caution();
             }
@@ -1463,7 +1547,7 @@ namespace SmartMetadataMatcher
         private static bool CanSelectForImport(CatalogViewRow row)
         {
             return row!=null && !row.IsCompleted && !row.IsIgnored &&
-                row.Status=="Strong candidate";
+                ReadyForSelection(row);
         }
         private List<CatalogViewRow> VisibleReadyRows()
         {
@@ -1531,7 +1615,7 @@ namespace SmartMetadataMatcher
             if(grid==null)return;
             foreach(var row in grid.SelectedItems.OfType<CatalogViewRow>())
             {
-                if(!row.IsCompleted && !row.IsIgnored && row.Status=="Strong candidate") row.Marked=selected;
+                if(!row.IsCompleted && !row.IsIgnored && ReadyForSelection(row)) row.Marked=selected;
             }
             grid.Items.Refresh();UpdateSelectionActions();
         }
@@ -1661,12 +1745,32 @@ namespace SmartMetadataMatcher
                 FoundCount=saved.FoundCount
             };
         }
+        // Trust only an explicit per-game decision for the SAME title, platform,
+        // exact candidate ID and edition. A remembered identity is NOT strict
+        // algorithmic evidence and is never eligible for unattended auto-plan.
+        private void ApplyRememberedIdentity(CatalogViewRow row)
+        {
+            if(!confirmedIdentitiesAvailable || row==null || row.IsIgnored || row.IsCompleted)return;
+            long id;
+            if(!Int64.TryParse(row.IgdbId,out id) || id<=0)return;
+            if(!confirmedIdentities.TryMatch(row.GameId,row.CurrentName,row.Platform,id,row.Candidate))return;
+            row.PreviousStatus=row.Status;
+            row.PreviousAutoPlanEligible=row.AutoPlanEligible;
+            row.UserConfirmed=true;
+            row.AutoPlanEligible=false;
+            row.Status="Confirmed";
+            row.Evidence=(row.Evidence??"")+"; identity previously confirmed by user — revalidate exact ID and platform before import";
+        }
+        private static bool ReadyForSelection(CatalogViewRow row)
+        {
+            return row!=null && (row.Status=="Strong candidate" || row.UserConfirmed);
+        }
         private static CatalogScanRecord SaveableScanResult(CatalogViewRow row)
         {
             return new CatalogScanRecord {
                 GameId=row.GameId,Name=row.CurrentName,Platform=row.Platform,
                 MissingCount=row.MissingCount,ScannedUtc=DateTime.UtcNow.ToString("o",System.Globalization.CultureInfo.InvariantCulture),
-                Candidate=row.Candidate,Status=row.Status,Evidence=row.Evidence,
+                Candidate=row.Candidate,Status=row.UserConfirmed?(row.PreviousStatus??"Review"):row.Status,Evidence=row.Evidence,
                 CatalogId=row.IgdbId,Score=row.MatchScore,
                 AvailableMetadata=row.AvailableMetadata,Summary=row.CatalogSummary,
                 CoverId=row.CatalogCoverImageId,ScreenshotId=row.CatalogScreenshotImageId,
@@ -1785,12 +1889,14 @@ namespace SmartMetadataMatcher
                             cacheWarning="Saved scan could not be updated (results remain in memory): "+ex.Message;
                         }
                     }
+                    foreach(var result in next)ApplyRememberedIdentity(result);
                     grid.ItemsSource=null; grid.ItemsSource=results;
                     RefreshVisibility();
                     busy=false; scanButton.IsEnabled=true; scanSize.IsEnabled=true; cancelButton.IsEnabled=false;cancelButton.Visibility=Visibility.Collapsed;
                     if (window.IsVisible)
                         summary.Text=(savedMatchesLoaded+cursor)+" / "+(savedMatchesLoaded+queue.Count)+" scanned  •  "+
                             results.Count(x=>x.Status=="Strong candidate")+" strong  •  "+
+                            results.Count(x=>x.UserConfirmed)+" user-confirmed  •  "+
                             results.Count(x=>x.Status=="Review")+" review  •  "+
                             results.Count(x=>x.Status=="Unmatched")+" unmatched  •  "+
                             results.Count(x=>x.IsCompleted)+" completed.  "+
@@ -1818,12 +1924,12 @@ namespace SmartMetadataMatcher
             var plan=EnrichmentJobPlanner.Create(results.Select(x=>new EnrichmentCandidate {
                 GameId=x.GameId,CurrentName=x.CurrentName,Platform=x.Platform,
                 CandidateTitle=x.Candidate,CatalogId=x.IgdbId,Status=x.Status,
-                StrictEvidence=x.AutoPlanEligible,Completed=x.IsCompleted,Ignored=x.IsIgnored,
+                StrictEvidence=x.AutoPlanEligible,UserConfirmed=x.UserConfirmed,Completed=x.IsCompleted,Ignored=x.IsIgnored,
                 FromHistory=x.FromHistory,Marked=x.Marked,
                 PriorFailure=(x.Evidence??"").StartsWith("Apply failed:",StringComparison.Ordinal)
             }),library,useCatalogTitle.IsChecked==true,false);
             var ready=new HashSet<Guid>(plan.Where(x=>x.ReadyForPreflight).Select(x=>x.GameId));
-            var safe=results.Where(x=>ready.Contains(x.GameId))
+            var safe=results.Where(x=>ready.Contains(x.GameId) && x.AutoPlanEligible && !x.UserConfirmed)
                 .OrderBy(x=>x.CurrentName,StringComparer.OrdinalIgnoreCase).Take(25).ToList();
             if(safe.Count==0)
             {
@@ -1890,7 +1996,8 @@ namespace SmartMetadataMatcher
                 api.Dialogs.ShowMessage("First tick a few Strong catalog candidates. Highlighting alone does not mark them.",
                     "Smart Metadata Matcher");return;
             }
-            if(marked.Count>5 || marked.Any(x=>x.IsIgnored || !EnrichmentPlan.BatchEligible(x.Status,x.IsCompleted,x.IgdbId)))
+            if(marked.Count>5 || marked.Any(x=>x.IsIgnored || x.IsCompleted ||
+                !(x.UserConfirmed || EnrichmentPlan.BatchEligible(x.Status,x.IsCompleted,x.IgdbId))))
             {
                 api.Dialogs.ShowMessage("Choose 1–5 uncompleted Strong candidates only. Clear other marks before applying.",
                     "Smart Metadata Matcher");return;
@@ -2081,17 +2188,17 @@ namespace SmartMetadataMatcher
             if(busy || !JournalAllowsNewWrites()) return;
             if(grid.SelectedItems.Count!=1)
             {
-                api.Dialogs.ShowMessage("Select exactly one Strong catalog candidate to test the full import.",
+                api.Dialogs.ShowMessage("Select exactly one eligible catalog match to test the full import.",
                     "Smart Metadata Matcher"); return;
             }
             var row=grid.SelectedItem as CatalogViewRow;
             long igdbId;
-            if(row==null || row.IsIgnored || (row.Status!="Strong candidate" && !row.IsCompleted) ||
+            if(row==null || row.IsIgnored || (!ReadyForSelection(row) && !row.IsCompleted) ||
                !Int64.TryParse(row.IgdbId,out igdbId) || igdbId<=0 ||
                (row.IsCompleted && !enrichmentJournal.Committed().Any(e=>
                    e.GameId==row.GameId && e.IgdbId==igdbId)))
             {
-                api.Dialogs.ShowMessage("Choose a Strong candidate or a previously completed game, and confirm its identity. " +
+                api.Dialogs.ShowMessage("Choose a Strong, user-confirmed, or previously completed match and review its identity. " +
                     "The score alone is not proof.","Smart Metadata Matcher"); return;
             }
             var game=api.Database.Games[row.GameId];

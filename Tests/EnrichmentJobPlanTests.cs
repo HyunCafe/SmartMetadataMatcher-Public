@@ -45,6 +45,16 @@ internal static class EnrichmentJobPlanTests
         rows[0].StrictEvidence=false;
         plan=EnrichmentJobPlanner.Create(rows,names,false,false);
         Assert(plan.Single(x=>x.GameId==a).Code=="NeedsReview", "strong label alone cannot authorize preflight");
+        rows[0].Status="Review";rows[0].UserConfirmed=true;
+        plan=EnrichmentJobPlanner.Create(rows,names,false,false);
+        Assert(plan.Single(x=>x.GameId==a).Code=="UserConfirmed" &&
+            plan.Single(x=>x.GameId==a).ReadyForPreflight,
+            "explicit user-confirmed ID may enter supervised preflight without strict score");
+        var manualDuplicate=rows.Concat(new[]{Candidate(c,1172,"Golden Sun")}).ToList();
+        plan=EnrichmentJobPlanner.Create(manualDuplicate,names,false,false);
+        Assert(plan.Single(x=>x.GameId==a).Code=="DuplicateCatalogId",
+            "user confirmation never bypasses duplicate IGDB ID gate");
+        rows[0].UserConfirmed=false;rows[0].Status="Strong candidate";
         rows[0].StrictEvidence=true; rows[0].Marked=false;rows[1].Marked=true;
         plan=EnrichmentJobPlanner.Create(rows,names,true,true);
         Assert(plan.Single(x=>x.GameId==a).Code=="NotSelected" &&

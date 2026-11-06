@@ -7,9 +7,9 @@ using Playnite.SDK.Plugins;
 [assembly: AssemblyTitle("Smart Metadata Matcher")]
 [assembly: AssemblyCompany("HyunCafe")]
 [assembly: AssemblyProduct("Smart Metadata Matcher")]
-[assembly: AssemblyDescription("Private preview: resumable read-only IGDB scans")]
-[assembly: AssemblyVersion("0.4.20.0")]
-[assembly: AssemblyFileVersion("0.4.20.0")]
+[assembly: AssemblyDescription("Private preview: remembered user-confirmed IGDB identities")]
+[assembly: AssemblyVersion("0.4.21.0")]
+[assembly: AssemblyFileVersion("0.4.21.0")]
 
 namespace SmartMetadataMatcher
 {

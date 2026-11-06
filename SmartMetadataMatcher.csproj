@@ -27,6 +27,7 @@
     <Compile Include="Source/CatalogCore.cs" />
     <Compile Include="Source/CatalogIgnored.cs" />
     <Compile Include="Source/CatalogScanCache.cs" />
+    <Compile Include="Source/CatalogConfirmedIdentities.cs" />
     <Compile Include="Source/HistoryVisibilityStore.cs" />
     <Compile Include="Source/IgdbReadOnly.cs" />
     <Compile Include="Source/CatalogWindow.cs" />

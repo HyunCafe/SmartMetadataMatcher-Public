@@ -14,6 +14,8 @@
     <Compile Include="CatalogCoreTests.cs" />
     <Compile Include="../Source/CatalogIgnored.cs" Link="CatalogIgnored.cs" />
     <Compile Include="../Source/CatalogScanCache.cs" Link="CatalogScanCache.cs" />
+    <Compile Include="../Source/CatalogConfirmedIdentities.cs" Link="CatalogConfirmedIdentities.cs" />
+    <Compile Include="CatalogConfirmedIdentitiesTests.cs" />
     <Compile Include="CatalogScanCacheTests.cs" />
     <Compile Include="../Source/HistoryVisibilityStore.cs" Link="HistoryVisibilityStore.cs" />
     <Compile Include="CatalogIgnoredTests.cs" />

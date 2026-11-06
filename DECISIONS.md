@@ -1,3 +1,9 @@
+## 0.4.21 decision: user-approved identity memory
+- Only explicit per-game approval persists an ID; similarity is not correctness probability.
+- A user-confirmed match can be manually reviewed and imported but may not enter unattended strict automatic plans.
+- A changed name/platform/catalog ID or edition invalidates reuse, and the writer still validates platform.
+- Retain the existing batch-size safeguard until interruption testing.
+
 ## v0.4.14 — History selection and approved Playnite title corrections (private preview)
 
 - Recent and full history tables support Ctrl-click, Shift-click and full-row extended selection.

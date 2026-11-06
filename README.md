@@ -1,3 +1,6 @@
+## v0.4.21 identity continuity
+In Review matches, highlight a candidate and use **Confirm highlighted identity** to remember the exact ID for that unchanged Playnite game. Confirmed entries appear after reopening when the same game, title, platform, catalog title and IGDB ID still match. Use the same action to forget a confirmation. No confirmation silently applies metadata; live ID/platform verification and user approval remain mandatory. Existing private scan cache and recovery history remain independent.
+
 ## v0.4.14 — History selection and approved Playnite title corrections (private preview)
 
 - Recent and full history tables support Ctrl-click, Shift-click and full-row extended selection.

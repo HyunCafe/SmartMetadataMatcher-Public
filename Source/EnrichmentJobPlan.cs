@@ -12,7 +12,7 @@ namespace SmartMetadataMatcher
         internal Guid GameId;
         internal string CurrentName, Platform, CandidateTitle, CatalogId;
         internal string Status;
-        internal bool StrictEvidence, Completed, Ignored, FromHistory, Marked, PriorFailure;
+        internal bool StrictEvidence, UserConfirmed, Completed, Ignored, FromHistory, Marked, PriorFailure;
     }
 
     internal sealed class EnrichmentPlanDecision
@@ -64,12 +64,14 @@ namespace SmartMetadataMatcher
                 { decision.Code="MissingIdentity";decision.Explanation="No valid IGDB identity"; }
                 else if(repeatedIds.Contains(id))
                 { decision.Code="DuplicateCatalogId";decision.Explanation="IGDB ID shared by multiple scanned games; verify separate editions"; }
-                else if(!String.Equals(row.Status,"Strong candidate",StringComparison.Ordinal) || !row.StrictEvidence)
+                else if(!row.UserConfirmed && (!String.Equals(row.Status,"Strong candidate",StringComparison.Ordinal) || !row.StrictEvidence))
                 { decision.Code="NeedsReview";decision.Explanation="Strict independent title, platform and year evidence is incomplete"; }
                 else
                 {
-                    decision.Code="ReadyForPreflight";
-                    decision.Explanation="Revalidate exact IGDB ID and current fields before any update";
+                    decision.Code=row.UserConfirmed?"UserConfirmed":"ReadyForPreflight";
+                    decision.Explanation=row.UserConfirmed?
+                        "Previously confirmed by you; still requires live IGDB ID/platform check and approval":
+                        "Revalidate exact IGDB ID and current fields before any update";
                     decision.ReadyForPreflight=true;
                     if(!requestRename)decision.RenameReason="Playnite title cleanup disabled";
                     else

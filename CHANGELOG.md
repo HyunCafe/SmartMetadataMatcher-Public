@@ -1,3 +1,11 @@
+## 0.4.21 — user-confirmed IGDB identities (private preview)
+- Review matches: confirm/forget a highlighted exact IGDB ID for one unchanged Playnite game.
+- Private atomic, size-limited JSON decision store with invalidation on game title/platform or catalog identity changes.
+- Reuse confirms after cache restoration or fresh scan without granting strict unattended eligibility.
+- Manually confirmed groups may pass supervised (max 5) import only after live ID/platform check, final approval and journaling.
+- Malformed identity file is preserved and saving confirmations is blocked until resolved.
+- Metadata writer/ROM files/undo journal unchanged.
+
 ## v0.4.20 — Resumable read-only catalog scans (private preview)
 - Persist recent IGDB candidate summaries in private plugin data after each finished or cancelled scan batch; restore them on reopening the dashboard.
 - Cache matches only when exact Playnite game ID, name, platform and missing-field count agree and the saved scan is at most seven days old.
