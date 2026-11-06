@@ -19,7 +19,7 @@ with ZipFile(package) as z:
         b'Version: 0.5.0' not in z.read('extension.yaml'):
         sys.exit('Candidate package verification failed')
 report={
-  'product':'Smart Metadata Matcher', 'release':'0.5.0 private RC1',
+  'product':'Smart Metadata Matcher', 'release':'0.5.0 private RC2',
   'created_utc':datetime.now(timezone.utc).isoformat(),
   'package_filename':package.name,
   'sha256':sha256(package.read_bytes()).hexdigest().upper(),
@@ -35,7 +35,7 @@ report={
   'publication':'private only; no GitHub remote action authorized'
 }
 # Deliberately record no absolute file paths, library inventories, or user identifiers.
-output=package.parent/'PrivateReports'/('SMM-0.5.0-RC1-'+commit[:8]+'.json')
+output=package.parent/'PrivateReports'/('SMM-0.5.0-RC2-'+commit[:8]+'.json')
 output.parent.mkdir(parents=True,exist_ok=True)
 output.write_text(json.dumps(report,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
 print('PRIVATE RC REPORT:',output)

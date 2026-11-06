@@ -328,3 +328,9 @@
 - Pure title/identity guards prevent accidental duplicate titles, stale game/IGDB IDs and unsafe content. The same title resolver is used at preview and write time.
 - Optional description replacement is HTML-escaped and recorded in the original enrichment journal for undo. Media/metadata exclusions are honored by downloader and writer.
 - Retains existing supervised caps, recovery gates and platform/identity verification.
+
+## v0.5.0 private RC2 (targeted pre-stable correctness)
+- Discover titles missing any supported field: description, cover, background, icon, platform-specific release date, genres, developers, publishers or series.
+- Share one missing-field bitmask across opening scans, fresh rescans, selective refresh, and persisted read-only lookup cache. Legacy v1 cache rows can still be displayed read-only when the original three primary field states agree; newer rows invalidate on all supported fields.
+- Keep any pre-journal shared-object Add() failure unresolved in the existing media staging gate; never mark it clean based only on artwork cleanup. No automatic deletion of shared genre/company/series records.
+- New offline tests for every single missing field, cache migration/invalidation, and shared-object uncertainty.

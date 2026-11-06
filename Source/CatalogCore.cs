@@ -13,6 +13,7 @@ namespace SmartMetadataMatcher
         public string Name { get; set; }
         public string Platform { get; set; }
         public int MissingCount { get; set; }
+        public int MissingMask { get; set; }
     }
 
     internal sealed class CatalogGame

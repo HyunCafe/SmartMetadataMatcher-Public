@@ -18,6 +18,8 @@ namespace SmartMetadataMatcher
         [DataMember] public string Name;
         [DataMember] public string Platform;
         [DataMember] public int MissingCount;
+        // Nullable preserves v1 cache snapshots created before the expanded field mask.
+        [DataMember(EmitDefaultValue=false)] public int? MissingMask;
         [DataMember] public string ScannedUtc;
         [DataMember] public string Candidate;
         [DataMember] public string Status;
@@ -71,6 +73,9 @@ namespace SmartMetadataMatcher
             if(entry==null || entry.GameId==Guid.Empty || String.IsNullOrWhiteSpace(entry.Name) ||
                 entry.Platform==null || entry.Name.Length>1024 ||
                 entry.Platform.Length>256 || entry.MissingCount<0 || entry.MissingCount>100 ||
+                (entry.MissingMask.HasValue && (entry.MissingMask.Value<0 ||
+                    (entry.MissingMask.Value & ~CatalogEnrichmentNeeds.AllMask)!=0 ||
+                    CatalogEnrichmentNeeds.Count(entry.MissingMask.Value)!=entry.MissingCount)) ||
                 (entry.Status!="Strong candidate" && entry.Status!="Review" && entry.Status!="Unmatched") ||
                 !HasValidUtcTime(entry.ScannedUtc) ||
                 (entry.Candidate??"").Length>1024 || (entry.Evidence??"").Length>16000 ||
@@ -114,7 +119,15 @@ namespace SmartMetadataMatcher
             if(!known.TryGetValue(input.Id,out candidate))return false;
             if(!String.Equals(candidate.Name,input.Name,StringComparison.Ordinal) ||
                 !String.Equals(candidate.Platform,input.Platform,StringComparison.Ordinal) ||
-                candidate.MissingCount!=input.MissingCount ||
+                // Current records invalidate on ANY supported missing-field change.
+                // Historic v1 records tracked only description, cover, background.
+                // Preserve their read-only lookup candidates if those three still agree;
+                // no restored result grants strict write eligibility.
+                (candidate.MissingMask.HasValue ?
+                    candidate.MissingMask.Value!=input.MissingMask ||
+                    candidate.MissingCount!=input.MissingCount :
+                    candidate.MissingCount!=(input.MissingMask==0 ? input.MissingCount :
+                        CatalogEnrichmentNeeds.PrimaryCount(input.MissingMask))) ||
                 ParseUtc(candidate.ScannedUtc)>nowUtc.AddMinutes(5) ||
                 ParseUtc(candidate.ScannedUtc)<nowUtc-Lifetime)return false;
             record=candidate;return true;

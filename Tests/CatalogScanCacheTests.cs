@@ -43,6 +43,25 @@ internal static class CatalogScanCacheTests
                 Platform=input.Platform,MissingCount=2},now,out found),"missing-field change invalidates");
             Check(!reload.TryGet(input,now.AddDays(8),out found),"expired cache invalidates");
             Check(!reload.TryGet(input,now.AddMinutes(-10),out found),"future cache invalidates");
+
+            // Old v1 snapshots have no field mask, and remain read-only reusable
+            // when the three original primary fields agree.
+            var expanded=new CatalogInput{Id=input.Id,Name=input.Name,Platform=input.Platform,
+                MissingMask=CatalogEnrichmentNeeds.AllMask,MissingCount=9};
+            Check(reload.TryGet(expanded,now,out found),"legacy candidate survives secondary-field expansion");
+            Check(!reload.TryGet(new CatalogInput{Id=input.Id,Name=input.Name,
+                Platform=input.Platform,MissingMask=8,MissingCount=1},now,out found),
+                "legacy candidate invalidated on primary change");
+            var updated=new CatalogScanRecord{GameId=entry.GameId,Name=entry.Name,Platform=entry.Platform,
+                MissingMask=CatalogEnrichmentNeeds.AllMask,MissingCount=9,
+                ScannedUtc=entry.ScannedUtc,Status=entry.Status,Candidate=entry.Candidate};
+            reload.SaveBatch(new[]{updated},now);
+            var latest=new CatalogScanCache(folder);latest.Load();
+            Check(latest.TryGet(expanded,now,out found),"new missing-field mask roundtrip");
+            Check(!latest.TryGet(new CatalogInput{Id=input.Id,Name=input.Name,
+                Platform=input.Platform,MissingMask=CatalogEnrichmentNeeds.AllMask^8,
+                MissingCount=8},now,out found),"icon-only missingness change invalidates new cache");
+            // Continue older assertions against legacy snapshot below, not the updated one.
             var archive=reload.ArchiveAndClear(now);
             Check(File.Exists(archive),"fresh scan archives old data");
             Check(!reload.TryGet(input,now,out found),"fresh scan invalidates memory");

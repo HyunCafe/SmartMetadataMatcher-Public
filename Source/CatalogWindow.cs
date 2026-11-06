@@ -43,6 +43,7 @@ namespace SmartMetadataMatcher
         // Set only from a fresh full resolver result; never inferred from score text.
         public bool AutoPlanEligible { get; set; }
         public int MissingCount { get; set; }
+        public int MissingMask { get; set; }
         public bool FromSavedScan { get; set; }
         public bool UserConfirmed { get; set; }
         public bool PreviousAutoPlanEligible { get; set; }
@@ -96,6 +97,27 @@ namespace SmartMetadataMatcher
     internal sealed class CatalogWindow
     {
         private readonly IPlayniteAPI api;
+        private static int MissingMask(Game g)
+        {
+            if(g==null)throw new ArgumentNullException("g");
+            return CatalogEnrichmentNeeds.Mask(
+                MetadataPlan.Missing(g.Description),
+                MetadataPlan.Missing(g.CoverImage),
+                MetadataPlan.Missing(g.BackgroundImage),
+                MetadataPlan.Missing(g.Icon),
+                !g.ReleaseDate.HasValue,
+                g.GenreIds==null || g.GenreIds.Count==0,
+                g.DeveloperIds==null || g.DeveloperIds.Count==0,
+                g.PublisherIds==null || g.PublisherIds.Count==0,
+                g.SeriesIds==null || g.SeriesIds.Count==0);
+        }
+        private static CatalogInput ScanInput(Game g)
+        {
+            var mask=MissingMask(g);
+            return new CatalogInput{Id=g.Id,Name=g.Name,
+                Platform=g.Platforms==null?"":String.Join(", ",g.Platforms.Select(p=>p.Name)),
+                MissingMask=mask,MissingCount=CatalogEnrichmentNeeds.Count(mask)};
+        }
         private readonly string pluginDataPath;
         private readonly Dictionary<long,CatalogGame> inspectedCatalog = new Dictionary<long,CatalogGame>();
         private Button inspectFieldsButton;
@@ -366,7 +388,7 @@ namespace SmartMetadataMatcher
         internal void Show()
         {
             window=api.Dialogs.CreateWindow(new WindowCreationOptions{ShowMinimizeButton=false});
-            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private RC1";
+            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private RC2";
             window.Width=1610;window.Height=935;window.MinWidth=1120;window.MinHeight=675;
             var owner=api.Dialogs.GetCurrentAppWindow();
             if(owner!=null && owner!=window)window.Owner=owner;
@@ -744,11 +766,7 @@ namespace SmartMetadataMatcher
             grid.ItemsSource=results;
             queue=api.Database.Games.Where(g=>g!=null && !String.IsNullOrWhiteSpace(g.Name) &&
                     !completedIds.Contains(g.Id) && !ignoredIds.Contains(g.Id))
-                .Select(g=>new CatalogInput { Id=g.Id,Name=g.Name,
-                    Platform=g.Platforms==null?"":String.Join(", ",g.Platforms.Select(p=>p.Name)),
-                    MissingCount=(String.IsNullOrWhiteSpace(g.CoverImage)?1:0)+
-                                 (String.IsNullOrWhiteSpace(g.BackgroundImage)?1:0)+
-                                 (String.IsNullOrWhiteSpace(g.Description)?1:0)})
+                .Select(ScanInput)
                 .Where(x=>x.MissingCount>0).ToList();
             excludedTesting=queue.Count(x=>CatalogCore.IsTestingOnly(x.Name));
             queue=queue.Where(x=>!CatalogCore.IsTestingOnly(x.Name))
@@ -1084,9 +1102,8 @@ namespace SmartMetadataMatcher
                     row.UserConfirmed=false;row.FromSavedScan=true;
                     if(!row.IsCompleted){row.Status="Review";row.PreviousStatus="Review";}
                     row.Evidence="Playnite metadata was manually edited; revalidate this game before a Matcher import";
-                    row.MissingCount=(MetadataPlan.Missing(live.Description)?1:0)+
-                        (MetadataPlan.Missing(live.CoverImage)?1:0)+
-                        (MetadataPlan.Missing(live.BackgroundImage)?1:0);
+                    row.MissingMask=MissingMask(live);
+                    row.MissingCount=CatalogEnrichmentNeeds.Count(row.MissingMask);
                     RefreshVisibility();UpdatePreview();
                     summary.Text="Playnite editor saved changes for "+live.Name+
                         ". Match approval cleared; rescan before importing. Native edits are outside Matcher undo.";
@@ -2293,7 +2310,7 @@ namespace SmartMetadataMatcher
         {
             return new CatalogViewRow {
                 GameId=input.Id,CurrentName=input.Name,Platform=input.Platform,
-                MissingCount=input.MissingCount,FromSavedScan=true,
+                MissingCount=input.MissingCount,MissingMask=input.MissingMask,FromSavedScan=true,
                 // Old evidence can support the review UI, never strict automatic planning.
                 AutoPlanEligible=false,Marked=false,Candidate=saved.Candidate,
                 Status=saved.Status,MatchScore=saved.Score,IgdbId=saved.CatalogId,
@@ -2329,7 +2346,7 @@ namespace SmartMetadataMatcher
         {
             return new CatalogScanRecord {
                 GameId=row.GameId,Name=row.CurrentName,Platform=row.Platform,
-                MissingCount=row.MissingCount,ScannedUtc=DateTime.UtcNow.ToString("o",System.Globalization.CultureInfo.InvariantCulture),
+                MissingCount=row.MissingCount,MissingMask=row.MissingMask,ScannedUtc=DateTime.UtcNow.ToString("o",System.Globalization.CultureInfo.InvariantCulture),
                 Candidate=row.Candidate,Status=row.UserConfirmed?(row.PreviousStatus??"Review"):row.Status,Evidence=row.Evidence,
                 CatalogId=row.IgdbId,Score=row.MatchScore,
                 AvailableMetadata=row.AvailableMetadata,Summary=row.CatalogSummary,
@@ -2362,11 +2379,7 @@ namespace SmartMetadataMatcher
                     api.Dialogs.ShowMessage("The Playnite title or platform changed for "+row.CurrentName+
                         ". Rescan before refreshing saved matches.","Smart Metadata Matcher");return;
                 }
-                var missing=(String.IsNullOrWhiteSpace(game.CoverImage)?1:0)+
-                    (String.IsNullOrWhiteSpace(game.BackgroundImage)?1:0)+
-                    (String.IsNullOrWhiteSpace(game.Description)?1:0);
-                targets.Add(Tuple.Create(row,new CatalogInput{Id=game.Id,Name=game.Name,
-                    Platform=platform,MissingCount=missing}));
+                targets.Add(Tuple.Create(row,ScanInput(game)));
             }
             if(targets.Count==0)return;
             var id=clientId.Text;var password=secret.Password;
@@ -2393,7 +2406,7 @@ namespace SmartMetadataMatcher
                         var game=match.Game;
                         var result=new CatalogViewRow {
                             GameId=item.Id,CurrentName=item.Name,Platform=item.Platform,
-                            MissingCount=item.MissingCount,FromSavedScan=false,
+                            MissingCount=item.MissingCount,MissingMask=item.MissingMask,FromSavedScan=false,
                             AutoPlanEligible=CatalogCore.CanAutoPlan(match),
                             Candidate=game==null?"(none)":game.Name,
                             Status=match.MatchStatus,
@@ -2478,11 +2491,7 @@ namespace SmartMetadataMatcher
             var committedIds=new HashSet<Guid>(results.Where(r=>r.IsCompleted || r.IsIgnored).Select(r=>r.GameId));
             queue=api.Database.Games.Where(g=>g!=null && !committedIds.Contains(g.Id) &&
                 !ignoredIds.Contains(g.Id) && !String.IsNullOrWhiteSpace(g.Name))
-                .Select(g=>new CatalogInput { Id=g.Id,Name=g.Name,
-                    Platform=g.Platforms==null?"":String.Join(", ",g.Platforms.Select(p=>p.Name)),
-                    MissingCount=(String.IsNullOrWhiteSpace(g.CoverImage)?1:0)+
-                                 (String.IsNullOrWhiteSpace(g.BackgroundImage)?1:0)+
-                                 (String.IsNullOrWhiteSpace(g.Description)?1:0)})
+                .Select(ScanInput)
                 .Where(x=>x.MissingCount>0 && !CatalogCore.IsTestingOnly(x.Name))
                 .OrderByDescending(x=>x.MissingCount)
                 .ThenBy(x=>x.Name,StringComparer.OrdinalIgnoreCase).ToList();
@@ -2530,7 +2539,7 @@ namespace SmartMetadataMatcher
                             var game=match.Game;
                             next.Add(new CatalogViewRow {
                                 GameId=item.Id, CurrentName=item.Name, Platform=item.Platform,
-                                MissingCount=item.MissingCount,
+                                MissingCount=item.MissingCount,MissingMask=item.MissingMask,
                                 AutoPlanEligible=CatalogCore.CanAutoPlan(match),
                                 Candidate=game == null ? "(none)" : game.Name,
                                 Status=match.MatchStatus, MatchScore=match.Score.ToString("0.000",System.Globalization.CultureInfo.InvariantCulture),

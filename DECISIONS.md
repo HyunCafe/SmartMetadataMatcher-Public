@@ -260,3 +260,8 @@ Use Playnite's supported MainView.OpenEditDialog for editing any game metadata r
 - Promote **only** fully strict-reviewed entries (not user-confirmed or cached Strong labels) to the existing 25-per-approval path, with its live revalidation and recovery checks. Keep manual/confirmed matches at five; all writes remain explicitly approved.
 - Stop a running batch on its first error, regardless of whether that error damaged a journal; this makes partial completion easy to inspect and undo. Do not automatically retry failures or touch ROMs.
 - This is a private preview with a bounded opt-in batch; do not claim production-scale safety until successful multi-item runtime testing.
+
+## RC2 correctness scope
+- Reuse the existing catalog cache and staging journal formats; no extra transaction engine or shared-object auto-deletion. Legacy caches remain read-only and untrusted for writes.
+- If a shared Genre/Company/Series Add() was attempted and pre-journal processing fails, keep the operation unresolved, blocking further imports until backup-backed review. This is a safety improvement, not an automatic recovery mechanism.
+- Preserve the previously verified title/planning/undo writer behavior; no public upload.

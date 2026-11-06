@@ -14,6 +14,8 @@
     <Compile Include="../Source/CatalogImportDraft.cs" Link="CatalogImportDraft.cs" />
     <Compile Include="CatalogImportDraftTests.cs" />
     <Compile Include="CatalogReviewActionsTests.cs" />
+    <Compile Include="../Source/CatalogEnrichmentNeeds.cs" Link="CatalogEnrichmentNeeds.cs" />
+    <Compile Include="CatalogEnrichmentNeedsTests.cs" />
     <Compile Include="../Source/CatalogCore.cs" Link="CatalogCore.cs" />
     <Compile Include="CatalogCoreTests.cs" />
     <Compile Include="../Source/CatalogIgnored.cs" Link="CatalogIgnored.cs" />

@@ -1,4 +1,4 @@
-# Smart Metadata Matcher — v0.5.0 private RC1
+# Smart Metadata Matcher — v0.5.0 private RC2
 
 The current personal-use **release candidate** preserves the verified v0.4.32 importer and batch/recovery behavior while strengthening release checks and reproducibility. **This is not a public release or a claim of production-scale validation.** See [RELEASE_READINESS.md](RELEASE_READINESS.md) for the verified features, unresolved runtime cases, and rollback gates.
 

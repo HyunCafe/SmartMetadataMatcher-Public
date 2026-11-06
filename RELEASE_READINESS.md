@@ -1,4 +1,4 @@
-# Smart Metadata Matcher — v0.5.0 private RC1
+# Smart Metadata Matcher — v0.5.0 private RC2
 
 **Scope:** personal-use candidate for Playnite 10, not a public release or security certification. This checkpoint freezes the v0.4.32 IGDB matching rules, import writer, title planner, undo journals and recovery format. Upgrade changes affect build validation, packaging, version labels and release documentation only.
 
@@ -48,3 +48,9 @@ These observations do **not** prove all failure modes, all consoles, or uninterr
 Keep diagnostic exports and local scan data out of source control; `.gitignore` excludes private CSV/credentials/archives/IDE/build caches. The packager verifies the exact built DLL and extension manifest, screens for known private path and token patterns, and rejects unexpected ZIP members. This is a proportional screening step, **not** a complete secret scan or proof of compiled-binary security.
 
 Never upload project files or publish to GitHub as part of local build/verification. Preserve pre-RC backup and Git commit for rollback.
+
+## RC2 acceptance and boundaries
+- Source check: all nine supported metadata fields participate in read-only discovery and cache invalidation; completed/ignored games remain excluded.
+- Shared object mutation after staging Begin is treated as uncertain until journal preparation and handoff. Failed pre-journal stages block subsequent writes rather than silently claiming clean recovery.
+- The newly expanded queue may contain more games than RC1. Its legacy cached results are read-only; live IGDB/platform verification and separate approval remain required.
+- Live testing of a newly supported icon-only or genre-only game, and fault-injected reference-object Add failures in disposable Playnite data remain outstanding.

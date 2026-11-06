@@ -24,6 +24,7 @@
     <Reference Include="System.Security" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
+    <Compile Include="Source/CatalogEnrichmentNeeds.cs" />
     <Compile Include="Source/CatalogCore.cs" />
     <Compile Include="Source/CatalogIgnored.cs" />
     <Compile Include="Source/CatalogScanCache.cs" />

@@ -74,6 +74,7 @@ internal static class Program
         CatalogImportDraftTests.Run();
         CatalogIgnoredTests.Run();
         CatalogScanCacheTests.Run();
+        CatalogEnrichmentNeedsTests.Run();
         CatalogConfirmedIdentitiesTests.Run();
         CatalogMediaStagingJournalTests.Run();
         CatalogRecoveryConsistencyTests.Run();

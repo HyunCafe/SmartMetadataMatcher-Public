@@ -149,6 +149,7 @@ namespace SmartMetadataMatcher
             var imported=new List<string>();
             bool prepared=false;
             bool mediaUploadUncertain=false;
+            bool sharedReferenceWriteAttempted=false;
             // Begin is durably flushed BEFORE AddFile or shared metadata creation.
             // A crash with an open Begin fails closed rather than silently reusing
             // an incompletely staged media operation.
@@ -198,21 +199,25 @@ namespace SmartMetadataMatcher
                 }
                 if((draft==null || draft.Genres) && (game.GenreIds==null || game.GenreIds.Count==0) && catalog.Genres!=null && catalog.Genres.Count>0)
                 {
+                    sharedReferenceWriteAttempted=true;
                     e.AfterGenres=catalog.Genres.Select(v=>api.Database.Genres.Add(v).Id).Distinct().ToList();
                     e.ChangedGenres=e.AfterGenres.Count>0;
                 }
                 if((draft==null || draft.Developers) && (game.DeveloperIds==null || game.DeveloperIds.Count==0) && catalog.Developers!=null && catalog.Developers.Count>0)
                 {
+                    sharedReferenceWriteAttempted=true;
                     e.AfterDevelopers=catalog.Developers.Select(v=>api.Database.Companies.Add(v).Id).Distinct().ToList();
                     e.ChangedDevelopers=e.AfterDevelopers.Count>0;
                 }
                 if((draft==null || draft.Publishers) && (game.PublisherIds==null || game.PublisherIds.Count==0) && catalog.Publishers!=null && catalog.Publishers.Count>0)
                 {
+                    sharedReferenceWriteAttempted=true;
                     e.AfterPublishers=catalog.Publishers.Select(v=>api.Database.Companies.Add(v).Id).Distinct().ToList();
                     e.ChangedPublishers=e.AfterPublishers.Count>0;
                 }
                 if((draft==null || draft.Series) && (game.SeriesIds==null || game.SeriesIds.Count==0) && catalog.SeriesNames!=null && catalog.SeriesNames.Count>0)
                 {
+                    sharedReferenceWriteAttempted=true;
                     e.AfterSeries=catalog.SeriesNames.Select(v=>api.Database.Series.Add(v).Id).Distinct().ToList();
                     e.ChangedSeries=e.AfterSeries.Count>0;
                 }
@@ -251,7 +256,13 @@ namespace SmartMetadataMatcher
                     }
                     // Do not mark a failed/uncertain cleanup as complete. An open
                     // stage blocks future imports and must be inspected manually.
-                    if(cleanupSucceeded && !mediaUploadUncertain) journal.MediaStaging.AbandonClean(e.OperationId);
+                    if(CatalogEnrichmentNeeds.MayAbandonCleanStage(cleanupSucceeded,
+                        mediaUploadUncertain,sharedReferenceWriteAttempted))
+                        journal.MediaStaging.AbandonClean(e.OperationId);
+                    // A shared Genre/Company/Series Add() may have created a global
+                    // record even when it throws before returning its ID. Leave the
+                    // stage unresolved; manual recovery must not delete shared IDs.
+
                 }
                 throw;
             }
