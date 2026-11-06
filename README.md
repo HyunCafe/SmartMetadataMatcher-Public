@@ -259,3 +259,6 @@ Highlight one or more results (Ctrl/Shift) and use the single Select highlighted
 
 ### Direct review/history controls (v0.4.19)
 The results toolbar exposes Select highlighted, Select visible ready, Clear selection (when useful), Ignore/Restore highlighted, and Review & apply. Recent Updates has Restore changes (undo) and Remove from recent directly; neither action permanently deletes the journal. Full History restores hidden rows. Undated exact matches may become ready only with additional structured platform/context evidence; all writes still require approval.
+
+### Resumable catalog scans (v0.4.20 private preview)
+Candidate results from the past seven days load automatically if the Playnite game name, platform, and missing-field count are unchanged. A restart or cancelled scan does not discard already completed read-only requests. Use Tools > Rescan all to archive saved results and request fresh IGDB searches. Cached results are not auto-write authorization, are never auto-marked for import, and must be checked against IGDB before a supervised import. Cache data stays in private plugin user data; neither credentials nor launch paths are stored.

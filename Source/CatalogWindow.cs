@@ -42,6 +42,8 @@ namespace SmartMetadataMatcher
         public bool Marked { get; set; }
         // Set only from a fresh full resolver result; never inferred from score text.
         public bool AutoPlanEligible { get; set; }
+        public int MissingCount { get; set; }
+        public bool FromSavedScan { get; set; }
     }
 
     internal sealed class PreviewFieldRow
@@ -99,6 +101,9 @@ namespace SmartMetadataMatcher
         private readonly EnrichmentJournal enrichmentJournal;
         private readonly CatalogIgnored ignoredStore;
         private readonly HistoryVisibilityStore historyVisibility;
+        private readonly CatalogScanCache scanCache;
+        private bool scanCacheAvailable = true;
+        private int savedMatchesLoaded;
         private HashSet<Guid> hiddenOperations = new HashSet<Guid>();
         private HashSet<Guid> ignoredIds = new HashSet<Guid>();
         private readonly List<Button> tabButtons = new List<Button>();
@@ -151,6 +156,7 @@ namespace SmartMetadataMatcher
             enrichmentJournal = new EnrichmentJournal(pluginDataPath);
             ignoredStore = new CatalogIgnored(pluginDataPath);
             historyVisibility = new HistoryVisibilityStore(pluginDataPath);
+            scanCache = new CatalogScanCache(pluginDataPath);
             // Fail closed for malformed privacy/preferences state. Never silently
             // reset the user's hidden-record choices or mutate the undo journal.
             hiddenOperations = historyVisibility.Load();
@@ -701,12 +707,43 @@ namespace SmartMetadataMatcher
             queue=queue.Where(x=>!CatalogCore.IsTestingOnly(x.Name))
                 .OrderByDescending(x=>x.MissingCount)
                 .ThenBy(x=>x.Name,StringComparer.OrdinalIgnoreCase).ToList();
+            // Reuse only recent read-only lookup results for the SAME live game
+            // name, platform and missing-field count. No checkmarks are restored.
+            // A restored result does NOT gain strict automatic-write eligibility.
+            try
+            {
+                scanCache.Load();
+                var pending=new List<CatalogInput>();
+                var now=DateTime.UtcNow;
+                foreach(var item in queue)
+                {
+                    CatalogScanRecord saved;
+                    if(scanCache.TryGet(item,now,out saved))
+                    {
+                        results.Add(RestoreSavedResult(item,saved));
+                        savedMatchesLoaded++;
+                    }
+                    else pending.Add(item);
+                }
+                queue=pending;
+            }
+            catch(Exception ex)
+            {
+                scanCacheAvailable=false;
+                // Preserve the malformed file and allow fresh read-only scanning.
+                api.Dialogs.ShowMessage("Saved catalog results could not be loaded: "+ex.Message+
+                    "\nThe original cache remains untouched. A fresh scan is available; " +
+                    "use Tools > Rescan all to archive the damaged cache before saving new results.",
+                    "Saved scan needs attention");
+            }
             foreach(var platform in api.Database.Platforms.Where(p=>p!=null)
                 .Select(p=>p.Name).Where(p=>!String.IsNullOrWhiteSpace(p))
                 .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(p=>p,StringComparer.OrdinalIgnoreCase))
                 platformFilter.Items.Add(platform);
-            summary.Text=queue.Count+" eligible games; "+completedIds.Count+" completed; "+ignoredIds.Count+
-                " ignored; "+excludedTesting+" test clients excluded. Scanning is read-only.";
+            summary.Text=(savedMatchesLoaded+queue.Count)+" eligible games; "+
+                savedMatchesLoaded+" recent results restored; "+queue.Count+" awaiting IGDB; "+
+                completedIds.Count+" completed; "+ignoredIds.Count+" ignored. " +
+                "Saved results are read-only and require live revalidation before writing.";
             RefreshHistory();RefreshVisibility();
             window.Closed+=(s,e)=>Cancel();
             window.ShowDialog();
@@ -1517,8 +1554,12 @@ namespace SmartMetadataMatcher
                 catch(Exception ex) { api.Dialogs.ShowErrorMessage(ex.Message,"Metadata diagnostics export"); }
             };
             menu.Items.Add(diagnostics);
+            var rescan=new MenuItem { Header = "Rescan all catalog matches (refresh saved results)..." };
+            rescan.ToolTip="Archives saved candidate results and restarts the read-only IGDB scan. Does not modify Playnite.";
+            rescan.Click+=(s,e)=>RescanAllCatalogMatches();
+            menu.Items.Add(rescan);
             var titles = new MenuItem { Header = "Open dedicated title cleanup / rename window..." };
-            titles.ToolTip = "Closes the dashboard and opens the existing title-review workflow; scans do not persist between dashboard openings.";
+            titles.ToolTip = "Closes the dashboard and opens the dedicated title-review workflow. Recent scan results are saved privately.";
             titles.Click += (s,e) => {
                 try
                 {
@@ -1604,6 +1645,65 @@ namespace SmartMetadataMatcher
         {
             if (cancellation != null) cancellation.Cancel();
         }
+        private static CatalogViewRow RestoreSavedResult(CatalogInput input,CatalogScanRecord saved)
+        {
+            return new CatalogViewRow {
+                GameId=input.Id,CurrentName=input.Name,Platform=input.Platform,
+                MissingCount=input.MissingCount,FromSavedScan=true,
+                // Old evidence can support the review UI, never strict automatic planning.
+                AutoPlanEligible=false,Marked=false,Candidate=saved.Candidate,
+                Status=saved.Status,MatchScore=saved.Score,IgdbId=saved.CatalogId,
+                AvailableMetadata=saved.AvailableMetadata,
+                Evidence=(saved.Evidence??"")+"; saved scan — revalidate live before import",
+                CatalogSummary=saved.Summary,CatalogCoverImageId=saved.CoverId,
+                CatalogScreenshotImageId=saved.ScreenshotId,Queries=saved.Queries,
+                Alternatives=saved.Alternatives,ReleaseYear=saved.ReleaseYear,
+                FoundCount=saved.FoundCount
+            };
+        }
+        private static CatalogScanRecord SaveableScanResult(CatalogViewRow row)
+        {
+            return new CatalogScanRecord {
+                GameId=row.GameId,Name=row.CurrentName,Platform=row.Platform,
+                MissingCount=row.MissingCount,ScannedUtc=DateTime.UtcNow.ToString("o",System.Globalization.CultureInfo.InvariantCulture),
+                Candidate=row.Candidate,Status=row.Status,Evidence=row.Evidence,
+                CatalogId=row.IgdbId,Score=row.MatchScore,
+                AvailableMetadata=row.AvailableMetadata,Summary=row.CatalogSummary,
+                CoverId=row.CatalogCoverImageId,ScreenshotId=row.CatalogScreenshotImageId,
+                Queries=row.Queries,Alternatives=row.Alternatives,
+                ReleaseYear=row.ReleaseYear,FoundCount=row.FoundCount
+            };
+        }
+        private void RescanAllCatalogMatches()
+        {
+            if(busy)return;
+            if(api.Dialogs.ShowMessage("Rescan all unresolved game candidates from IGDB?\n\n"+
+                "Saved read-only results will be archived, so you can start with fresh matches. " +
+                "Existing Playnite metadata, committed history and ignored games are unchanged. " +
+                "Unapplied marks and scan progress will be reset.",
+                "Refresh catalog scan",MessageBoxButton.YesNo,MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
+            try {scanCache.ArchiveAndClear(DateTime.UtcNow);scanCacheAvailable=true;}
+            catch(Exception ex){api.Dialogs.ShowErrorMessage(ex.Message,"Could not archive scan cache");return;}
+            // Rebuild the pending read-only queue from current Playnite state.
+            // Do not touch completed, ignored or user-modified game records.
+            results.RemoveAll(r=>!r.FromHistory && !r.IsCompleted && !r.IsIgnored);
+            var committedIds=new HashSet<Guid>(results.Where(r=>r.IsCompleted || r.IsIgnored).Select(r=>r.GameId));
+            queue=api.Database.Games.Where(g=>g!=null && !committedIds.Contains(g.Id) &&
+                !ignoredIds.Contains(g.Id) && !String.IsNullOrWhiteSpace(g.Name))
+                .Select(g=>new CatalogInput { Id=g.Id,Name=g.Name,
+                    Platform=g.Platforms==null?"":String.Join(", ",g.Platforms.Select(p=>p.Name)),
+                    MissingCount=(String.IsNullOrWhiteSpace(g.CoverImage)?1:0)+
+                                 (String.IsNullOrWhiteSpace(g.BackgroundImage)?1:0)+
+                                 (String.IsNullOrWhiteSpace(g.Description)?1:0)})
+                .Where(x=>x.MissingCount>0 && !CatalogCore.IsTestingOnly(x.Name))
+                .OrderByDescending(x=>x.MissingCount)
+                .ThenBy(x=>x.Name,StringComparer.OrdinalIgnoreCase).ToList();
+            savedMatchesLoaded=0;cursor=0;
+            grid.ItemsSource=null;grid.ItemsSource=results;
+            RefreshVisibility();
+            summary.Text="Fresh scan ready: "+queue.Count+
+                " games. Prior saved results archived. No Playnite changes made.";
+        }
         private void StartScan()
         {
             if (busy) return;
@@ -1612,7 +1712,8 @@ namespace SmartMetadataMatcher
                 api.Dialogs.ShowMessage("Enter your Twitch developer Client ID and Client Secret locally to use IGDB.", "Smart Metadata Matcher");
                 return;
             }
-            if (cursor >= queue.Count) { summary.Text="All eligible games have been scanned in this session."; return; }
+            if (cursor >= queue.Count) { summary.Text="All eligible games have current or saved scan results. " +
+                "Use Tools > Rescan all for a fresh IGDB lookup."; return; }
             var id = clientId.Text;
             var password = secret.Password;
             var count=CatalogCore.NextScanCount(queue.Count-cursor,scanSize.SelectedIndex);
@@ -1639,6 +1740,7 @@ namespace SmartMetadataMatcher
                             var game=match.Game;
                             next.Add(new CatalogViewRow {
                                 GameId=item.Id, CurrentName=item.Name, Platform=item.Platform,
+                                MissingCount=item.MissingCount,
                                 AutoPlanEligible=CatalogCore.CanAutoPlan(match),
                                 Candidate=game == null ? "(none)" : game.Name,
                                 Status=match.MatchStatus, MatchScore=match.Score.ToString("0.000",System.Globalization.CultureInfo.InvariantCulture),
@@ -1673,16 +1775,27 @@ namespace SmartMetadataMatcher
                 }
                 window.Dispatcher.BeginInvoke(new Action(() => {
                     results.AddRange(next); cursor += done;
+                    string cacheWarning=null;
+                    if(scanCacheAvailable && next.Count>0)
+                    {
+                        try {scanCache.SaveBatch(next.Select(SaveableScanResult),DateTime.UtcNow);}
+                        catch(Exception ex)
+                        {
+                            scanCacheAvailable=false;
+                            cacheWarning="Saved scan could not be updated (results remain in memory): "+ex.Message;
+                        }
+                    }
                     grid.ItemsSource=null; grid.ItemsSource=results;
                     RefreshVisibility();
                     busy=false; scanButton.IsEnabled=true; scanSize.IsEnabled=true; cancelButton.IsEnabled=false;cancelButton.Visibility=Visibility.Collapsed;
                     if (window.IsVisible)
-                        summary.Text=cursor+" / "+queue.Count+" scanned  •  "+
+                        summary.Text=(savedMatchesLoaded+cursor)+" / "+(savedMatchesLoaded+queue.Count)+" scanned  •  "+
                             results.Count(x=>x.Status=="Strong candidate")+" strong  •  "+
                             results.Count(x=>x.Status=="Review")+" review  •  "+
                             results.Count(x=>x.Status=="Unmatched")+" unmatched  •  "+
                             results.Count(x=>x.IsCompleted)+" completed.  "+
-                            "No changes made.  Strong is not a calibrated probability.";
+                            "No changes made.  Strong is not a calibrated probability."+
+                            (cacheWarning==null?"":"  "+cacheWarning);
                 }));
             });
         }

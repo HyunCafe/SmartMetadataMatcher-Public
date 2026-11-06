@@ -1,3 +1,11 @@
+## v0.4.20 — Resumable read-only catalog scans (private preview)
+- Persist recent IGDB candidate summaries in private plugin data after each finished or cancelled scan batch; restore them on reopening the dashboard.
+- Cache matches only when exact Playnite game ID, name, platform and missing-field count agree and the saved scan is at most seven days old.
+- Cached candidates never receive strict automatic-write eligibility; new import operations must revalidate the catalog ID live.
+- No import checkboxes/marks are restored. Malformed cache is preserved and scan can continue read-only.
+- Tools > Rescan all archives any existing cache, resets pending scan work and leaves Playnite metadata, journals, ROMs and history unchanged.
+- Added offline tests for persistence, expiry, invalidation, UTF-8 data, malformed-state preservation and fresh-scan recovery.
+
 ## v0.4.14 — History selection and approved Playnite title corrections (private preview)
 
 - Recent and full history tables support Ctrl-click, Shift-click and full-row extended selection.

@@ -181,3 +181,9 @@ Manual exception: exactly one marked Strong candidate may be tested via the exis
 ## v0.4.19 decision
 - Prefer direct visible action buttons over opaque More menus. Keep batch selection, explicit review/approval, and reversible remove-from-recent semantics.
 - Missing release year is not automatically a mismatch. Require exact unique title, structured platform ID, and substantive summary to admit undated games into the user-approved strict plan. Reject platform conflicts and repeated identical catalog identities.
+
+## v0.4.20 continuity decision
+- Reuse recent read-only candidate data rather than repeating 318 network searches on each plugin opening. Live candidate data expires after seven days and is invalidated by changes to title/platform/missing-field count.
+- Never persist credentials or mark selections in the catalog scan cache; saved candidates cannot qualify for strict automatic planning, even if their old score was strong. Exact live IGDB ID revalidation is still required before supervised writes.
+- User-requested fresh scan archives the previous cache and does not touch Playnite game files, database, metadata histories, or committed undo journals.
+- Defer long-running unattended bulk imports and jobs until crash/media-recovery guarantees are verified; do not treat cache as user-approved identity.
