@@ -46,8 +46,8 @@ def audit(root):
         problems.append("Assembly version is not aligned with RC")
     if 'AssemblyCompany("HyunCafe")' not in plugin:
         problems.append("Unexpected assembly publisher")
-    if 'private RC3' not in (root / "Source/CatalogWindow.cs").read_text(encoding="utf-8-sig"):
-        problems.append("Dashboard private RC3 label missing")
+    if 'private RC4' not in (root / "Source/CatalogWindow.cs").read_text(encoding="utf-8-sig"):
+        problems.append("Dashboard private RC4 label missing")
     def properties(tree):
         return {n.tag: (n.text or "").strip() for n in tree.iter() if n.tag in
                 ("TargetFramework", "GenerateAssemblyInfo", "Deterministic", "Optimize", "DebugType", "DebugSymbols")}
@@ -70,8 +70,8 @@ def audit(root):
     for required in ("Tools/Verify-RC.py", "Tools/Verify-Package.py", "Tools/Test-Package-Integrity.py"):
         if required not in build or not (root / required).is_file():
             problems.append("Missing build-time verification: " + required)
-    if 'private-rc3-' not in build:
-        problems.append("Release package must be labeled private RC3")
+    if 'private-rc4-' not in build:
+        problems.append("Release package must be labeled private RC4")
     for pattern in ("*.csv", "*.log", "*.env", "*.pext", "*.pdb", "bin/", "obj/", "__pycache__/", "*.py[cod]"):
         if pattern not in ignore:
             problems.append("Privacy/build exclusion missing: " + pattern)

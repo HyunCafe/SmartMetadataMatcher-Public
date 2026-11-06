@@ -193,6 +193,70 @@ internal static class CatalogCoreTests
         Assert(CatalogCore.QueryVariants("Tomb Raider I-III Remastered Starring Lara Croft","PC (Windows)")
             .Any(q=>q.Text=="Tomb Raider I-III Remastered"&&!q.StrongEvidence),
             "remastered collection searches a shorter catalog variant without asserting identity");
+        // RC4: preserve plausible same-platform matches for human review only.
+        var partialReviews=new[]{
+            Tuple.Create("26 Astro Boy","Nintendo Game Boy Advance","Astro Boy: Omega Factor",24L),
+            Tuple.Create("44 Lights, Camera, Pants!","Nintendo Game Boy Advance",
+                "SpongeBob SquarePants: Lights, Camera, Pants!",24L),
+            Tuple.Create("53 Jackie Chan Adv","Nintendo Game Boy Advance",
+                "Jackie Chan Adventures: Legend of the Dark Hand",24L),
+            Tuple.Create("64 Mission Impossible","Nintendo Game Boy Advance",
+                "Mission: Impossible - Operation Surma",24L),
+            Tuple.Create("Final Fantasy Dissidia PSP","Sony PlayStation Portable",
+                "Dissidia Final Fantasy",38L),
+            Tuple.Create("Lunar - Genesis","Nintendo DS","Lunar Genesis: Dragon Song",20L),
+            Tuple.Create("Spectral Souls","Sony PlayStation Portable",
+                "Spectral Souls: Resurrection of the Ethereal Empires",38L)
+        };
+        long rcId=910000;
+        foreach(var pair in partialReviews)
+        {
+            var candidate=CatalogCore.Choose(new CatalogInput{Name=pair.Item1,Platform=pair.Item2},
+                new[]{new CatalogGame{Id=rcId++,Name=pair.Item3,
+                    PlatformIds=new List<long>{pair.Item4},FirstReleaseYear=2004}});
+            Assert(candidate.MatchStatus=="Review" && candidate.Game!=null &&
+                !CatalogCore.CanAutoPlan(candidate),
+                "abbreviated/partial same-platform identity remains visible as manual Review: "+pair.Item1);
+        }
+        var badOnly=CatalogCore.Choose(new CatalogInput{Name="84 On N0 Off",Platform=gba},
+            new[]{new CatalogGame{Id=rcId++,Name="Blopy Ventures N0",
+                PlatformIds=new List<long>{24},FirstReleaseYear=2001}});
+        Assert(badOnly.MatchStatus=="Unmatched" && badOnly.Game==null,
+            "unrelated same-platform candidate remains suppressed");
+        var platformDisagreement=CatalogCore.Choose(
+            new CatalogInput{Name="Spectral Souls",Platform="Sony PlayStation Portable"},
+            new[]{new CatalogGame{Id=rcId++,Name="Spectral Souls: Resurrection of the Ethereal Empires",
+                PlatformIds=new List<long>{8},FirstReleaseYear=2004}});
+        Assert(platformDisagreement.MatchStatus!="Strong candidate" &&
+            !CatalogCore.CanAutoPlan(platformDisagreement),
+            "wrong-platform partial game is never strong or auto ready");
+        Assert(CatalogCore.QueryVariants("Human: Fall Flat Legacy","PC (Windows)")
+            .Any(v=>v.Text=="Human: Fall Flat" && !v.StrongEvidence),
+            "multiword Legacy client strips to base title only for discovery");
+        Assert(!CatalogCore.QueryVariants("Hogwarts Legacy","PC (Windows)")
+            .Any(v=>v.Text=="Hogwarts"),
+            "two-word normal title does not receive dangerous broad Legacy search");
+        var ffVariants=CatalogCore.QueryVariants("Final Fantasy X-X2 - HD Remaster","PC (Windows)");
+        Assert(ffVariants.Count<=4 && ffVariants.Any(v=>
+            v.Text=="Final Fantasy X/X-2 HD Remaster" && !v.StrongEvidence),
+            "combined collection query contains canonical slash and no redundant HD separator");
+        Assert(CatalogCore.BuildSingleQueryBody("Final Fantasy X/X-2 HD Remaster")
+            .Contains("search \"Final Fantasy X/X-2 HD Remaster\""),
+            "slash survives safe IGDB query serialization");
+        Assert(CatalogCore.BuildExactNameQueryBody("THE FINALS")
+            .Contains("where name ~ \"THE FINALS\"; limit 10;"),
+            "bounded case-insensitive exact-name fallback prepared");
+        Assert(CatalogCore.BuildExactNameQueryBody("THE FINALS\"; where id = 1;")=="",
+            "exact-name fallback refuses injected APICalypse punctuation");
+        Assert(CatalogCore.BuildExactNameQueryBody("Hi")=="",
+            "exact-name fallback refuses too-short titles");
+        // Same-platform partial titles must never be granted strict import rights
+        // simply because the provider reports a large relevance score.
+        Assert(!CatalogCore.CanAutoPlan(CatalogCore.Choose(
+            new CatalogInput{Name="Spectral Souls",Platform="Sony PlayStation Portable"},
+            new[]{new CatalogGame{Id=rcId++,Name="Spectral Souls: Resurrection of the Ethereal Empires",
+                PlatformIds=new List<long>{38},FirstReleaseYear=2006}})),
+            "manual-only anchor is not an unattended write authorization");
         // v0.4.7: only exact, uniquely identified, dated, structured-platform
         // catalog matches may be included in the automatic planning queue.
         Assert(CatalogCore.CanAutoPlan(sonic),"strict auto gate accepts unique exact dated platform-ID match");

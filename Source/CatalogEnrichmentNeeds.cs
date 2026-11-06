@@ -67,6 +67,24 @@ namespace SmartMetadataMatcher
             if(tokens.Contains("screenshot"))overlap|=mask & 4;
             return Describe(overlap);
         }
+        // Series alone has low practical value for many games. Keep it
+        // discoverable, but prioritize other gaps in queued batches.
+        internal static bool IsSeriesOnly(int mask)
+        {
+            Count(mask);
+            return mask==(int)CatalogMissingField.Series;
+        }
+        internal static int Priority(int mask)
+        {
+            Count(mask);
+            return IsSeriesOnly(mask)?1:0;
+        }
+        internal static bool VisibleInMissingScope(int mask,int scope)
+        {
+            Count(mask);
+            return scope==0 || (scope==1 && !IsSeriesOnly(mask)) ||
+                (scope==2 && IsSeriesOnly(mask));
+        }
         internal static int PrimaryCount(int mask)
         {
             return Count(mask & ((int)CatalogMissingField.Description |

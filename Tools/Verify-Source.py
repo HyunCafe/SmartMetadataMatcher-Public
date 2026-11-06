@@ -63,6 +63,23 @@ if not all(s in view for s in ("Missing Playnite fields at export", "CandidateOv
     "live==null?r.MissingMask:MissingMask(live)")) or "internal static string Describe(int mask)" not in needs:
     problems.append("RC3 export missing live field gap/evidence columns")
 
+# RC4: low-similarity results may be human-reviewed only after structured
+# platform/canonical-title corroboration. Exact fallback is read-only and
+# Series-only browsing must remain reversible without editing Playnite.
+igdb=(root/"Source/IgdbReadOnly.cs").read_text(encoding="utf-8-sig")
+if not all(s in core for s in ("PlausibleManualReviewAnchor", "BuildExactNameQueryBody",
+    "manualAnchor", "expectedPlatformId>0", "first.Item2<0.55")):
+    problems.append("RC4 review-only relevance, platform and exact-title gates missing")
+if not all(s in igdb for s in ("SearchExactTitle(string title", "BuildExactNameQueryBody(title)",
+    'String.Equals((x.Name??"").Trim(),title.Trim()')):
+    problems.append("RC4 bounded exact-title IGDB fallback missing")
+if not all(s in view for s in ("missingFilter", "VisibleInMissingScope", "Priority(x.MissingMask)",
+    "client.SearchExactTitle(title,token)")):
+    problems.append("RC4 optional Series scope and read-only fallback wiring missing")
+if not all(s in needs for s in ("IsSeriesOnly(int mask)", "VisibleInMissingScope(int mask,int scope)",
+    "Priority(int mask)")):
+    problems.append("RC4 Series-only priority/visibility guards missing")
+
 # Review navigation invariant: draft edits must preserve the current filter.
 # IGDB identity adoption is the only context-menu operation that may reset it.
 review_source = (root / "Source/CatalogWindow.cs").read_text(encoding="utf-8-sig")

@@ -19,7 +19,7 @@ with ZipFile(package) as z:
         b'Version: 0.5.0' not in z.read('extension.yaml'):
         sys.exit('Candidate package verification failed')
 report={
-  'product':'Smart Metadata Matcher', 'release':'0.5.0 private RC3',
+  'product':'Smart Metadata Matcher', 'release':'0.5.0 private RC4',
   'created_utc':datetime.now(timezone.utc).isoformat(),
   'package_filename':package.name,
   'sha256':sha256(package.read_bytes()).hexdigest().upper(),
@@ -28,7 +28,8 @@ report={
     'source and pinned dependency audit':'passed', 'package integrity and privacy screen':'passed'},
   'live_evidence':{'previous v0.4.32 two-game Playnite batch':'passed, 2/2 and no detected recovery inconsistencies',
     'v0.5.0 RC2 expanded discovery':'observed in Playnite; 837-row IGDB scan exported',
-    'v0.5.0 RC3 matching precision':'not yet tested'},
+    'v0.5.0 RC3 matching precision':'837-row full-library read-only comparison reviewed; known review-recall regressions led to RC4',
+    'v0.5.0 RC4 matching changes':'Windows build and live IGDB refresh pending'},
   'remaining_gates':['independent undo of one item after multi-game batch',
     'injected crash/interrupted artwork operation in disposable Playnite data',
     '25-game batch is not independently runtime-validated',
@@ -36,7 +37,7 @@ report={
   'publication':'private only; no GitHub remote action authorized'
 }
 # Deliberately record no absolute file paths, library inventories, or user identifiers.
-output=package.parent/'PrivateReports'/('SMM-0.5.0-RC3-'+commit[:8]+'.json')
+output=package.parent/'PrivateReports'/('SMM-0.5.0-RC4-'+commit[:8]+'.json')
 output.parent.mkdir(parents=True,exist_ok=True)
 output.write_text(json.dumps(report,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
 print('PRIVATE RC REPORT:',output)

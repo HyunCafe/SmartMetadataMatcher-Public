@@ -242,7 +242,12 @@ namespace SmartMetadataMatcher
             if(withoutArticle.Success) add(withoutArticle.Groups["rest"].Value,false);
             var ffCollection=Regex.Replace(primary,@"(?i)\bX\s*[-/]\s*X\s*[-/]?\s*2\b","X/X-2");
             if(!String.Equals(ffCollection,primary,StringComparison.OrdinalIgnoreCase))
+            {
                 add(ffCollection,false);
+                // The combined storefront title often omits the separator before HD.
+                // Search-only; even a result with this spelling needs identity evidence.
+                add(Regex.Replace(ffCollection,@"(?i)\s*[-:]\s*(HD\s+Remaster(?:ed)?)$"," $1"),false);
+            }
             var starring=Regex.Match(primary,@"^(?<base>.+?\bRemaster(?:ed)?)\s+Starring\s+.+$",RegexOptions.IgnoreCase);
             if(starring.Success) add(starring.Groups["base"].Value,false);
 
@@ -297,6 +302,14 @@ namespace SmartMetadataMatcher
                 @"^(?<base>.+?)(?:\s*[-:]\s*Legacy(?:\s+Mode)?|\s+Legacy\s+Mode)$",
                 RegexOptions.IgnoreCase);
             if(legacy.Success) add(legacy.Groups["base"].Value,false);
+            // A trailing Legacy without a separator may indicate a separate client
+            // (Human: Fall Flat Legacy). Require three base-title words to avoid
+            // broad queries for ordinary two-word titles such as Hogwarts Legacy.
+            // This variant is discovery-only, never proof of edition equivalence.
+            var bareLegacy=Regex.Match(primary,@"^(?<base>.+?)\s+Legacy$",RegexOptions.IgnoreCase);
+            if(bareLegacy.Success && Regex.Matches(CleanPunctuation(bareLegacy.Groups["base"].Value),
+                @"\p{L}+").Count>=3)
+                add(bareLegacy.Groups["base"].Value,false);
             var dlc=Regex.Match(primary,@"^(?<base>.+?)\s*\+\s*.+?\s+DLC$",RegexOptions.IgnoreCase);
             if(dlc.Success) add(dlc.Groups["base"].Value,false);
             // A one-off known PSP packaging title. Search-only, since the
@@ -309,16 +322,38 @@ namespace SmartMetadataMatcher
         // Do not store credentials, execute arbitrary APICalypse, or modify Playnite here.
         internal static string BuildSingleQueryBody(string phrase)
         {
+            var raw = phrase ?? "";
             var safe = new StringBuilder();
-            foreach (var c in phrase ?? "")
+            for (var i=0; i<raw.Length && safe.Length<100; i++)
             {
-                if (safe.Length >= 100) break;
-                if (Char.IsLetterOrDigit(c) || c==' ' || c=='\'' || c=='-' || c==':' || c=='&') safe.Append(c);
+                var c=raw[i];
+                // Keep a slash only inside a title token (X/X-2, I/II).
+                // Never preserve paired slashes or comment-like fragments.
+                var titleSlash=c=='/' && i>0 && i+1<raw.Length &&
+                    Char.IsLetterOrDigit(raw[i-1]) && Char.IsLetterOrDigit(raw[i+1]);
+                if (Char.IsLetterOrDigit(c) || c==' ' || c=='\'' || c=='-' || c==':' || c=='&' || titleSlash)
+                    safe.Append(c);
             }
             var clean=Spaces.Replace(safe.ToString()," ").Trim();
             if (clean.Length < 3) return "";
             return "fields id,name,summary,platforms.id,platforms.name,alternative_names.name," +
                 "cover.image_id,screenshots.image_id,first_release_date; search \"" + clean + "\"; limit 40;";
+        }
+
+        // Exact-name fallback is only used for read-only discovery when the
+        // ordinary search returned no actionable result. User text cannot inject
+        // additional APICalypse commands. A match still goes through Choose().
+        internal static string BuildExactNameQueryBody(string phrase)
+        {
+            if(String.IsNullOrWhiteSpace(phrase) || phrase.Length>100) return "";
+            // Reject rather than rewrite names: this is an exact provider-name
+            // filter and must never silently broaden the requested identity.
+            if(phrase.Any(c=>!(Char.IsLetterOrDigit(c) || c==' ' || c=='-' || c==':' ||
+                c=='&' || c=='/' || c=='\'' || c=='.'))) return "";
+            var value=Spaces.Replace(phrase.Trim()," ");
+            if(value.Length<3)return "";
+            return "fields id,name,summary,platforms.id,platforms.name,alternative_names.name,"+
+                "cover.image_id,screenshots.image_id,first_release_date; where name ~ \""+value+"\"; limit 10;";
         }
 
         // Narrow automatic-batch gate. It is deliberately stricter than the
@@ -423,6 +458,21 @@ namespace SmartMetadataMatcher
             return TextSimilarity(inputTitle,officialTitle)>=0.62;
         }
 
+        // Review-only anchor for partial titles, publisher/franchise prefixes,
+        // long subtitles, and fully reversed title words. Never score evidence
+        // for automatic import: the trusted exact-title gate remains unchanged.
+        private static bool PlausibleManualReviewAnchor(string requested,string official)
+        {
+            var source=TitleKey(requested);
+            var target=TitleKey(official);
+            if(source.Length>=8 && target.Contains(source)) return true;
+            Func<string,List<string>> words = value=>Regex.Matches(
+                CleanPunctuation(value??"").ToLowerInvariant(),@"[\p{L}\p{N}]+")
+                .Cast<Match>().Select(m=>m.Value).OrderBy(s=>s,StringComparer.Ordinal).ToList();
+            var a=words(requested);
+            return a.Count>=3 && a.SequenceEqual(words(official),StringComparer.Ordinal);
+        }
+
         internal static CatalogMatch Choose(CatalogInput input, IEnumerable<CatalogGame> games)
         {
             var variants=QueryVariants(input.Name,input.Platform);
@@ -482,11 +532,27 @@ namespace SmartMetadataMatcher
             var first=ordered[0];
             // An irrelevant fuzzy IGDB result is not a useful proposed match.
             // Keep the result unmatched and let the user search manually.
-            if(first.Item2<0.55 && !first.Item3)
-                return new CatalogMatch { Input=input,MatchStatus="Unmatched",
-                    Reason="IGDB returned candidates, but none has sufficient title relevance; best similarity "+
-                        first.Item2.ToString("0.00",CultureInfo.InvariantCulture)+". Search manually for the correct identity.",
-                    CandidatesFound=ordered.Count,Alternatives=ordered.Take(3).Select(x=>x.Item1.Game).ToList() };
+            bool lowSimilarity=first.Item2<0.55 && !first.Item3;
+            bool manualAnchor=false;
+            if(lowSimilarity)
+            {
+                // Require a structured platform ID AND substantial official-title
+                // corroboration. Aliases alone are insufficient. This path can
+                // produce Review only, never a Strong or unattended match.
+                var requested=QueryTitle(input.Name,input.Platform);
+                var review=ordered.FirstOrDefault(x=>expectedPlatformId>0 &&
+                    x.Item1.Game.PlatformIds!=null &&
+                    x.Item1.Game.PlatformIds.Contains(expectedPlatformId) &&
+                    PlausibleManualReviewAnchor(requested,x.Item1.Game.Name));
+                if(review==null)
+                    return new CatalogMatch { Input=input,MatchStatus="Unmatched",
+                        Reason="IGDB returned candidates, but none has sufficient title relevance; best similarity "+
+                            first.Item2.ToString("0.00",CultureInfo.InvariantCulture)+". Search manually for the correct identity.",
+                        CandidatesFound=ordered.Count,Alternatives=ordered.Take(3).Select(x=>x.Item1.Game).ToList() };
+                ordered.Remove(review);ordered.Insert(0,review);
+                first=review;
+                manualAnchor=true;
+            }
 
             var top=first.Item1;
             top.CandidatesFound=ordered.Count;
@@ -532,7 +598,8 @@ namespace SmartMetadataMatcher
                 (unrelatedAlias?"; exact alias but unrelated official title — verify edition before import":"")+
                 (nonBaseLabel?"; beta/launcher/legacy/DLC qualifier requires manual edition review":"")+
                 (editionConflict?"; official title differs in remaster/edition/client qualifier — verify identity":"")+
-                (undatedContext?"; date unavailable, exact platform/title with catalog context":"");
+                (undatedContext?"; date unavailable, exact platform/title with catalog context":"")+
+                (manualAnchor?"; low-similarity same-platform title anchor — review manually; never auto-import":"");
             return top;
         }
     }

@@ -65,3 +65,11 @@ Never upload project files or publish to GitHub as part of local build/verificat
 - Verify candidate CSV records current nine-field Playnite gaps and a **potential** overlap from scanned description/cover/screenshot; it does not claim guaranteed metadata fill.
 - Retain RC2 nine-field discovery and fail-closed shared-reference staging. Cached catalog identities remain read-only until live revalidation and final approval.
 - Independent batch undo and controlled crash testing remain unverified; do not use the primary library for fault injection.
+
+## v0.5.0 RC4 read-only matching gate
+
+- [x] Preserve automatic strict matching criteria and writer/undo/journal code.
+- [x] Add offline cases for review-only recall, unrelated candidate suppression, safe search queries and optional Series scope.
+- [ ] Windows full WPF compile and C# test suites on user machine.
+- [ ] In Playnite refresh eight false-Unmatched cases, THE FINALS and Final Fantasy X/X-2; export CSV.
+- [ ] Independent single-item batch undo and crash-injection gates (deferred to isolated Playnite test).

@@ -274,3 +274,10 @@ Use Playnite's supported MainView.OpenEditDialog for editing any game metadata r
 - Reuse the existing catalog cache and staging journal formats; no extra transaction engine or shared-object auto-deletion. Legacy caches remain read-only and untrusted for writes.
 - If a shared Genre/Company/Series Add() was attempted and pre-journal processing fails, keep the operation unresolved, blocking further imports until backup-backed review. This is a safety improvement, not an automatic recovery mechanism.
 - Preserve the previously verified title/planning/undo writer behavior; no public upload.
+
+## RC4 decisions (private, 2026-11-06)
+
+- Retain one conservative Strong gate and make low-similarity structured-platform anchored matches Review-only.
+- Use one bounded exact-name API fallback only on Unmatched results, not on every game.
+- Filter Series-only candidates in the UI by default without dropping them from the queue/cache/export.
+- Do not refactor the metadata writer, undo, recovery, or journals to address discovery regressions.

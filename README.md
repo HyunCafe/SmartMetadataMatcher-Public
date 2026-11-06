@@ -328,3 +328,10 @@ Right-click any unmatched/ready review row and choose **Edit proposed import**. 
 
 ### v0.4.31 — One review flow for supervised batches
 In Review Matches, use **Select next 25 ready** (or hand-pick a smaller group) to select up to 25 independently **strict-ready** games and choose **Review & apply selected**. If the batch contains a manually confirmed identity, the supervised limit remains five; a non-ready Strong result can be imported only through the existing single-game manual confirmation path. The final approval shows each intended game, IGDB ID, console, title and fields, with mandatory backup acknowledgement. Import stops on the first failed game; previous successes remain journaled and undoable. Verify 2–5 games in Playnite before relying on the 25-game preview mode.
+
+### RC4: lower-noise read-only discovery
+
+- Candidate selection can show **Other metadata** (default), **All missing fields**, or **Series only**. This only changes display and visible-row selection; no Playnite records are modified.
+- Series-only games remain in the scan queue, sorted after games missing other fields.
+- Low-similarity same-platform title anchors may appear for **manual review** but never gain automatic import eligibility.
+- When ordinary search yields no usable match, the plugin can try one bounded exact-name IGDB request before returning Unmatched.

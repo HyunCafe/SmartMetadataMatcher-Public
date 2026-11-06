@@ -343,3 +343,11 @@
 - Share one missing-field bitmask across opening scans, fresh rescans, selective refresh, and persisted read-only lookup cache. Legacy v1 cache rows can still be displayed read-only when the original three primary field states agree; newer rows invalidate on all supported fields.
 - Keep any pre-journal shared-object Add() failure unresolved in the existing media staging gate; never mark it clean based only on artwork cleanup. No automatic deletion of shared genre/company/series records.
 - New offline tests for every single missing field, cache migration/invalidation, and shared-object uncertainty.
+
+## v0.5.0 private RC4 — review recall, exact search and Series-only scope
+
+- Preserve RC3 Strong/auto-match gates while recovering low-score but corroborated same-platform candidates into manual Review.
+- Add read-only exact-name IGDB fallback after ordinary search fails; no new write paths.
+- Preserve slash in IGDB query strings; correct combined Final Fantasy X/X-2 search variants; guarded legacy client fallback.
+- Prioritize non-Series gaps and add optional dashboard missing-field filter; original 837-game results remain accessible.
+- Extend regression tests for false candidates, numeral conflicts, discovery and Series-only isolation.

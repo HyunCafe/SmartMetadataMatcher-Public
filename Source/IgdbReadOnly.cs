@@ -230,6 +230,61 @@ namespace SmartMetadataMatcher
             cache[key]=result;
             return result;
         }
+        // Read-only exact-name discovery fallback. Unlike IGDB's broad search,
+        // case-insensitive name filtering can find an exact short/common title
+        // buried behind dozens of unrelated fuzzy results (e.g. THE FINALS).
+        // A returned identity is STILL subject to normal edition/platform review.
+        internal List<CatalogGame> SearchExactTitle(string title, CancellationToken ct)
+        {
+            var query=CatalogCore.BuildExactNameQueryBody(title);
+            if(String.IsNullOrEmpty(query)) return new List<CatalogGame>();
+            string key="exact:"+query;
+            List<CatalogGame> cached;
+            if(cache.TryGetValue(key,out cached)) return cached;
+            Authenticate(ct);
+            for(int attempt=0;attempt<3;attempt++)
+            {
+                ct.ThrowIfCancellationRequested();
+                using(var message=new HttpRequestMessage(HttpMethod.Post,"https://api.igdb.com/v4/games"))
+                {
+                    message.Headers.Add("Client-ID",clientId);
+                    message.Headers.Authorization=new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",token);
+                    message.Content=new StringContent(query,Encoding.UTF8,"text/plain");
+                    using(var response=http.SendAsync(message,ct).GetAwaiter().GetResult())
+                    {
+                        int status=(int)response.StatusCode;
+                        bool retry=status==429 || status==502 || status==503 || status==504;
+                        if(retry && attempt<2)
+                        {
+                            if(ct.WaitHandle.WaitOne(800*(attempt+1))) ct.ThrowIfCancellationRequested();
+                            continue;
+                        }
+                        if(!response.IsSuccessStatusCode)
+                            throw new InvalidOperationException("IGDB exact-title lookup returned HTTP "+status+
+                                ". Read-only scan stopped; no Playnite changes made.");
+                        var received=Parse<List<IgdbRecord>>(
+                            response.Content.ReadAsStringAsync().GetAwaiter().GetResult()) ?? new List<IgdbRecord>();
+                        var results=received.Where(x=>x!=null && x.Id>0 &&
+                            String.Equals((x.Name??"").Trim(),title.Trim(),StringComparison.OrdinalIgnoreCase))
+                            .GroupBy(x=>x.Id).Select(g=>g.First())
+                            .Select(x=>new CatalogGame {
+                                Id=x.Id, Name=x.Name, Summary=x.Summary,
+                                FirstReleaseYear=ReleaseYear(x.FirstReleaseDate),
+                                Platforms=(x.Platforms??new List<IgdbPlatform>()).Where(a=>a!=null).Select(a=>a.Name).ToList(),
+                                PlatformIds=(x.Platforms??new List<IgdbPlatform>()).Where(a=>a!=null).Select(a=>a.Id).ToList(),
+                                Aliases=(x.Aliases??new List<IgdbAlias>()).Where(a=>a!=null).Select(a=>a.Name).ToList(),
+                                CoverImageId=x.Cover==null?"":x.Cover.ImageId,
+                                ScreenshotImageId=x.Screenshots==null || x.Screenshots.Count==0 || x.Screenshots[0]==null
+                                    ? "":x.Screenshots[0].ImageId
+                            }).ToList();
+                        cache[key]=results;
+                        return results;
+                    }
+                }
+            }
+            throw new InvalidOperationException("IGDB exact-title lookup failed without a response.");
+        }
+
         private static List<string> ReadNames(IEnumerable<IgdbNamed> values)
         {
             return (values ?? Enumerable.Empty<IgdbNamed>()).Where(v=>v!=null)

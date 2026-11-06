@@ -44,6 +44,19 @@ internal static class CatalogEnrichmentNeedsTests
         bool rejected=false;
         try {CatalogEnrichmentNeeds.Count(1024);}catch(ArgumentOutOfRangeException){rejected=true;}
         Check(rejected,"unexpected mask bits rejected");
+        Check(CatalogEnrichmentNeeds.IsSeriesOnly(256),"Series-only correctly classified");
+        Check(!CatalogEnrichmentNeeds.IsSeriesOnly(257),"Series and description is not Series-only");
+        Check(CatalogEnrichmentNeeds.Priority(256)>CatalogEnrichmentNeeds.Priority(1),
+            "optional Series-only scans are queued after meaningful gaps");
+        Check(CatalogEnrichmentNeeds.VisibleInMissingScope(256,0) &&
+              CatalogEnrichmentNeeds.VisibleInMissingScope(256,2) &&
+              !CatalogEnrichmentNeeds.VisibleInMissingScope(256,1),
+            "Series-only can be displayed explicitly without hiding it from all results");
+        Check(CatalogEnrichmentNeeds.VisibleInMissingScope(257,1) &&
+              !CatalogEnrichmentNeeds.VisibleInMissingScope(257,2),
+            "games missing Series and important fields remain in main view");
+        Check(!CatalogEnrichmentNeeds.VisibleInMissingScope(1,2),
+            "non-Series games are excluded from optional Series-only view");
         Console.WriteLine("PASS: "+checks+" supported-field discovery and shared-stage recovery checks.");
     }
 }

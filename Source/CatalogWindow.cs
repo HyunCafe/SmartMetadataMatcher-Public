@@ -118,6 +118,29 @@ namespace SmartMetadataMatcher
                 Platform=g.Platforms==null?"":String.Join(", ",g.Platforms.Select(p=>p.Name)),
                 MissingMask=mask,MissingCount=CatalogEnrichmentNeeds.Count(mask)};
         }
+        // Optional exact-name discovery must not turn a transient provider error
+        // into loss of an otherwise completed read-only scan batch. Cancellation
+        // still propagates. No confidence or auto-approval bypass is permitted.
+        private static CatalogMatch ResolveWithExactFallback(CatalogInput input,
+            List<CatalogGame> found,IgdbReadOnly client,CancellationToken token)
+        {
+            var match=CatalogCore.Choose(input,found);
+            if(match.MatchStatus!="Unmatched")return match;
+            try
+            {
+                var title=CatalogCore.QueryTitle(input.Name,input.Platform);
+                var exact=client.SearchExactTitle(title,token);
+                if(exact.Count>0)match=CatalogCore.Choose(input,found.Concat(exact));
+            }
+            catch(OperationCanceledException){throw;}
+            catch(Exception ex)
+            {
+                match.Reason+="; optional exact-name lookup unavailable ("+
+                    ex.GetType().Name+"); result remains Unmatched. Retry selected match later.";
+            }
+            return match;
+        }
+
         private readonly string pluginDataPath;
         private readonly Dictionary<long,CatalogGame> inspectedCatalog = new Dictionary<long,CatalogGame>();
         private Button inspectFieldsButton;
@@ -140,6 +163,7 @@ namespace SmartMetadataMatcher
         private Button clearImportSelectionButton, ignoreHighlightedButton;
         private Button restoreHistoryButton, removeRecentButton;
         private ComboBox platformFilter;
+        private ComboBox missingFilter;
         private DataGrid historyGrid;
         private RowDefinition historyRow;
         private GridSplitter historySplitter;
@@ -388,7 +412,7 @@ namespace SmartMetadataMatcher
         internal void Show()
         {
             window=api.Dialogs.CreateWindow(new WindowCreationOptions{ShowMinimizeButton=false});
-            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private RC3";
+            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private RC4";
             window.Width=1610;window.Height=935;window.MinWidth=1120;window.MinHeight=675;
             var owner=api.Dialogs.GetCurrentAppWindow();
             if(owner!=null && owner!=window)window.Owner=owner;
@@ -531,6 +555,16 @@ namespace SmartMetadataMatcher
             platformFilter=new ComboBox{Width=158,Height=32,Margin=new Thickness(0,0,0,4),FontSize=13};
             platformFilter.Items.Add("All platforms");platformFilter.SelectedIndex=0;
             platformFilter.SelectionChanged+=(s,e)=>RefreshVisibility();quickFilters.Children.Add(platformFilter);
+            // The optional Series field accounts for most read-only matches in
+            // larger libraries. Default to meaningful gaps without hiding data.
+            missingFilter=new ComboBox{Width=152,Height=32,FontSize=12,
+                Margin=new Thickness(8,0,0,4),ToolTip="Show all gaps, only games missing fields besides Series, or games missing Series alone. Does not change Playnite."};
+            missingFilter.Items.Add("Other metadata");
+            missingFilter.Items.Add("All missing fields");
+            missingFilter.Items.Add("Series only");
+            missingFilter.SelectionChanged+=(s,e)=>RefreshVisibility();
+            missingFilter.SelectedIndex=0;
+            quickFilters.Children.Add(missingFilter);
             // The entire preview pane and the history panel can be resized by dragging splitters.
             var content=new Grid{Background=Deep()};
             content.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(65,GridUnitType.Star),MinWidth=540});
@@ -770,7 +804,8 @@ namespace SmartMetadataMatcher
                 .Where(x=>x.MissingCount>0).ToList();
             excludedTesting=queue.Count(x=>CatalogCore.IsTestingOnly(x.Name));
             queue=queue.Where(x=>!CatalogCore.IsTestingOnly(x.Name))
-                .OrderByDescending(x=>x.MissingCount)
+                .OrderBy(x=>CatalogEnrichmentNeeds.Priority(x.MissingMask))
+                .ThenByDescending(x=>x.MissingCount)
                 .ThenBy(x=>x.Name,StringComparer.OrdinalIgnoreCase).ToList();
             // Reuse only recent read-only lookup results for the SAME live game
             // name, platform and missing-field count. No checkmarks are restored.
@@ -1778,6 +1813,9 @@ namespace SmartMetadataMatcher
                     default: state=true;break;
                 }
                 if(!state)return false;
+                if(missingFilter!=null && row.MissingMask>0 &&
+                    !CatalogEnrichmentNeeds.VisibleInMissingScope(row.MissingMask,
+                        missingFilter.SelectedIndex==0?1:missingFilter.SelectedIndex==1?0:2))return false;
                 if(platformFilter!=null && platformFilter.SelectedIndex>0 &&
                     !String.Equals(row.Platform,platformFilter.SelectedItem as string,StringComparison.OrdinalIgnoreCase))return false;
                 if(catalogSearch!=null && !String.IsNullOrWhiteSpace(catalogSearch.Text))
@@ -2402,7 +2440,7 @@ namespace SmartMetadataMatcher
                         var item=pair.Item2;
                         var queries=CatalogCore.QueryVariants(item.Name,item.Platform);
                         var found=client.SearchVariants(queries.Select(q=>q.Text),token);
-                        var match=CatalogCore.Choose(item,found);
+                        var match=ResolveWithExactFallback(item,found,client,token);
                         var game=match.Game;
                         var result=new CatalogViewRow {
                             GameId=item.Id,CurrentName=item.Name,Platform=item.Platform,
@@ -2493,7 +2531,8 @@ namespace SmartMetadataMatcher
                 !ignoredIds.Contains(g.Id) && !String.IsNullOrWhiteSpace(g.Name))
                 .Select(ScanInput)
                 .Where(x=>x.MissingCount>0 && !CatalogCore.IsTestingOnly(x.Name))
-                .OrderByDescending(x=>x.MissingCount)
+                .OrderBy(x=>CatalogEnrichmentNeeds.Priority(x.MissingMask))
+                .ThenByDescending(x=>x.MissingCount)
                 .ThenBy(x=>x.Name,StringComparer.OrdinalIgnoreCase).ToList();
             savedMatchesLoaded=0;cursor=0;
             grid.ItemsSource=null;grid.ItemsSource=results;
@@ -2535,7 +2574,7 @@ namespace SmartMetadataMatcher
                             token.ThrowIfCancellationRequested();
                             var queries=CatalogCore.QueryVariants(item.Name,item.Platform);
                             var found=client.SearchVariants(queries.Select(q=>q.Text),token);
-                            var match=CatalogCore.Choose(item,found);
+                            var match=ResolveWithExactFallback(item,found,client,token);
                             var game=match.Game;
                             next.Add(new CatalogViewRow {
                                 GameId=item.Id, CurrentName=item.Name, Platform=item.Platform,
