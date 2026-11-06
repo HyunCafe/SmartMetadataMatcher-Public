@@ -1,3 +1,11 @@
+## v0.5.7 private — Find updates in history
+
+- Use **Show: All / Applied / Undone** above the dashboard's Update history list. All is the default and no 10-row cap exists.
+- In **View full history...**, filter by state, search game titles/changed fields/dates, and optionally include hidden entries.
+- Hover over a truncated title or field list, or select one operation in Full History, to read its complete details.
+- **Undo selected metadata** restores the newest consecutive applied changes only. **Show in update history** simply unhides selected records, without changing Playnite fields.
+- These filters are read-only. Private diagnostics and per-game journal entries are unchanged.
+
 ## v0.5.3 — Private clean no-change batch handling (pending Windows/Playnite acceptance)
 
 - A live IGDB item with **no actual safe metadata or title changes** is now **Skipped**, not a hard batch failure. No Playnite update and no field/undo record are created; the empty media stage is durably closed clean before proceeding.

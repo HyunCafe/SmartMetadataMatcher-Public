@@ -1,3 +1,11 @@
+## v0.5.7 — Private searchable history and full-title readability (2026-11-06)
+
+- Compact Update History now filters All / Applied / Undone without limiting the number of retained rows; displays visible counts.
+- Full History adds All / Applied / Undone and a case-insensitive game/field/date search, with optional hidden entries.
+- Hovering shows full game titles and field text; selected-entry details show the complete title, timestamp, state and changed fields without column truncation.
+- A pure, separately tested history-view filter cannot grant undo eligibility. Existing latest-first undo, metadata writer, journal and cache formats remain unchanged.
+- Private v0.5.7 Windows compilation and Playnite UI acceptance required before claiming runtime completion. No public release action.
+
 ## v0.5.6 — Private read-only scan checkpoints (2026-11-06)
 
 - Save each 10 completed IGDB lookup records through the existing atomic v1 cache file, not only when the entire selected scan batch finishes. After normal completion, cancellation or IGDB failure, save the remaining short tail.

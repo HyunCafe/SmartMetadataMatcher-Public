@@ -1,3 +1,11 @@
+## v0.5.7 — History view-only filtering
+
+- Allow compact and full history to show Applied, Undone or All recorded updates. Default is All to avoid hiding any operations.
+- Add title/field/date search only in Full History. Use case-insensitive substring matching, no fuzzy replacements, and do not change journal/visibility data.
+- Ensure long game names and changed fields remain readable via tooltips and a selected-operation details panel.
+- Filtering and hiding history are distinct: neither changes the newest-first undo policy nor deletes journal entries.
+- Preserve the v0.5.0 private stable rollback tag, private-only release workflow and current metadata writer.
+
 ## v0.5.5 — Credential diagnostic boundary
 - Provide an optional explicit Test Connection action that verifies both Twitch OAuth and IGDB's read-only games endpoint, instead of treating saved credentials as verified.
 - No background connection at launch or save; never persist the test token, log raw HTTP bodies, send private library records, or automatically authorize imports.

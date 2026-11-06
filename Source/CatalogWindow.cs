@@ -171,7 +171,8 @@ namespace SmartMetadataMatcher
         private DataGrid historyGrid;
         private RowDefinition historyRow;
         private GridSplitter historySplitter;
-        private TextBlock emptyHistory, historyTitle;
+        private TextBlock emptyHistory, historyTitle, historyFilterSummary;
+        private ComboBox historyStateFilter;
         private TextBlock previewTitle, previewDetails, previewSummary;
         private TextBlock previewChangeHeading, previewDiagnostics;
         private StackPanel previewHighlights;
@@ -315,6 +316,15 @@ namespace SmartMetadataMatcher
             style.Triggers.Add(selected);
             return style;
         }
+        private static Style HistoryTextStyle(string property)
+        {
+            var style=new Style(typeof(TextBlock));
+            style.Setters.Add(new Setter(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis));
+            // The full original text is available on hover, even when the
+            // compact view truncates a very long game name or field list.
+            style.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding(property)));
+            return style;
+        }
         private static Style CandidateStatusStyle()
         {
             var style=new Style(typeof(TextBlock));
@@ -416,7 +426,7 @@ namespace SmartMetadataMatcher
         internal void Show()
         {
             window=api.Dialogs.CreateWindow(new WindowCreationOptions{ShowMinimizeButton=false});
-            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private scan checkpoints";
+            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private history search";
             window.Width=1610;window.Height=935;window.MinWidth=1120;window.MinHeight=675;
             var owner=api.Dialogs.GetCurrentAppWindow();
             if(owner!=null && owner!=window)window.Owner=owner;
@@ -646,6 +656,25 @@ namespace SmartMetadataMatcher
             removeRecentButton.ToolTip="Hide selected history rows without deleting games, metadata, or undo records. Restore in Full history.";
             DockPanel.SetDock(removeRecentButton,Dock.Right);
             historyHeading.Children.Add(historyTitle);
+            // Keep the complete journal visible by default. The state filter
+            // controls presentation only and never alters Undo eligibility.
+            var historyFilterRow=new WrapPanel{Margin=new Thickness(3,0,0,3),
+                VerticalAlignment=VerticalAlignment.Center};
+            DockPanel.SetDock(historyFilterRow,Dock.Top);historyLayout.Children.Add(historyFilterRow);
+            var historyFilterLabel=Caption("Show",12);
+            historyFilterLabel.Margin=new Thickness(0,4,7,0);
+            historyFilterRow.Children.Add(historyFilterLabel);
+            historyStateFilter=new ComboBox{Width=104,Height=27,FontSize=12,
+                Margin=new Thickness(0,0,10,0),ToolTip="Filter visible history; never changes metadata or undo order."};
+            historyStateFilter.Items.Add(HistoryViewFilter.All);
+            historyStateFilter.Items.Add(HistoryViewFilter.Applied);
+            historyStateFilter.Items.Add(HistoryViewFilter.Undone);
+            historyStateFilter.SelectedIndex=0;
+            historyStateFilter.SelectionChanged+=(s,e)=>RefreshHistory();
+            historyFilterRow.Children.Add(historyStateFilter);
+            historyFilterSummary=Caption("",12);historyFilterSummary.Foreground=Muted();
+            historyFilterSummary.Margin=new Thickness(0,5,0,0);
+            historyFilterRow.Children.Add(historyFilterSummary);
             restoreHistoryButton.IsEnabled=false;
             removeRecentButton.IsEnabled=false;
             historyGrid=NewTable();historyGrid.SelectionMode=DataGridSelectionMode.Extended;
@@ -653,9 +682,10 @@ namespace SmartMetadataMatcher
             historyGrid.ToolTip="All visible history entries are listed; scroll for older ones. Select with Ctrl/Shift. Undone rows are skipped when undoing metadata.";
             historyGrid.RowHeight=27;historyGrid.ColumnHeaderHeight=30;
             historyGrid.Columns.Add(new DataGridTextColumn{Header="Date",Binding=new Binding("When"),Width=146});
-            historyGrid.Columns.Add(new DataGridTextColumn{Header="Game",Binding=new Binding("Game"),Width=225});
+            historyGrid.Columns.Add(new DataGridTextColumn{Header="Game",Binding=new Binding("Game"),
+                Width=225,ElementStyle=HistoryTextStyle("Game")});
             historyGrid.Columns.Add(new DataGridTextColumn{Header="Applied fields",Binding=new Binding("Fields"),
-                Width=new DataGridLength(1,DataGridLengthUnitType.Star)});
+                Width=new DataGridLength(1,DataGridLengthUnitType.Star),ElementStyle=HistoryTextStyle("Fields")});
             historyGrid.Columns.Add(new DataGridTextColumn{Header="Result",Binding=new Binding("Result"),Width=97,
                 ElementStyle=ResultStyle()});
             historyGrid.SelectionChanged+=(s,e)=>{
@@ -1788,14 +1818,26 @@ namespace SmartMetadataMatcher
         {
             if(historyGrid==null)return;
             // The dashboard shows every visible operation; DataGrid virtualizes rows and scrolls.
-            var rows=HistoryRows(Int32.MaxValue);
+            var all=HistoryRows(Int32.MaxValue);
+            string state=historyStateFilter==null?HistoryViewFilter.All:
+                (historyStateFilter.SelectedItem as string ?? HistoryViewFilter.All);
+            var rows=all.Where(r=>HistoryViewFilter.Includes(r.Result,r.Game,r.Fields,r.When,state,"")).ToList();
             historyGrid.ItemsSource=rows;
             if(historyTitle!=null)historyTitle.Text="◷  Update history ("+rows.Count+" shown)";
-            bool hasHistory=rows.Count>0;
-            historyGrid.Visibility=hasHistory?Visibility.Visible:Visibility.Collapsed;
-            if(emptyHistory!=null)emptyHistory.Visibility=hasHistory?Visibility.Collapsed:Visibility.Visible;
-            if(historySplitter!=null)historySplitter.Visibility=hasHistory?Visibility.Visible:Visibility.Collapsed;
-            if(historyRow!=null)historyRow.Height=hasHistory?
+            if(historyFilterSummary!=null)
+                historyFilterSummary.Text=rows.Count+" of "+all.Count+" shown · "+
+                    all.Count(r=>r.Result=="Applied")+" applied · "+
+                    all.Count(r=>r.Result=="Undone")+" undone";
+            bool anyHistory=all.Count>0;
+            historyGrid.Visibility=rows.Count>0?Visibility.Visible:Visibility.Collapsed;
+            if(emptyHistory!=null)
+            {
+                emptyHistory.Text=anyHistory?"No operations match this filter. Select All to see everything.":
+                    "No imports yet. Completed updates and undoable changes appear here.";
+                emptyHistory.Visibility=rows.Count==0?Visibility.Visible:Visibility.Collapsed;
+            }
+            if(historySplitter!=null)historySplitter.Visibility=anyHistory?Visibility.Visible:Visibility.Collapsed;
+            if(historyRow!=null)historyRow.Height=anyHistory?
                 new GridLength(25,GridUnitType.Star):GridLength.Auto;
             // Empty history should not consume a third of the dashboard.
         }
@@ -1811,19 +1853,44 @@ namespace SmartMetadataMatcher
             var foot=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};
             DockPanel.SetDock(foot,Dock.Bottom);root.Children.Add(foot);
             Button close;AddButton(foot,"Close",()=>detail.Close(),out close);
-            var records=new DataGrid {
-                AutoGenerateColumns=false,CanUserAddRows=false,CanUserDeleteRows=false,IsReadOnly=true,
-                HeadersVisibility=DataGridHeadersVisibility.Column,EnableRowVirtualization=true,
-                SelectionMode=DataGridSelectionMode.Extended,SelectionUnit=DataGridSelectionUnit.FullRow
-            };
-            var showHidden=new CheckBox{Content="Include hidden entries",Margin=new Thickness(6,8,10,0),VerticalAlignment=VerticalAlignment.Center};
-            DockPanel.SetDock(showHidden,Dock.Top);
-            root.Children.Add(showHidden);
+            var records=NewTable();records.SelectionMode=DataGridSelectionMode.Extended;
+            var filters=new WrapPanel{Margin=new Thickness(0,9,0,6)};
+            DockPanel.SetDock(filters,Dock.Top);root.Children.Add(filters);
+            var statusLabel=Caption("Show",12);statusLabel.Margin=new Thickness(0,4,8,0);
+            filters.Children.Add(statusLabel);
+            var stateFilter=new ComboBox{Width=112,Height=29,FontSize=12,Margin=new Thickness(0,0,12,0)};
+            stateFilter.Items.Add(HistoryViewFilter.All);
+            stateFilter.Items.Add(HistoryViewFilter.Applied);
+            stateFilter.Items.Add(HistoryViewFilter.Undone);
+            stateFilter.SelectedIndex=0;filters.Children.Add(stateFilter);
+            var searchLabel=Caption("Search",12);searchLabel.Margin=new Thickness(0,4,8,0);
+            filters.Children.Add(searchLabel);
+            var search=new TextBox{Width=240,Height=29,FontSize=12,Padding=new Thickness(6,4,6,2),
+                ToolTip="Search game titles, changed fields, or dates. Clearing the search restores the full list."};
+            filters.Children.Add(search);
+            var showHidden=new CheckBox{Content="Include hidden entries",Margin=new Thickness(12,4,10,0),
+                VerticalAlignment=VerticalAlignment.Center};filters.Children.Add(showHidden);
+            var selectedDetail=new TextBox{IsReadOnly=true,TextWrapping=TextWrapping.Wrap,
+                MinHeight=68,MaxHeight=92,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
+                Padding=new Thickness(8,6,8,6),Margin=new Thickness(0,5,0,0),
+                Background=PanelBrush(),Foreground=Muted(),BorderBrush=StrokeBrush(),FontSize=12,
+                Text="Select one update to read its full game title and changed fields."};
+            DockPanel.SetDock(selectedDetail,Dock.Bottom);root.Children.Add(selectedDetail);
+            int totalRows=0,shownRows=0;
             Action updateActions=null;
-            Action refreshFull=()=>{records.ItemsSource=HistoryRows(Int32.MaxValue,showHidden.IsChecked==true);
-                if(updateActions!=null)updateActions();};
+            Action refreshFull=()=>{
+                var all=HistoryRows(Int32.MaxValue,showHidden.IsChecked==true);
+                var state=stateFilter.SelectedItem as string ?? HistoryViewFilter.All;
+                var shown=all.Where(r=>HistoryViewFilter.Includes(r.Result,r.Game,r.Fields,r.When,
+                    state,search.Text)).ToList();
+                totalRows=all.Count;shownRows=shown.Count;
+                records.ItemsSource=shown;
+                if(updateActions!=null)updateActions();
+            };
             showHidden.Checked+=(s,e)=>refreshFull();
             showHidden.Unchecked+=(s,e)=>refreshFull();
+            stateFilter.SelectionChanged+=(s,e)=>refreshFull();
+            search.TextChanged+=(s,e)=>refreshFull();
             Button restoreInFull;AddButton(foot,"Show in update history",()=>{
                 RestoreSelectedHistory(records.SelectedItems.OfType<HistoryRow>().ToList(),refreshFull);
             },out restoreInFull);
@@ -1852,15 +1919,23 @@ namespace SmartMetadataMatcher
                 renameInFull.IsEnabled=!busy && applied>0;
                 undoInFull.IsEnabled=!busy && applied>0;
                 selectionSummary.Text=selected.Count==0?
-                    "Select records with Ctrl/Shift. Undo skips already-undone entries.":
-                    "Selected "+selected.Count+" | Applied "+applied+" | Already undone "+undone+
+                    "Showing "+shownRows+" of "+totalRows+" operation(s). Filter by state or search to find older updates.":
+                    "Showing "+shownRows+" of "+totalRows+" | Selected "+selected.Count+
+                    " | Applied "+applied+" | Already undone "+undone+
                     " | Hidden "+hidden+". Undo is newest-first.";
+                selectedDetail.Text=selected.Count==1?
+                    "Game: "+selected[0].Game+"\nDate: "+selected[0].When+
+                    " · Status: "+selected[0].Result+"\nChanged fields: "+selected[0].Fields:
+                    selected.Count==0?"Select one update to read its full game title and changed fields.":
+                    selected.Count+" operations selected. Select a single update to inspect its complete details.";
             };
             records.SelectionChanged+=(s,e)=>updateActions();
             records.ToolTip="Ctrl/Shift select multiple operations. Undo skips Undone entries and protects later edits.";
             records.Columns.Add(new DataGridTextColumn {Header="Date",Binding=new Binding("When"),Width=150});
-            records.Columns.Add(new DataGridTextColumn {Header="Game",Binding=new Binding("Game"),Width=275});
-            records.Columns.Add(new DataGridTextColumn {Header="Fields applied",Binding=new Binding("Fields"),Width=new DataGridLength(1,DataGridLengthUnitType.Star)});
+            records.Columns.Add(new DataGridTextColumn {Header="Game",Binding=new Binding("Game"),
+                Width=275,ElementStyle=HistoryTextStyle("Game")});
+            records.Columns.Add(new DataGridTextColumn {Header="Fields applied",Binding=new Binding("Fields"),
+                Width=new DataGridLength(1,DataGridLengthUnitType.Star),ElementStyle=HistoryTextStyle("Fields")});
             records.Columns.Add(new DataGridTextColumn {Header="State",Binding=new Binding("Result"),Width=100,
                 ElementStyle=ResultStyle()});
             records.Columns.Add(new DataGridTextColumn {Header="Visibility",Binding=new Binding("VisibilityLabel"),Width=90});

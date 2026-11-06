@@ -154,6 +154,17 @@ if not all(x in view for x in ("checkpoints.Add(SaveableScanResult(next[next.Cou
 if "checkpoint.SavedCount==20 && checkpoint.PendingCount==5" not in (root/"Tests/CatalogScanCacheTests.cs").read_text(encoding="utf-8-sig"):
     problems.append("Incremental scan restart/flush regression missing")
 
+# v0.5.7 history controls are presentation-only and share a pure filter.
+if not all(x in view for x in ("HistoryViewFilter.Includes(",
+    "historyStateFilter.SelectionChanged+=(s,e)=>RefreshHistory();",
+    "search.TextChanged+=(s,e)=>refreshFull();",
+    'ElementStyle=HistoryTextStyle("Game")',
+    'ElementStyle=HistoryTextStyle("Fields")',
+    'selectedDetail.Text=selected.Count==1?')):
+    problems.append("History search, status filtering, and full text details not wired")
+if 'HistoryViewFilterTests.Run();' not in program or 'Link="HistoryViewFilter.cs"' not in (root/'Tests/NameRulesTests.csproj').read_text(encoding='utf-8-sig'):
+    problems.append("History presentation policy must compile and run in offline tests")
+
 if problems:
     for problem in problems:
         print("STOP:", problem)

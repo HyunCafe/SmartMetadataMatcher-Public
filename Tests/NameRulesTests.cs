@@ -81,6 +81,7 @@ internal static class Program
         CatalogRecoveryConsistencyTests.Run();
         MetadataPlanTests.Run();
         EnrichmentPlanTests.Run();
+        HistoryViewFilterTests.Run();
         EnrichmentJobPlanTests.Run();
         CatalogBatchProgressTests.Run();
         CatalogBatchPolicyTests.Run();

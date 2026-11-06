@@ -1,3 +1,11 @@
+## v0.5.7 private history filtering — acceptance gate
+
+- **Source baseline:** exact v0.5.6 local commit `59ba0870fbc74a97b5cba41e04cef05453826527` on clean `main`; retain original v0.5.0 private-stable annotated tag.
+- **Scope:** pure history status/search filter, compact/full UI filter controls, long-text tooltips and selected-row details. No metadata or journal schema changes, no undo eligibility changes, no writes to Playnite or ROMs during build.
+- **Automated gate:** full Windows WPF extension compile first, 14+ pure history-filter assertions, existing offline suites, release/privacy guards, .pext DLL+manifest exact verification, local Git commit after all checks pass.
+- **Focused Playnite acceptance:** after installing v0.5.7, confirm All shows all operations, Applied/Undone counts are accurate, title search finds an older row, selected long title/fields are readable, and the Undo button still requires safe newest-first selection. No actual undo is required for this visual check.
+- **Still not certified:** unexpected Playnite crash recovery with disposable data, large journal replay performance, independent binary/transitive dependency review, public-release suitability.
+
 ## v0.5.5 private connection test acceptance
 - Source-only test: mocked Twitch OAuth + one bounded IGDB `/games` POST with explicit cancellation and sanitized error mapping; no network access from offline tests.
 - Required on Windows: full extension WPF Release build, all regression suites, package byte comparison, private release report, local Git commit.

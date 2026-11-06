@@ -28,6 +28,8 @@
     <Compile Include="CatalogConfirmedIdentitiesTests.cs" />
     <Compile Include="CatalogScanCacheTests.cs" />
     <Compile Include="../Source/HistoryVisibilityStore.cs" Link="HistoryVisibilityStore.cs" />
+    <Compile Include="../Source/HistoryViewFilter.cs" Link="HistoryViewFilter.cs" />
+    <Compile Include="HistoryViewFilterTests.cs" />
     <Compile Include="CatalogIgnoredTests.cs" />
     <Compile Include="../Source/MetadataPlan.cs" Link="MetadataPlan.cs" />
     <Compile Include="../Source/MetadataJournal.cs" Link="MetadataJournal.cs" />
