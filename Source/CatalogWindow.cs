@@ -103,6 +103,7 @@ namespace SmartMetadataMatcher
         private HashSet<Guid> ignoredIds = new HashSet<Guid>();
         private readonly List<Button> tabButtons = new List<Button>();
         private TextBox catalogSearch;
+        private Button selectionToggleButton, visibleToggleButton, reviewSelectionButton;
         private ComboBox platformFilter;
         private DataGrid historyGrid;
         private RowDefinition historyRow;
@@ -158,7 +159,8 @@ namespace SmartMetadataMatcher
         }
         private static Brush Accent() { return UiColor(50,193,240); }
         private static Brush Good() { return UiColor(102,225,148); }
-        private static Brush Caution() { return UiColor(252,193,81); }
+        private static Brush Caution() { return UiColor(231,182,105); }
+        private static Brush Attention() { return UiColor(244,154,140); }
         private static Brush Quiet() { return UiColor(150,174,203); }
         private static Brush Muted() { return UiColor(170,186,207); }
         private static Brush Deep() { return UiColor(10,18,37); }
@@ -208,7 +210,9 @@ namespace SmartMetadataMatcher
         {
             var symbols=new[]{"\uE80F","\uE73E","\uE7BA","\uE711","\uE8A7"};
             var panel=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Center};
-            panel.Children.Add(Icon(symbols[index],17,selected?Accent():Muted()));
+            panel.Children.Add(Icon(symbols[index],17,
+                index==2 && !label.EndsWith("(0)",StringComparison.Ordinal)?Caution():
+                selected?Accent():Muted()));
             var text=new TextBlock{Text=label,FontSize=14,VerticalAlignment=VerticalAlignment.Center};
             text.Foreground=selected?Accent():Muted();panel.Children.Add(text);
             button.Content=panel;button.Background=selected?UiColor(15,42,70):PanelBrush();
@@ -228,13 +232,17 @@ namespace SmartMetadataMatcher
             var style=new Style(typeof(TextBlock));
             style.Setters.Add(new Setter(TextBlock.ForegroundProperty,Good()));
             foreach(var pair in new[]{
-                Tuple.Create("Review",Caution()),Tuple.Create("Unmatched",Caution()),
+                Tuple.Create("Review",Caution()),Tuple.Create("Unmatched",Attention()),
                 Tuple.Create("Ignored",Quiet()),Tuple.Create("Undone",Quiet())})
             {
                 var trigger=new DataTrigger{Binding=new Binding("Result"),Value=pair.Item1};
                 trigger.Setters.Add(new Setter(TextBlock.ForegroundProperty,pair.Item2));
                 style.Triggers.Add(trigger);
             }
+            var selected=new DataTrigger{Binding=new Binding("IsSelected"){
+                RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGridRow),1)},Value=true};
+            selected.Setters.Add(new Setter(TextBlock.ForegroundProperty,Deep()));
+            style.Triggers.Add(selected);
             return style;
         }
         private static Style CandidateStatusStyle()
@@ -242,13 +250,17 @@ namespace SmartMetadataMatcher
             var style=new Style(typeof(TextBlock));
             style.Setters.Add(new Setter(TextBlock.ForegroundProperty,Good()));
             foreach(var pair in new[]{
-                Tuple.Create("Review",Caution()),Tuple.Create("Unmatched",Caution()),
+                Tuple.Create("Review",Caution()),Tuple.Create("Unmatched",Attention()),
                 Tuple.Create("Ignored",Quiet())})
             {
                 var trigger=new DataTrigger{Binding=new Binding("Status"),Value=pair.Item1};
                 trigger.Setters.Add(new Setter(TextBlock.ForegroundProperty,pair.Item2));
                 style.Triggers.Add(trigger);
             }
+            var selected=new DataTrigger{Binding=new Binding("IsSelected"){
+                RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGridRow),1)},Value=true};
+            selected.Setters.Add(new Setter(TextBlock.ForegroundProperty,Deep()));
+            style.Triggers.Add(selected);
             return style;
         }
         private static DataGrid NewTable()
@@ -388,11 +400,6 @@ namespace SmartMetadataMatcher
             var actions=new WrapPanel{VerticalAlignment=VerticalAlignment.Center};
             Grid.SetColumn(actions,0);toolbar.Children.Add(actions);
             AddButton(actions,"Scan games",StartScan,out scanButton);Decorate(scanButton,"\uE72C");
-            Button planButton;
-            AddButton(actions,"Review matches / Apply",ShowPlanReview,out planButton);
-            Decorate(planButton,"\uE896",true);
-            planButton.ToolTip="Review marked games or all matches. Imports remain supervised and require explicit confirmation.";
-
             // Menu rather than an Expander: no second toolbar suddenly appears.
             // Keep the established ComboBox/CheckBox state as the one source of truth.
             scanSize=new ComboBox{Visibility=Visibility.Collapsed};
@@ -417,7 +424,7 @@ namespace SmartMetadataMatcher
                     menu.Items.Add(entry);
                 }
                 menu.Items.Add(new Separator());
-                var titleChoice=new MenuItem{Header="Use catalog title (if no collision)",
+                var titleChoice=new MenuItem{Header="Clean Playnite display titles on approved import",
                     IsCheckable=true,IsChecked=useCatalogTitle.IsChecked==true};
                 titleChoice.Click+=(ss,ee)=>{useCatalogTitle.IsChecked=titleChoice.IsChecked;};
                 menu.Items.Add(titleChoice);
@@ -462,13 +469,29 @@ namespace SmartMetadataMatcher
             filterBar.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});
             top.Children.Add(filterBar);
             var filters=new WrapPanel();Grid.SetColumn(filters,0);filterBar.Children.Add(filters);
-            Button mark,unmark,clear,visible,ignore;
-            AddButton(filters,"Mark selected",()=>MarkHighlighted(true),out mark);
-            AddButton(filters,"Unmark selected",()=>MarkHighlighted(false),out unmark);
-            AddButton(filters,"Mark visible eligible",MarkVisibleEligible,out visible);
-            visible.ToolTip="Mark eligible entries in the current filtered view, not the entire library.";
-            AddButton(filters,"Clear marks",()=>{foreach(var r in results)r.Marked=false;grid.Items.Refresh();},out clear);
-            AddButton(filters,"Ignore / restore",ToggleIgnored,out ignore);Decorate(ignore,"\uE711");
+            AddButton(filters,"Select highlighted",ToggleHighlightedSelection,out selectionToggleButton);
+            selectionToggleButton.ToolTip="Works on highlighted rows (Ctrl/Shift to highlight several). Checked games are selected for the next import.";
+            AddButton(filters,"Select visible ready",ToggleVisibleReadySelection,out visibleToggleButton);
+            visibleToggleButton.ToolTip="Select or deselect eligible games currently visible after filtering.";
+            Button moreSelection=null;
+            AddButton(filters,"More  ▾",()=>{
+                var menu=new ContextMenu{Background=PanelBrush(),Foreground=Muted(),BorderBrush=StrokeBrush()};
+                var clear=new MenuItem{Header="Clear all import selections"};
+                clear.Click+=(ss,ee)=>{
+                    foreach(var r in results)r.Marked=false;
+                    grid.Items.Refresh();UpdateSelectionActions();
+                };
+                menu.Items.Add(clear);
+                var ignore=new MenuItem{Header="Ignore / restore highlighted game"};
+                ignore.Click+=(ss,ee)=>ToggleIgnored();
+                menu.Items.Add(ignore);
+                menu.PlacementTarget=moreSelection;menu.IsOpen=true;
+            },out moreSelection);
+            moreSelection.ToolTip="Less common selection actions, including ignore and restore.";
+            AddButton(filters,"Review matches",ShowPlanReview,out reviewSelectionButton);
+            Decorate(reviewSelectionButton,"\uE896",true);
+            reviewSelectionButton.ToolTip="Review selected games and approve proposed Playnite metadata changes.";
+            reviewSelectionButton.Foreground=Deep();
             var quickFilters=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right};
             Grid.SetColumn(quickFilters,1);filterBar.Children.Add(quickFilters);
             quickFilters.Children.Add(Icon("\uE721",15));
@@ -520,7 +543,14 @@ namespace SmartMetadataMatcher
             grid.Columns[4].Width=128;
             grid.Columns[7].Width=136;
             UpdateDiagnosticColumns();
-            grid.SelectionChanged+=(s,e)=>UpdatePreview();
+            grid.SelectionChanged+=(s,e)=>{UpdatePreview();UpdateSelectionActions();};
+            // Checkbox clicks change the import selection, separate from highlighted rows.
+            // Defer until the WPF binding has committed the changed checkbox value.
+            grid.AddHandler(System.Windows.Controls.Primitives.ButtonBase.ClickEvent,
+                new RoutedEventHandler((s,e)=>{
+                    if(!(e.OriginalSource is CheckBox))return;
+                    window.Dispatcher.BeginInvoke(new Action(()=>UpdateSelectionActions()));
+                }));
             Grid.SetRow(grid,0);left.Children.Add(grid);
             historySplitter=new GridSplitter{Height=7,HorizontalAlignment=HorizontalAlignment.Stretch,
                 VerticalAlignment=VerticalAlignment.Stretch,ResizeDirection=GridResizeDirection.Rows,
@@ -535,15 +565,22 @@ namespace SmartMetadataMatcher
             title.FontWeight=FontWeights.SemiBold;
             Button fullHistory;AddButton(historyHeading,"View full history...",ShowFullHistory,out fullHistory);
             Decorate(fullHistory,"\uE8A7");DockPanel.SetDock(fullHistory,Dock.Right);
-            Button hideHistory;AddButton(historyHeading,"Remove from recent...",()=>HideSelectedHistory(
-                historyGrid.SelectedItems.OfType<HistoryRow>().ToList(),null),out hideHistory);
-            DockPanel.SetDock(hideHistory,Dock.Right);
-            Button renameHistory;AddButton(historyHeading,"Fix Playnite titles...",()=>RenameSelectedHistoryTitles(
-                historyGrid.SelectedItems.OfType<HistoryRow>().ToList()),out renameHistory);
-            DockPanel.SetDock(renameHistory,Dock.Right);
-            Button undoHistory;AddButton(historyHeading,"Undo selected (latest first)",()=>UndoSelectedHistory(
-                historyGrid.SelectedItems.OfType<HistoryRow>().ToList()),out undoHistory);
-            DockPanel.SetDock(undoHistory,Dock.Right);
+            Button historyActions=null;
+            AddButton(historyHeading,"History actions  ▾",()=>{
+                var menu=new ContextMenu{Background=PanelBrush(),Foreground=Muted(),BorderBrush=StrokeBrush()};
+                var undo=new MenuItem{Header="Undo selected (latest first)"};
+                undo.Click+=(ss,ee)=>UndoSelectedHistory(historyGrid.SelectedItems.OfType<HistoryRow>().ToList());
+                menu.Items.Add(undo);
+                var rename=new MenuItem{Header="Fix titles on earlier imports..."};
+                rename.Click+=(ss,ee)=>RenameSelectedHistoryTitles(historyGrid.SelectedItems.OfType<HistoryRow>().ToList());
+                menu.Items.Add(rename);
+                var hide=new MenuItem{Header="Hide selected from Recent Updates..."};
+                hide.Click+=(ss,ee)=>HideSelectedHistory(historyGrid.SelectedItems.OfType<HistoryRow>().ToList(),null);
+                menu.Items.Add(hide);
+                menu.PlacementTarget=historyActions;menu.IsOpen=true;
+            },out historyActions);
+            historyActions.ToolTip="Rare actions for selected history rows. Hiding does not remove undo records.";
+            DockPanel.SetDock(historyActions,Dock.Right);
             historyHeading.Children.Add(title);
             historyGrid=NewTable();historyGrid.SelectionMode=DataGridSelectionMode.Extended;
             historyGrid.SelectionUnit=DataGridSelectionUnit.FullRow;
@@ -780,7 +817,7 @@ namespace SmartMetadataMatcher
                 lines.Add(new PlanPreviewRow {
                     SourceRow=r,Game=r.CurrentName??"",Catalog=r.Candidate??"",
                     Platform=r.Platform??"",CatalogId=r.IgdbId??"",
-                    IdentityStatus=d.ReadyForPreflight?"Ready for preflight":
+                    IdentityStatus=d.ReadyForPreflight?"Ready — verify":
                         d.Code=="Completed"?"Completed":d.Code=="Ignored"?"Ignored":"Needs review",
                     Explanation=d.Explanation,RenameHandling=d.ReadyForPreflight?d.RenameReason:"Not planned",
                     Ready=d.ReadyForPreflight,Archived=d.Code=="Completed"||d.Code=="Ignored"
@@ -797,24 +834,22 @@ namespace SmartMetadataMatcher
             var body=new DockPanel {Margin=new Thickness(14)};
             var heading=new StackPanel{Margin=new Thickness(0,0,0,10)};
             DockPanel.SetDock(heading,Dock.Top);body.Children.Add(heading);
-            var title=Caption("Review your catalog matches",19);
+            var title=Caption("Review matches and proposed changes",19);
             title.FontWeight=FontWeights.SemiBold;title.Foreground=Accent();heading.Children.Add(title);
             var counts=Caption("",14);
-            Action updateCounts=()=>counts.Text=markedCount()+" marked  •  "+ready+
-                " ready for preflight  •  "+review+" need review  •  "+archived+" completed/ignored";
+            Action updateCounts=()=>counts.Text=markedCount()+" selected for import  •  "+ready+
+                " ready for review  •  "+review+" need attention  •  "+archived+" completed/ignored";
             updateCounts();
             heading.Children.Add(counts);
-            var warning=Caption("The identity list is read-only. 'Ready' does NOT prove the game identity or " +
-                "show exact field changes. Only marked, strictly eligible rows can enter the private " +
-                "supervised test-import path; a single Strong match can also be manually approved. " +
-                "Backup confirmation and a separate write approval are required. " +
-                "Production bulk import and resumable jobs are not enabled yet.",12);
-            warning.Foreground=Caution();heading.Children.Add(warning);
+            var warning=Caption("Check each game's title, platform and edition before approving. " +
+                "Ready means automated checks passed, not that the identity is guaranteed. " +
+                "A backup and final approval are required; imports are still supervised.",12);
+            warning.Foreground=Muted();heading.Children.Add(warning);
             var filters=new WrapPanel{Margin=new Thickness(0,0,0,8)};
             DockPanel.SetDock(filters,Dock.Top);body.Children.Add(filters);
             filters.Children.Add(Caption("Show",12));
             var view=new ComboBox {Width=225,Height=31,Margin=new Thickness(10,0,10,0)};
-            view.Items.Add("Marked games");view.Items.Add("Ready for preflight");
+            view.Items.Add("Selected for import");view.Items.Add("Ready matches");
             view.Items.Add("Needs review");view.Items.Add("Completed / ignored");view.Items.Add("All matches");
             filters.Children.Add(view);
             var search=new TextBox {Width=210,Height=31,Margin=new Thickness(0,0,12,0),
@@ -828,24 +863,36 @@ namespace SmartMetadataMatcher
             markFactory.SetBinding(CheckBox.IsCheckedProperty,new Binding("Marked"){
                 Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged});
             markFactory.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Center);
-            table.Columns.Add(new DataGridTemplateColumn {Header="Mark",Width=51,
+            table.Columns.Add(new DataGridTemplateColumn {Header="Select",Width=57,
                 CellTemplate=new DataTemplate{VisualTree=markFactory},IsReadOnly=false});
-            table.Columns.Add(new DataGridTextColumn{Header="Playnite title",Binding=new Binding("Game"),Width=205,IsReadOnly=true});
+            table.Columns.Add(new DataGridTextColumn{Header="Current Playnite title",Binding=new Binding("Game"),Width=205,IsReadOnly=true});
             table.Columns.Add(new DataGridTextColumn{Header="Platform",Binding=new Binding("Platform"),Width=135,IsReadOnly=true});
-            table.Columns.Add(new DataGridTextColumn{Header="IGDB candidate",Binding=new Binding("Catalog"),Width=210,IsReadOnly=true});
-            table.Columns.Add(new DataGridTextColumn{Header="Decision",Binding=new Binding("IdentityStatus"),Width=137,IsReadOnly=true});
+            table.Columns.Add(new DataGridTextColumn{Header="Matched game (IGDB)",Binding=new Binding("Catalog"),Width=210,IsReadOnly=true});
+            table.Columns.Add(new DataGridTextColumn{Header="Match status",Binding=new Binding("IdentityStatus"),Width=137,IsReadOnly=true});
             table.Columns.Add(new DataGridTextColumn{Header="Reason",Binding=new Binding("Explanation"),
                 Width=new DataGridLength(1,DataGridLengthUnitType.Star),IsReadOnly=true});
-            table.Columns.Add(new DataGridTextColumn{Header="Rename",Binding=new Binding("RenameHandling"),Width=175,IsReadOnly=true});
+            table.Columns.Add(new DataGridTextColumn{Header="Playnite title after import",Binding=new Binding("RenameHandling"),Width=220,IsReadOnly=true});
             var footer=new WrapPanel {Margin=new Thickness(0,10,0,0),
                 HorizontalAlignment=HorizontalAlignment.Right};
             DockPanel.SetDock(footer,Dock.Bottom);body.Children.Add(footer);
             Button inspect=null,previewApply=null,close=null;
+            Button markReady=null,clearMarked=null;
             Action updateSelection=()=>{
                 updateCounts();
                 if(inspect!=null)inspect.IsEnabled=table.SelectedItem is PlanPreviewRow;
-                if(previewApply!=null)previewApply.IsEnabled=markedCount()>0;
+                if(previewApply!=null){
+                    previewApply.IsEnabled=markedCount()>0;
+                    previewApply.Content="Apply selected ("+markedCount()+")...";
+                }
+                if(markReady!=null){
+                    var readyRows=lines.Where(x=>x.Ready&&!x.Archived).ToList();
+                    markReady.Content=readyRows.Count==0?"No ready matches":
+                        readyRows.Any(x=>!x.Marked)?"Select all ready ("+readyRows.Count+")":
+                        "Deselect all ready ("+readyRows.Count+")";
+                    markReady.IsEnabled=readyRows.Count>0;
+                }
                 if(grid!=null)grid.Items.Refresh();
+                UpdateSelectionActions();
             };
             Action refreshRows=()=>{
                 var current=table.SelectedItem as PlanPreviewRow;
@@ -879,12 +926,13 @@ namespace SmartMetadataMatcher
                 }));
             var selectionTools=new WrapPanel{Margin=new Thickness(0,2,0,8)};
             DockPanel.SetDock(selectionTools,Dock.Top);body.Children.Add(selectionTools);
-            Button markReady,clearMarked;
-            AddButton(selectionTools,"Mark all strict-ready",()=>{
-                foreach(var row in lines.Where(x=>x.Ready&&!x.Archived))row.Marked=true;
+            AddButton(selectionTools,"Select all ready",()=>{
+                var readyRows=lines.Where(x=>x.Ready&&!x.Archived).ToList();
+                bool select=readyRows.Any(x=>!x.Marked);
+                foreach(var row in readyRows)row.Marked=select;
                 refreshRows();
             },out markReady);
-            AddButton(selectionTools,"Clear marks",()=>{
+            AddButton(selectionTools,"Clear selection",()=>{
                 foreach(var row in lines)row.Marked=false;
                 refreshRows();
             },out clearMarked);
@@ -901,12 +949,12 @@ namespace SmartMetadataMatcher
                 else api.Dialogs.ShowMessage("The selected result is no longer visible. " +
                     "Rescan if its identity changed.","Smart Metadata Matcher");
             };
-            AddButton(footer,"Inspect highlighted in dashboard",focus,out inspect);
+            AddButton(footer,"Inspect game",focus,out inspect);
             Decorate(inspect,"\uE8A7");
-            AddButton(footer,"Apply marked (supervised test)...",()=>{
+            AddButton(footer,"Apply selected (supervised test)...",()=>{
                 var selected=lines.Where(x=>x.Marked).ToList();
-                if(selected.Count==0){api.Dialogs.ShowMessage("Mark games in the main dashboard first. " +
-                    "Highlighting a row is not the same as marking it.","Smart Metadata Matcher");return;}
+                if(selected.Count==0){api.Dialogs.ShowMessage("Select at least one game using the checkboxes. " +
+                    "Highlighting a row only opens its details.","Smart Metadata Matcher");return;}
                 var blocked=selected.Where(x=>!x.Ready).ToList();
                 // Preserve the earlier one-game manual path for a game whose IGDB
                 // identity the user has personally verified. It is NOT automated.
@@ -948,8 +996,9 @@ namespace SmartMetadataMatcher
                 dialog.Close();
                 window.Dispatcher.BeginInvoke(new Action(()=>RunBatch(reviewedRows,!manualSingle,excludedCount)));
             },out previewApply);
-            Decorate(previewApply,"\uE8A7");
-            previewApply.ToolTip="Private supervised test only. No automatic edits without backup confirmation and a complete game-by-game approval.";
+            previewApply.Background=Accent();previewApply.BorderBrush=Accent();
+            previewApply.Foreground=Deep();previewApply.FontWeight=FontWeights.SemiBold;
+            previewApply.ToolTip="Review and apply checked games after backup confirmation and a final game-by-game approval.";
             AddButton(footer,"Close",()=>dialog.Close(),out close);
             table.MouseDoubleClick+=(s,e)=>focus();
             body.Children.Add(table);
@@ -1101,6 +1150,7 @@ namespace SmartMetadataMatcher
                 grid.SelectedItem=first;
             }
             UpdatePreview();
+            UpdateSelectionActions();
         }
         private void MarkVisibleEligible()
         {
@@ -1109,7 +1159,7 @@ namespace SmartMetadataMatcher
             foreach(var row in view.OfType<CatalogViewRow>())
                 if(!row.IsIgnored && EnrichmentPlan.BatchEligible(row.Status,row.IsCompleted,row.IgdbId))
                     row.Marked=true;
-            grid.Items.Refresh();
+            grid.Items.Refresh();UpdateSelectionActions();
         }
         private void ToggleIgnored()
         {
@@ -1396,6 +1446,62 @@ namespace SmartMetadataMatcher
             grid.Items.Refresh();
             RefreshHistory();RefreshVisibility();
         }
+        private static bool CanSelectForImport(CatalogViewRow row)
+        {
+            return row!=null && !row.IsCompleted && !row.IsIgnored &&
+                row.Status=="Strong candidate";
+        }
+        private List<CatalogViewRow> VisibleReadyRows()
+        {
+            if(grid==null || grid.ItemsSource==null)return new List<CatalogViewRow>();
+            var view=CollectionViewSource.GetDefaultView(grid.ItemsSource);
+            return view==null?new List<CatalogViewRow>():
+                view.OfType<CatalogViewRow>().Where(CanSelectForImport).ToList();
+        }
+        private void UpdateSelectionActions()
+        {
+            if(grid==null || selectionToggleButton==null)return;
+            var highlighted=grid.SelectedItems.OfType<CatalogViewRow>()
+                .Where(CanSelectForImport).ToList();
+            var visible=VisibleReadyRows();
+            bool highlightsNeedMark=highlighted.Any(x=>!x.Marked);
+            bool visibleNeedMark=visible.Any(x=>!x.Marked);
+            selectionToggleButton.Content=highlighted.Count==0?"Highlight games first":
+                highlightsNeedMark?"Select highlighted ("+highlighted.Count+")":
+                "Deselect highlighted ("+highlighted.Count+")";
+            selectionToggleButton.IsEnabled=!busy&&highlighted.Count>0;
+            if(visibleToggleButton!=null){
+                visibleToggleButton.Content=visible.Count==0?"No ready games in view":
+                    visibleNeedMark?"Select visible ready ("+visible.Count+")":
+                    "Deselect visible ready ("+visible.Count+")";
+                visibleToggleButton.IsEnabled=!busy&&visible.Count>0;
+            }
+            if(reviewSelectionButton!=null){
+                int selected=results.Count(x=>x.Marked && CanSelectForImport(x));
+                reviewSelectionButton.Content=selected>0?
+                    "Review & apply ("+selected+")":"Review matches";
+                reviewSelectionButton.IsEnabled=!busy&&results.Count>0;
+            }
+        }
+        private void ToggleHighlightedSelection()
+        {
+            if(grid==null||busy)return;
+            var scope=grid.SelectedItems.OfType<CatalogViewRow>()
+                .Where(CanSelectForImport).ToList();
+            if(scope.Count==0)return;
+            bool mark=scope.Any(x=>!x.Marked);
+            foreach(var row in scope)row.Marked=mark;
+            grid.Items.Refresh();UpdateSelectionActions();
+        }
+        private void ToggleVisibleReadySelection()
+        {
+            if(busy)return;
+            var scope=VisibleReadyRows();
+            if(scope.Count==0)return;
+            bool mark=scope.Any(x=>!x.Marked);
+            foreach(var row in scope)row.Marked=mark;
+            grid.Items.Refresh();UpdateSelectionActions();
+        }
         private void MarkHighlighted(bool selected)
         {
             if(grid==null)return;
@@ -1403,7 +1509,7 @@ namespace SmartMetadataMatcher
             {
                 if(!row.IsCompleted && !row.IsIgnored && row.Status=="Strong candidate") row.Marked=selected;
             }
-            grid.Items.Refresh();
+            grid.Items.Refresh();UpdateSelectionActions();
         }
         private void Column(string label, string property, double width)
         {
@@ -1525,6 +1631,7 @@ namespace SmartMetadataMatcher
             var count=CatalogCore.NextScanCount(queue.Count-cursor,scanSize.SelectedIndex);
             var batch = queue.Skip(cursor).Take(count).ToList();
             busy=true; scanButton.IsEnabled=false; scanSize.IsEnabled=false; cancelButton.IsEnabled=true;cancelButton.Visibility=Visibility.Visible;
+            UpdateSelectionActions();
             cancellation=new CancellationTokenSource();
             var token=cancellation.Token;
             summary.Text="Searching IGDB for " + batch.Count + " games; " + cursor + " already processed. Read-only; you can cancel.";

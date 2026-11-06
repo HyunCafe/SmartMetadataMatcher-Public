@@ -210,3 +210,10 @@
 - When another game on the same platform already uses the clean title, propose the official title with a platform suffix (e.g., Super Mario Advance (GBA)). If that also conflicts, leave title untouched and report manual-review need.
 - Preview, review plan and final confirmation display the same planned name; live writer fails closed if the approved title differs at commit time.
 - Preserve launch actions, ROM files, existing metadata, journaling and undo; no unattended writes.
+
+## v0.4.18 — Everyday selection and review UX
+- Consolidate separate mark/unmark buttons into one contextual select/deselect action for highlighted rows. Add a matching toggle for currently visible ready games. Move Clear all and Ignore/restore to a More menu.
+- Place the primary Review & apply action beside the results selection controls; show selected count. Preserve independent row highlighting versus import checkboxes.
+- Simplify review dialog headings, selection labels, match status and approval action; preserve exact confirmation, test cap and recovery safeguards.
+- Improve selected-row status contrast and use softer amber for review, muted coral for unmatched. Group uncommon history actions in a dropdown.
+- No changes to IGDB matching logic, import writer, ROM paths, or journal schema.

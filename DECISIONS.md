@@ -172,3 +172,8 @@ Manual exception: exactly one marked Strong candidate may be tested via the exis
 - Default user journey is Scan → Review identity and planned changes → Approve → Name and missing metadata updated together → History/Undo. Title correction must not require visiting history.
 - Strict identity eligibility is independent of naming collisions. A duplicate produces a readable platform suffix when unambiguous, never an arbitrary counter.
 - Common UI stays simple; diagnostic internals remain secondary.
+
+## v0.4.18 UX simplification
+- Common actions near their content: scan at top; select and review beside the results table; advanced actions in menus. Highlighted rows and import checkboxes remain intentionally distinct, with explicit tooltips.
+- One context-aware select/deselect button replaces separate mark/unmark; second toggles visible ready rows within current filter. No hidden expansion into the entire library.
+- Review dialog must label the ready state as subject to identity verification; supervised write cap and approvals remain until production recovery is validated.
