@@ -70,6 +70,7 @@ internal static class Program
         ExpectProposal(pspConflict, "Class Of Heroes PSP", "Class Of Heroes", "Review");
         Expect(pspConflict.Single().Reason.Contains("collision"), "PSP collision flagged");
         CatalogCoreTests.Run();
+        IgdbConnectionTests.Run();
         CatalogReviewActionsTests.Run();
         CatalogImportDraftTests.Run();
         CatalogIgnoredTests.Run();

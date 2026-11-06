@@ -1,3 +1,10 @@
+## v0.5.5 — Private IGDB connection diagnostics (pending Windows acceptance)
+- Added a cancellable **Test Connection** button in IGDB settings. It tests the entered Twitch credentials with OAuth, then performs one small read-only IGDB `/games` lookup; merely saving settings still does not make a network request.
+- Test runs off the WPF UI thread, disables editing/saving while checking, cancels if settings close, and does not store tokens or unconfirmed credentials. Successful testing only marks the header verified when the tested credentials are saved in that session.
+- Show actionable, sanitized errors for invalid OAuth credentials, IGDB authorization, rate limiting, temporary server unavailability, network loss, timeouts, and unexpected responses. No token, secret, provider body or library title appears in test output.
+- Added offline fake-HTTP tests for request targets/headers/body, successful and unsuccessful responses, malformed replies and cancellation. This does not replace real Windows/Playnite network acceptance.
+- Metadata writer, matching logic, existing saved credentials, scans, Playnite library, journal formats, and undo are unchanged. No extra package dependencies or publishing.
+
 ## v0.5.4 — First-use readiness and selection clarity (private)
 - Main result list now shows the next step, separating fresh strict matches ready for review from saved matches needing refresh; underlying matching evidence and export status remain unchanged.
 - Active tab and selection text no longer imply cached results are immediately import-ready; bulk review selection says **Select all ready**, never **Select next ready**.

@@ -416,7 +416,7 @@ namespace SmartMetadataMatcher
         internal void Show()
         {
             window=api.Dialogs.CreateWindow(new WindowCreationOptions{ShowMinimizeButton=false});
-            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private readiness UX";
+            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private connection check";
             window.Width=1610;window.Height=935;window.MinWidth=1120;window.MinHeight=675;
             var owner=api.Dialogs.GetCurrentAppWindow();
             if(owner!=null && owner!=window)window.Owner=owner;
@@ -867,7 +867,7 @@ namespace SmartMetadataMatcher
         {
             if(busy)return;
             var dialog=new Window {Title="Smart Metadata Matcher — IGDB settings",
-                Width=650,Height=390,MinWidth=500,MinHeight=330,Owner=window,
+                Width=650,Height=430,MinWidth=500,MinHeight=370,Owner=window,
                 WindowStartupLocation=WindowStartupLocation.CenterOwner,
                 Background=Deep(),ResizeMode=ResizeMode.CanResize};
             var body=new DockPanel {Margin=new Thickness(18)};
@@ -884,14 +884,52 @@ namespace SmartMetadataMatcher
             var password=new PasswordBox {Password=secret.Password,MinHeight=32,
                 Margin=new Thickness(0,0,0,10)};
             fields.Children.Add(password);
-            var note=Caption("Saved for the current Windows user using existing encrypted local storage. " +
-                "No connection check occurs when saving. Never share credentials in logs or screenshots.",12);
+            var note=Caption("Credentials are encrypted for this Windows account. " +
+                "Test Connection checks Twitch and IGDB without saving or modifying games.",12);
             note.Foreground=Muted();fields.Children.Add(note);
+            var connectionStatus=Caption("Not tested in this session.",12);
+            connectionStatus.TextWrapping=TextWrapping.Wrap;
+            connectionStatus.Foreground=Muted();
+            connectionStatus.Margin=new Thickness(0,9,0,2);
+            fields.Children.Add(connectionStatus);
+            bool testedOk=false;
+            id.TextChanged+=(sender,args)=>{testedOk=false;connectionStatus.Text="Not tested with these credentials.";};
+            password.PasswordChanged+=(sender,args)=>{testedOk=false;connectionStatus.Text="Not tested with these credentials.";};
             var footer=new WrapPanel {HorizontalAlignment=HorizontalAlignment.Right,
                 Margin=new Thickness(0,14,0,0)};
             DockPanel.SetDock(footer,Dock.Bottom);
             body.Children.Insert(0,footer);
-            Button save,cancel;
+            var testCancellation=new CancellationTokenSource();
+            dialog.Closed+=(sender,args)=>testCancellation.Cancel();
+            Button save=null,cancel=null,test=null;
+            AddButton(footer,"Test Connection",()=>{
+                if(String.IsNullOrWhiteSpace(id.Text) || String.IsNullOrWhiteSpace(password.Password))
+                {connectionStatus.Text="Enter both fields before testing.";return;}
+                var candidateId=id.Text;
+                var candidateSecret=password.Password;
+                testedOk=false;
+                connectionStatus.Text="Checking Twitch login and IGDB read-only access...";
+                id.IsEnabled=false;password.IsEnabled=false;
+                test.IsEnabled=false;save.IsEnabled=false;
+                Task.Run(()=>{
+                    IgdbConnectionResult result=null;
+                    try
+                    {
+                        using(var client=new IgdbReadOnly(candidateId,candidateSecret))
+                            result=client.TestConnection(testCancellation.Token);
+                    }
+                    catch(OperationCanceledException){}
+                    catch(Exception) { result=IgdbConnectionResult.BadResponse(); }
+                    dialog.Dispatcher.BeginInvoke(new Action(()=>{
+                        if(!dialog.IsVisible)return;
+                        testedOk=result!=null && result.Connected;
+                        connectionStatus.Text=result==null?"Connection check cancelled.":result.Message;
+                        connectionStatus.Foreground=testedOk?Accent():Muted();
+                        id.IsEnabled=true;password.IsEnabled=true;
+                        test.IsEnabled=true;save.IsEnabled=true;
+                    }));
+                });
+            },out test);
             AddButton(footer,"Save settings",()=>{
                 if(String.IsNullOrWhiteSpace(id.Text) || String.IsNullOrWhiteSpace(password.Password))
                 {api.Dialogs.ShowMessage("Both IGDB credential fields are required.",
@@ -903,7 +941,10 @@ namespace SmartMetadataMatcher
                     credentialStore.Save(id.Text,password.Password);
                     clientId.Text=id.Text;secret.Password=password.Password;
                     RefreshCredentialStatus();
-                    summary.Text="IGDB credentials saved locally. Connection has not been tested.";
+                    if(testedOk)
+                        credentialStatus.Text="IGDB connection verified this session";
+                    summary.Text=testedOk?"IGDB credentials saved; connection verified." :
+                        "IGDB credentials saved locally. Connection has not been tested.";
                     dialog.DialogResult=true;
                 }
                 catch(Exception ex){api.Dialogs.ShowErrorMessage(ex.Message,"Could not save IGDB credentials");}

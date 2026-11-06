@@ -1,3 +1,8 @@
+## v0.5.5 — Credential diagnostic boundary
+- Provide an optional explicit Test Connection action that verifies both Twitch OAuth and IGDB's read-only games endpoint, instead of treating saved credentials as verified.
+- No background connection at launch or save; never persist the test token, log raw HTTP bodies, send private library records, or automatically authorize imports.
+- Keep existing DPAPI credential storage, pinned dependencies, backend endpoints and stable v0.5.0 rollback tag.
+
 ## v0.5.3 — Private clean no-change batch handling (pending Windows/Playnite acceptance)
 
 - A live IGDB item with **no actual safe metadata or title changes** is now **Skipped**, not a hard batch failure. No Playnite update and no field/undo record are created; the empty media stage is durably closed clean before proceeding.

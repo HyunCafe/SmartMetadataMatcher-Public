@@ -116,10 +116,48 @@ namespace SmartMetadataMatcher
         }
     }
 
+    // Only sanitized outcomes are returned to the WPF dialog; never propagate an
+    // arbitrary HttpClient exception or provider response body to the UI.
+    internal sealed class IgdbConnectionResult
+    {
+        internal bool Connected { get; private set; }
+        internal string Message { get; private set; }
+        private IgdbConnectionResult(bool connected,string message)
+        { Connected=connected;Message=message; }
+        internal static IgdbConnectionResult Success()
+        { return new IgdbConnectionResult(true,"Connected to IGDB. Twitch credentials and read-only game lookup are working."); }
+        internal static IgdbConnectionResult BadResponse()
+        { return new IgdbConnectionResult(false,"The service returned an unexpected response. Try again later."); }
+        internal static IgdbConnectionResult Network()
+        { return new IgdbConnectionResult(false,"Could not contact Twitch/IGDB. Check your internet connection and firewall, then retry."); }
+        internal static IgdbConnectionResult Timeout()
+        { return new IgdbConnectionResult(false,"The connection timed out. Check network access and try again."); }
+        internal static IgdbConnectionResult FromHttp(int status,bool oauth)
+        {
+            if(oauth && (status==400 || status==401 || status==403))
+                return new IgdbConnectionResult(false,"Twitch rejected the Client ID or Client Secret. Verify both in the Twitch Developer Console.");
+            if(!oauth && (status==401 || status==403))
+                return new IgdbConnectionResult(false,"Twitch accepted the credentials, but IGDB denied game lookup (HTTP "+status+"). Check the application's IGDB access.");
+            if(status==429)
+                return new IgdbConnectionResult(false,"Twitch/IGDB is rate-limiting requests. Try again later.");
+            if(status>=500)
+                return new IgdbConnectionResult(false,"Twitch/IGDB is temporarily unavailable (HTTP "+status+"). Try again later.");
+            return new IgdbConnectionResult(false,"Twitch/IGDB returned HTTP "+status+" during "+(oauth?"authentication":"game lookup")+". Check settings or try again later.");
+        }
+    }
+
+    internal sealed class IgdbAuthenticationException : InvalidOperationException
+    {
+        internal int HttpStatus { get; private set; }
+        internal IgdbAuthenticationException(int status)
+            : base("Twitch authentication failed (HTTP "+status+"). Verify local credentials and app configuration.")
+        { HttpStatus=status; }
+    }
+
     // Fixed official endpoints only. Tokens stay in memory; secrets are never logged or exported.
     internal sealed class IgdbReadOnly : IDisposable
     {
-        private readonly HttpClient http = new HttpClient();
+        private readonly HttpClient http;
         private readonly string clientId;
         private readonly string secret;
         private string token;
@@ -127,11 +165,16 @@ namespace SmartMetadataMatcher
         private readonly Dictionary<string,List<CatalogGame>> cache =
             new Dictionary<string,List<CatalogGame>>(StringComparer.Ordinal);
         internal IgdbReadOnly(string id, string secretValue)
+            : this(id,secretValue,new HttpClientHandler()) { }
+        // Injected only for offline HTTP tests; production uses HttpClientHandler.
+        internal IgdbReadOnly(string id,string secretValue,HttpMessageHandler handler)
         {
             clientId = (id ?? "").Trim();
             secret = (secretValue ?? "").Trim();
             if (clientId.Length == 0 || secret.Length == 0)
                 throw new InvalidOperationException("Configure IGDB credentials first.");
+            if(handler==null)throw new ArgumentNullException("handler");
+            http = new HttpClient(handler);
             http.Timeout = TimeSpan.FromSeconds(25);
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
         }
@@ -152,13 +195,61 @@ namespace SmartMetadataMatcher
             using (var response = http.PostAsync("https://id.twitch.tv/oauth2/token", body, ct).GetAwaiter().GetResult())
             {
                 if (!response.IsSuccessStatusCode)
-                    throw new InvalidOperationException("Twitch authentication failed (HTTP " + (int)response.StatusCode + "). Verify local credentials and app configuration.");
+                    throw new IgdbAuthenticationException((int)response.StatusCode);
                 var auth = Parse<IgdbAuth>(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
                 if (auth == null || String.IsNullOrWhiteSpace(auth.Token))
                     throw new InvalidOperationException("Twitch returned no usable access token.");
                 token = auth.Token;
             }
         }
+        // Test a credential pair in memory. Never save it, log it or touch Playnite.
+        // Do not equate OAuth success with permission to query the IGDB API.
+        internal IgdbConnectionResult TestConnection(CancellationToken ct)
+        {
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+                Authenticate(ct);
+                ct.ThrowIfCancellationRequested();
+                using(var message=new HttpRequestMessage(HttpMethod.Post,"https://api.igdb.com/v4/games"))
+                {
+                    message.Headers.Add("Client-ID",clientId);
+                    message.Headers.Authorization=
+                        new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",token);
+                    message.Content=new StringContent("fields id; limit 1;",Encoding.UTF8,"text/plain");
+                    using(var response=http.SendAsync(message,ct).GetAwaiter().GetResult())
+                    {
+                        if(!response.IsSuccessStatusCode)
+                            return IgdbConnectionResult.FromHttp((int)response.StatusCode,false);
+                        var records=Parse<List<IgdbRecord>>(
+                            response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+                        if(records==null)return IgdbConnectionResult.BadResponse();
+                        ct.ThrowIfCancellationRequested();
+                        return IgdbConnectionResult.Success();
+                    }
+                }
+            }
+            catch(IgdbAuthenticationException ex)
+            { return IgdbConnectionResult.FromHttp(ex.HttpStatus,true); }
+            catch(OperationCanceledException)
+            {
+                if(ct.IsCancellationRequested)throw;
+                return IgdbConnectionResult.Timeout();
+            }
+            catch(HttpRequestException)
+            { return IgdbConnectionResult.Network(); }
+            catch(WebException)
+            { return IgdbConnectionResult.Network(); }
+            catch(SerializationException)
+            { return IgdbConnectionResult.BadResponse(); }
+            catch(InvalidOperationException)
+            { return IgdbConnectionResult.BadResponse(); }
+            catch(IOException)
+            { return IgdbConnectionResult.Network(); }
+            catch(Exception)
+            { return IgdbConnectionResult.BadResponse(); } // Never display raw provider/client exceptions.
+        }
+
         private static int ReleaseYear(long? seconds)
         {
             if (!seconds.HasValue || seconds.Value <= 0) return 0;

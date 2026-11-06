@@ -1,3 +1,9 @@
+## v0.5.5 private connection test acceptance
+- Source-only test: mocked Twitch OAuth + one bounded IGDB `/games` POST with explicit cancellation and sanitized error mapping; no network access from offline tests.
+- Required on Windows: full extension WPF Release build, all regression suites, package byte comparison, private release report, local Git commit.
+- Required for live acceptance: Test Connection with valid credentials and deliberately wrong credentials, then save/reopen without exposing secrets or changing Playnite records. No further library import or 837-item scan required.
+- No automatic credential revocation, public distribution, or transitive dependency certification claimed. Keep local backups and existing v0.5.0 stable tag.
+
 # v0.5.3 Private Clean No-Change Handling — Acceptance (historical checkpoint)
 
 **Source baseline:** v0.5.2 `365a7754ac333e376632d59021d72de2c1a3711a` on local main; stable rollback tag `v0.5.0-private-stable` preserved. No GitHub remote.

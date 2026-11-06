@@ -367,3 +367,6 @@ In Review Matches, use **Select next 25 ready** (or hand-pick a smaller group) t
 - **Confirmed — review**: previously chosen identity is still subject to exact live IGDB/platform verification and approval.
 - **Needs review / Unmatched**: game/edition needs human intervention or no suitable identity was found.
 - **Select all ready (N)** in Review Matches selects every currently strict-ready match, not a limited batch. Clear/mark individual entries to import a smaller subset.
+
+### Verify IGDB setup (private v0.5.5)
+Open **IGDB settings** and enter your Twitch Developer application's Client ID and Client Secret. Click **Test Connection** to check Twitch OAuth and a minimal read-only IGDB game query without saving. On success, click **Save settings**; credentials are stored using Windows CurrentUser DPAPI, but access tokens are kept in memory only. Saving without testing is supported; the banner will correctly say the connection is untested. The test never imports metadata or uploads your Playnite library.

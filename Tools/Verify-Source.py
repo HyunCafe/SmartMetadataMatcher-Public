@@ -131,6 +131,15 @@ if not all(x in view for x in ('Column("Next step","DisplayStatus",170)',
 if 'DashboardStatus(' not in (root/'Source/EnrichmentJobPlan.cs').read_text(encoding='utf-8-sig'):
     problems.append("v0.5.4 dashboard readiness policy missing")
 
+# v0.5.5: offline test runner must compile the same HTTP client as production,
+# and credentials are not automatically saved when a connection is tested.
+conn=(root/'Source/IgdbReadOnly.cs').read_text(encoding='utf-8-sig')
+if not all(k in conn for k in ('TestConnection(CancellationToken ct)',
+    '"fields id; limit 1;"', 'IgdbAuthenticationException',
+    'IgdbConnectionResult.FromHttp', 'if(ct.IsCancellationRequested)throw;')):
+    problems.append('IGDB test must check both auth and bounded game API query')
+if 'IgdbConnectionTests.Run();' not in program or 'Link="IgdbReadOnly.cs"' not in (root/'Tests/NameRulesTests.csproj').read_text(encoding='utf-8-sig'):
+    problems.append('IGDB connection test seams must be compiled and invoked')
 if problems:
     for problem in problems:
         print("STOP:", problem)
