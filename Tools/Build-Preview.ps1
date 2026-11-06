@@ -32,7 +32,7 @@ try {
         throw "Version mismatch: YAML=$yamlVersion source=$sourceVersion compiled=$dllVersion"
     }
     New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-    $name = "SmartMetadataMatcher-$yamlVersion-title-visibility-preview-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
+    $name = "SmartMetadataMatcher-$yamlVersion-integrated-title-import-preview-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
     $zip = Join-Path $releaseDir ($name + '.zip')
     $pext = Join-Path $releaseDir ($name + '.pext')
     if (Test-Path -LiteralPath $pext) { throw "Refusing to overwrite $pext" }
@@ -48,6 +48,6 @@ try {
     $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $pext).Hash
     Write-Host "SUCCESS: $pext"
     Write-Host "SHA256: $hash"
-    Write-Host 'TITLE/VISIBILITY PREVIEW: user-confirmed platform suffix for duplicates, mixed Applied/Undone history selection, reversible hiding. No production bulk writes.'
+    Write-Host 'INTEGRATED TITLE PREVIEW: game display title cleaned in the same approved import, preview/approval/writer agree. ROMs and launches untouched; no production bulk writes.'
 }
 finally { Pop-Location }

@@ -250,3 +250,6 @@ New operations record UTC timestamps and display local apply dates. Undo is reta
 
 ### Private v0.4.16 preview notes
 Recent Updates supports a reversible **Remove from recent** action; use Full History > **Show hidden** > **Restore selected** to recover hidden entries. Hidden applied records still count toward stack undo safety. **Fix Playnite titles** operates only on already committed identities, proposes a `(GBA)`-style suffix on same-platform collisions, requires confirmation and affects Playnite display/sort names only.
+
+### Title cleanup in the normal import (v0.4.17)
+The approved metadata import also cleans the Playnite display name. Numbered and abbreviated game names become readable canonical titles; existing same-platform titles trigger a platform suffix (GBA, GBC, etc.) where unambiguous. The complete before/after title is shown before approval and included in the normal undo journal. This never renames ROMs, folders or launch targets. Ambiguous identity or multiple title collisions remain review-only. The separate history rename remains a recovery/legacy option rather than the normal workflow.

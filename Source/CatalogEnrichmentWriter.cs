@@ -59,7 +59,8 @@ namespace SmartMetadataMatcher
         internal static EnrichmentEntry ApplyOne(IPlayniteAPI api, EnrichmentJournal journal,Guid gameId,
             string expectedName,string expectedPlatform,string expectedDescription,string expectedCover,
             string expectedIcon,string expectedBackground,string expectedSorting,CatalogGame catalog,
-            byte[] cover,byte[] icon,byte[] background,bool rename,GameExtrasSnapshot expectedExtras)
+            byte[] cover,byte[] icon,byte[] background,bool rename,GameExtrasSnapshot expectedExtras,
+            string approvedDisplayTitle)
         {
             if(catalog==null || catalog.Id<=0) throw new InvalidOperationException("Missing verified catalog ID.");
             if(expectedExtras==null) throw new InvalidOperationException("Missing original metadata snapshot.");
@@ -98,23 +99,31 @@ namespace SmartMetadataMatcher
             e.AfterRelease=e.BeforeRelease;
             e.AfterGenres=e.BeforeGenres.ToList(); e.AfterDevelopers=e.BeforeDevelopers.ToList();
             e.AfterPublishers=e.BeforePublishers.ToList(); e.AfterSeries=e.BeforeSeries.ToList();
-            if(rename && EnrichmentPlan.IsSafeTitle(catalog.Name) &&
-               !String.Equals(game.Name,catalog.Name.Trim(),StringComparison.Ordinal))
+            // During the SAME approved metadata import, clean only Playnite's
+            // display title. Never change ROM filenames, launch paths or actions.
+            // This uses the same pure planner shown to the user before approval.
+            if(rename)
             {
-                var others=api.Database.Games.Where(g=>g!=null).Select(g=>
+                var names=api.Database.Games.Where(g=>g!=null).Select(g=>
                     Tuple.Create(g.Id,g.Name,Platforms(g))).ToList();
-                if(EnrichmentPlan.HasCollision(catalog.Name,game.Id,expectedPlatform,others))
-                    e.Note="Catalog title collides with another same-platform library entry; name left unchanged.";
-                else
+                var wanted=EnrichmentPlan.SuggestedUniqueDisplayTitle(
+                    game.Name,catalog.Name,game.Id,expectedPlatform,names);
+                if(String.IsNullOrWhiteSpace(wanted))
+                    e.Note="No unambiguous display title available; metadata may still be updated.";
+                else if(!String.Equals(game.Name,wanted,StringComparison.Ordinal))
                 {
-                    e.AfterName=catalog.Name.Trim(); e.ChangedName=true;
-                    if(!String.IsNullOrWhiteSpace(game.SortingName) &&
-                        EnrichmentPlan.MaySetSorting(game.SortingName,game.Name))
+                    e.AfterName=wanted; e.ChangedName=true;
+                    if(EnrichmentPlan.MaySetSorting(game.SortingName,game.Name) &&
+                       !String.IsNullOrWhiteSpace(game.SortingName))
                     {
                         e.AfterSorting=e.AfterName; e.ChangedSorting=true;
                     }
                 }
             }
+            // The plan is reviewed BEFORE remote download or any file/database
+            // staging. Fail closed if earlier batch changes altered this title.
+            if(!String.Equals(e.AfterName,approvedDisplayTitle,StringComparison.Ordinal))
+                throw new InvalidOperationException("Approved Playnite title differs from current plan; rescan before applying.");
             if(MetadataPlan.Missing(game.Description) && !String.IsNullOrWhiteSpace(catalog.Summary))
             {
                 e.AfterDescription=MetadataPlan.HtmlFromSummary(catalog.Summary);

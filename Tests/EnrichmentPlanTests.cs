@@ -60,6 +60,13 @@ internal static class EnrichmentPlanTests
         Check(EnrichmentPlan.SuggestedUniqueDisplayTitle("02 Pokemon Leaf Green","Pokémon LeafGreen Version",
             gbaId,"Nintendo Game Boy Advance",new Tuple<Guid,string,string>[0])=="Pokemon Leaf Green",
             "cleaned Pokemon name is retained without collision");
+        Check(EnrichmentPlan.SuggestedUniqueDisplayTitle("02 Pokemon Leaf Green","Pokémon LeafGreen Version",
+            gbaId,"Nintendo Game Boy Advance",new[]{
+                Tuple.Create(Guid.NewGuid(),"Pokemon Leaf Green","Nintendo Game Boy Advance")})=="Pokemon Leaf Green (GBA)",
+            "Pokemon duplicate gets readable GBA suffix instead of retaining numeric prefix");
+        Check(EnrichmentPlan.SuggestedUniqueDisplayTitle("Super Mario Advance","Super Mario Advance",
+            gbaId,"Nintendo Game Boy Advance",new Tuple<Guid,string,string>[0])=="Super Mario Advance",
+            "already-clean title stays unchanged");
         var visibilityDir=Path.Combine(Path.GetTempPath(),"SMM-history-visibility-"+Guid.NewGuid().ToString("N"));
         try{
             var visibility=new HistoryVisibilityStore(visibilityDir);

@@ -29,9 +29,9 @@ internal static class EnrichmentJobPlanTests
             Candidate(b,6283,"Sonic Advance")};
         var plan=EnrichmentJobPlanner.Create(rows,names,true,false);
         Assert(plan.Count==2 && plan.All(x=>x.ReadyForPreflight),"two strict candidates ready for exact-ID preflight");
-        Assert(!plan.Single(x=>x.GameId==a).AllowRename &&
-            plan.Single(x=>x.GameId==a).RenameReason.Contains("collision"),
-            "colliding rename blocked but metadata preflight retained");
+        Assert(plan.Single(x=>x.GameId==a).AllowRename &&
+            plan.Single(x=>x.GameId==a).RenameReason.Contains("Golden Sun (GBA)"),
+            "same-platform duplicate gets GBA suffix during approved import");
         Assert(plan.Single(x=>x.GameId==b).AllowRename,"noncolliding rename allowed");
         var doubled=rows.Concat(new[]{Candidate(c,1172,"Golden Sun")}).ToList();
         plan=EnrichmentJobPlanner.Create(doubled,names,true,false);

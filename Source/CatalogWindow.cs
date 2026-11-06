@@ -1289,11 +1289,13 @@ namespace SmartMetadataMatcher
             var current=game==null?row.CurrentName:game.Name;
             bool rename=useCatalogTitle!=null&&useCatalogTitle.IsChecked==true&&
                 !String.IsNullOrWhiteSpace(row.Candidate)&&row.Candidate!="(none)"&&row.Candidate!="(ignored)";
-            bool collision=rename&&api.Database.Games.Any(other=>other!=null&&other.Id!=row.GameId&&
-                EnrichmentPlan.IdentityKey(other.Name)==EnrichmentPlan.IdentityKey(row.Candidate)&&
-                other.Platforms!=null&&other.Platforms.Any(p=>
-                CatalogCore.PlatformKey(p.Name)==CatalogCore.PlatformKey(row.Platform)));
-            var chosenName=rename&&!collision?row.Candidate:current;
+            var libraryNames=api.Database.Games.Where(g=>g!=null).Select(g=>
+                Tuple.Create(g.Id,g.Name,g.Platforms==null?"":
+                    String.Join(", ",g.Platforms.Select(p=>p.Name)))).ToList();
+            var plannedName=rename?EnrichmentPlan.SuggestedUniqueDisplayTitle(
+                current,row.Candidate,row.GameId,row.Platform,libraryNames):"";
+            bool collision=rename && String.IsNullOrWhiteSpace(plannedName);
+            var chosenName=rename&&!collision?plannedName:current;
             bool haveCover=game!=null&&!MetadataPlan.Missing(game.CoverImage);
             bool haveIcon=game!=null&&!MetadataPlan.Missing(game.Icon);
             bool haveBackground=game!=null&&!MetadataPlan.Missing(game.BackgroundImage);
@@ -1301,8 +1303,9 @@ namespace SmartMetadataMatcher
             bool sourceCover=MetadataPlan.SafeImageId(row.CatalogCoverImageId);
             bool sourceBackground=MetadataPlan.SafeImageId(row.CatalogScreenshotImageId);
             bool catalogReady=(row.Status=="Strong candidate" || row.IsCompleted) && !row.IsIgnored;
-            AddPreviewField("Name",current,chosenName,
-                collision?"Collision: preserve":!rename?"Rename disabled":current==chosenName?"No change":"Optional rename");
+            AddPreviewField("Name (Playnite only)",current,chosenName,
+                collision?"Needs manual title review":!rename?"Title cleanup disabled":
+                    current==chosenName?"No change":"Included with approved import");
             AddPreviewField("Platform",row.Platform,row.Platform,"Preserve original");
             AddPreviewField("Description",haveDescription?ShortText(game.Description,16000):"(empty)",
                 haveDescription?"Keep existing":!String.IsNullOrWhiteSpace(row.CatalogSummary)?ShortText(row.CatalogSummary,16000):"Not supplied by IGDB",
@@ -1360,7 +1363,8 @@ namespace SmartMetadataMatcher
             if(!haveIcon&&sourceCover)proposed++;
             if(!haveBackground&&sourceBackground)proposed++;
             previewSummary.Text=proposed+" possible updates from the scanned fields. " +
-                (collision?"Existing same-platform title protected. ":"")+
+                (collision?"Title needs a separate manual decision. ":"")+
+                "Only Playnite display names change; ROM filenames and launch paths remain untouched. " +
                 "Review the identity before applying.";
             if(previewDiagnostics!=null)
                 previewDiagnostics.Text="IGDB ID: "+(row.IgdbId??"—")+"  •  Match score: "+
@@ -1591,7 +1595,7 @@ namespace SmartMetadataMatcher
         private sealed class BatchItem
         {
             internal CatalogViewRow Row;
-            internal string Name, Platform, Description, Cover, Icon, Background, Sorting, Candidate;
+            internal string Name, Platform, Description, Cover, Icon, Background, Sorting, Candidate, PlannedTitle;
             internal GameExtrasSnapshot Extra;
             internal long IgdbId;
         }
@@ -1652,11 +1656,11 @@ namespace SmartMetadataMatcher
             DockPanel.SetDock(footer,Dock.Bottom);body.Children.Add(footer);
             var header="STRICT AUTO-PLAN (one approval, up to 25 games)\n"+
                 "Only empty fields are filled. ROMs and launch settings are untouched.\n"+
-                "Existing names are updated only if enabled and non-colliding.\n"+
+                "Playnite display names are cleaned during import; same-platform duplicates get a platform tag.\n"+
                 "Excluded or review-required in this scan: " + excluded + " record(s).\n"+
                 "Each success gets its own persistent undo record. Cancel stops future games, not completed ones.\n\n";
             var lines=items.Select((x,i)=>(i+1).ToString("00") + ". " +x.Name+
-                "  ->  " +x.Candidate+"  [IGDB " +x.IgdbId+"; "+x.Platform+"]");
+                "  ->  " +x.PlannedTitle+"  [IGDB: "+x.Candidate+" / "+x.IgdbId+"; "+x.Platform+"]");
             var preview=new TextBox {Text=header+String.Join("\n",lines)+
                 "\n\nWARNING: A wrong catalog identity would import incorrect information. " +
                 "Only approve after examining this entire list.",IsReadOnly=true,
@@ -1730,20 +1734,28 @@ namespace SmartMetadataMatcher
                     Extra=GameExtrasSnapshot.Capture(game),Candidate=row.Candidate});
             }
             bool rename=useCatalogTitle.IsChecked==true;
+            var plannedLibrary=api.Database.Games.Where(g=>g!=null).Select(g=>
+                Tuple.Create(g.Id,g.Name,g.Platforms==null?"":
+                    String.Join(", ",g.Platforms.Select(p=>p.Name)))).ToList();
             var proposed=new List<string>();
             foreach(var item in items)
             {
-                bool collision=rename && api.Database.Games.Any(g=>g!=null && g.Id!=item.Row.GameId &&
-                    EnrichmentPlan.IdentityKey(g.Name)==EnrichmentPlan.IdentityKey(item.Row.Candidate) &&
-                    g.Platforms!=null && g.Platforms.Any(p=>
-                        CatalogCore.PlatformKey(p.Name)==CatalogCore.PlatformKey(item.Platform)));
-                proposed.Add(item.Name+" → "+item.Row.Candidate+" [IGDB "+item.IgdbId+"]"+
-                    (collision?" (name kept: same-platform collision)":""));
+                var wanted=rename?EnrichmentPlan.SuggestedUniqueDisplayTitle(
+                    item.Name,item.Candidate,item.Row.GameId,item.Platform,plannedLibrary):"";
+                item.PlannedTitle=String.IsNullOrWhiteSpace(wanted)?item.Name:wanted;
+                // Reserve the proposed name so subsequent marked games cannot
+                // accidentally receive a duplicate name in the SAME approved plan.
+                var pos=plannedLibrary.FindIndex(x=>x.Item1==item.Row.GameId);
+                if(pos>=0)plannedLibrary[pos]=Tuple.Create(item.Row.GameId,item.PlannedTitle,item.Platform);
+                proposed.Add(item.Name+" → "+item.PlannedTitle+" [IGDB "+item.IgdbId+"]"+
+                    (rename && !EnrichmentPlan.IsSafeTitle(wanted)?
+                        " (title requires manual review; other metadata can proceed)":""));
             }
             var question="Import missing metadata for "+items.Count+" marked games?\n\n"+
                 String.Join("\n",proposed)+"\n\n"+
                 "Only missing fields will be filled: description, artwork, release year, genres, developers, " +
-                "publishers and series when provided by IGDB. Name updates are optional and collision-protected. " +
+                "publishers and series when provided by IGDB. The proposed Playnite display titles " +
+                "are included automatically in this approved import; same-platform duplicates get a platform tag. " +
                 "No game files, launch settings or existing media will be overwritten. " +
                 "Every successful game is independently journaled and can be undone in reverse order.";
             if(automatic)
@@ -1803,7 +1815,8 @@ namespace SmartMetadataMatcher
                                 if(token.IsCancellationRequested || !window.IsVisible)return;
                                 CatalogEnrichmentWriter.ApplyOne(api,enrichmentJournal,item.Row.GameId,
                                     item.Name,item.Platform,item.Description,item.Cover,item.Icon,
-                                    item.Background,item.Sorting,cat,cover,icon,background,rename,item.Extra);
+                                    item.Background,item.Sorting,cat,cover,icon,background,rename,item.Extra,
+                                    item.PlannedTitle);
                                 item.Row.PreviousStatus=item.Row.Status;
                                 item.Row.IsCompleted=true;item.Row.Marked=false;item.Row.Status="Completed";
                                 item.Row.CurrentName=api.Database.Games[item.Row.GameId].Name;
@@ -1890,19 +1903,22 @@ namespace SmartMetadataMatcher
                 api.Dialogs.ShowMessage("Enter your local IGDB credentials first.","Smart Metadata Matcher"); return;
             }
             var nameRequested=useCatalogTitle.IsChecked==true;
-            var duplicate=nameRequested && api.Database.Games.Any(other=>other!=null && other.Id!=game.Id &&
-                EnrichmentPlan.IdentityKey(other.Name)==EnrichmentPlan.IdentityKey(row.Candidate) &&
-                (other.Platforms!=null && other.Platforms.Any(p=>
-                    CatalogCore.PlatformKey(p.Name)==CatalogCore.PlatformKey(platform))));
+            var libraryNames=api.Database.Games.Where(g=>g!=null).Select(g=>
+                Tuple.Create(g.Id,g.Name,g.Platforms==null?"":
+                    String.Join(", ",g.Platforms.Select(p=>p.Name)))).ToList();
+            var wanted=nameRequested?EnrichmentPlan.SuggestedUniqueDisplayTitle(
+                game.Name,row.Candidate,game.Id,platform,libraryNames):"";
+            var approvedTitle=String.IsNullOrWhiteSpace(wanted)?game.Name:wanted;
             var preview=(row.IsCompleted?"Enrich missing fields on a previously completed game?\n\n":
                 "Apply IGDB metadata to exactly ONE game?\n\n")+
                 "Current title: "+game.Name+"\nCatalog identity: "+row.Candidate+
                 " (IGDB "+row.IgdbId+", year "+row.ReleaseYear+")\nPlatform: "+platform+"\n\n"+
                 "If missing: description, cover, icon (IGDB square thumbnail), background (IGDB screenshot), " +
                 "genres, developers, publishers, series and platform-specific release year.\n"+
-                (nameRequested ? (duplicate ? "Title has a same-platform collision: name will be preserved.\n" :
-                    "Playnite title will become the verified catalog title when safe.\n") :
-                    "Title rename disabled for this operation.\n")+
+                (nameRequested ? (String.IsNullOrWhiteSpace(wanted)?
+                    "Name requires manual review; other metadata can still be imported.\n" :
+                    "Playnite name after import: "+approvedTitle+" (ROMs and launch paths unchanged).\n") :
+                    "Playnite title cleanup disabled for this operation.\n")+
                 "\nExisting metadata, custom sorting, game files and launch settings remain unchanged. " +
                 "Review the identity and edition. Undo records all fields changed.";
             if(api.Dialogs.ShowMessage(preview,"Confirm ONE complete metadata import",
@@ -1958,7 +1974,8 @@ namespace SmartMetadataMatcher
                             if(!window.IsVisible || token.IsCancellationRequested) return;
                             var entry=CatalogEnrichmentWriter.ApplyOne(api,enrichmentJournal,row.GameId,
                                 originalName,platform,originalDescription,originalCover,originalIcon,
-                                originalBackground,originalSorting,catalog,cover,icon,background,nameRequested,originalExtras);
+                                originalBackground,originalSorting,catalog,cover,icon,background,nameRequested,originalExtras,
+                                approvedTitle);
                             row.PreviousStatus=row.Status;
                             row.IsCompleted=true;
                             row.Marked=false;

@@ -167,3 +167,8 @@ Manual exception: exactly one marked Strong candidate may be tested via the exis
 - Hide selected events with a private GUID-only preference, never erase write-ahead undo evidence. Full History can show/restore hidden rows.
 - Verified same-platform title duplicates receive an explicit platform suffix; unresolved second collisions require manual review, not invented numbering.
 - Bulk/unattended title collision behavior remains unchanged. Only supervised rename uses the suffix proposal.
+
+## v0.4.17 workflow decision
+- Default user journey is Scan → Review identity and planned changes → Approve → Name and missing metadata updated together → History/Undo. Title correction must not require visiting history.
+- Strict identity eligibility is independent of naming collisions. A duplicate produces a readable platform suffix when unambiguous, never an arbitrary counter.
+- Common UI stays simple; diagnostic internals remain secondary.

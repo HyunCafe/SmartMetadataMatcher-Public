@@ -204,3 +204,9 @@
 - Mixed Applied/Undone selection no longer silently blocks all rename operations; only eligible distinct applied games are considered and skips are disclosed before approval.
 - Recent Updates adds reversible **Remove from recent**; Full History offers **Show hidden** and **Restore selected**. Undo/write-ahead journal records are never deleted.
 - Tests cover collision suffixes, unsafe second collisions, persistence and malformed visibility state.
+
+## v0.4.17 — Integrated title cleanup during approved import
+- Approving a verified IGDB identity now includes the normalized Playnite display-name update in the same journaled metadata operation. No separate history action required.
+- When another game on the same platform already uses the clean title, propose the official title with a platform suffix (e.g., Super Mario Advance (GBA)). If that also conflicts, leave title untouched and report manual-review need.
+- Preview, review plan and final confirmation display the same planned name; live writer fails closed if the approved title differs at commit time.
+- Preserve launch actions, ROM files, existing metadata, journaling and undo; no unattended writes.

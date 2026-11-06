@@ -71,17 +71,20 @@ namespace SmartMetadataMatcher
                     decision.Code="ReadyForPreflight";
                     decision.Explanation="Revalidate exact IGDB ID and current fields before any update";
                     decision.ReadyForPreflight=true;
-                    if(!requestRename) decision.RenameReason="Catalog-title rename not requested";
-                    else if(!EnrichmentPlan.IsSafeTitle(row.CandidateTitle))
-                        decision.RenameReason="Catalog title is not safe for a Playnite display name";
-                    else if(String.Equals(row.CurrentName,row.CandidateTitle.Trim(),StringComparison.Ordinal))
-                        decision.RenameReason="Already has the catalog title";
-                    else if(EnrichmentPlan.HasCollision(row.CandidateTitle,row.GameId,row.Platform,names))
-                        decision.RenameReason="Same-platform title collision; preserve the existing title";
+                    if(!requestRename)decision.RenameReason="Playnite title cleanup disabled";
                     else
                     {
-                        decision.AllowRename=true;
-                        decision.RenameReason="Title update permitted if live state still matches";
+                        var wanted=EnrichmentPlan.SuggestedUniqueDisplayTitle(row.CurrentName,
+                            row.CandidateTitle,row.GameId,row.Platform,names);
+                        if(String.IsNullOrWhiteSpace(wanted))
+                            decision.RenameReason="Ambiguous duplicate; title needs manual review";
+                        else if(String.Equals(row.CurrentName,wanted,StringComparison.Ordinal))
+                            decision.RenameReason="Already clean";
+                        else
+                        {
+                            decision.AllowRename=true;
+                            decision.RenameReason="Playnite name on import: "+wanted;
+                        }
                     }
                 }
                 decisions.Add(decision);
