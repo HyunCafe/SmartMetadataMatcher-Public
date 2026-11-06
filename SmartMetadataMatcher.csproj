@@ -28,6 +28,8 @@
     <Compile Include="Source/CatalogIgnored.cs" />
     <Compile Include="Source/CatalogScanCache.cs" />
     <Compile Include="Source/CatalogMediaStagingJournal.cs" />
+    <Compile Include="Source/CatalogRecoveryConsistency.cs" />
+    <Compile Include="Source/CatalogImportIntent.cs" />
     <Compile Include="Source/CatalogConfirmedIdentities.cs" />
     <Compile Include="Source/HistoryVisibilityStore.cs" />
     <Compile Include="Source/IgdbReadOnly.cs" />

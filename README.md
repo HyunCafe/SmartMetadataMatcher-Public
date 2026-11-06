@@ -276,3 +276,6 @@ Candidate results from the past seven days load automatically if the Playnite ga
 
 ### Interrupted artwork staging (v0.4.22)
 The plugin records artwork staging separately from its field undo records. If an import was interrupted before its media references were durably handed to the undo journal, later imports are blocked. Do not delete `media-staging-v1.log` or guess which Playnite-managed artwork to delete. Inspect the recorded operation and restore from a verified Playnite/extension-data backup where necessary. This preview does not provide automatic crash cleanup.
+
+### v0.4.24 Recovery Consistency (private preview)
+The read-only Recovery Status panel now verifies closed artwork handoffs have matching metadata intents, and blocks new writes on orphan/mismatched records. The final approval displays potential changes inferred from the previous scan. Actual imported fields depend on a fresh exact-ID fetch and live Playnite preflight; it does not rename ROMs. Keep using small supervised tests until recovery is verified in a disposable Playnite profile.

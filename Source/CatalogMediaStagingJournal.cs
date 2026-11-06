@@ -91,9 +91,13 @@ namespace SmartMetadataMatcher
                 stream.Flush(true);
             }
         }
+        internal List<CatalogMediaStage> AllStages()
+        {
+            lock(sync) { return LoadUnsafe(); }
+        }
         internal List<CatalogMediaStage> Unresolved()
         {
-            lock(sync) { return LoadUnsafe().Where(x=>!x.Closed).ToList(); }
+            return AllStages().Where(x=>!x.Closed).ToList();
         }
         internal void Begin(Guid operationId,Guid gameId)
         {

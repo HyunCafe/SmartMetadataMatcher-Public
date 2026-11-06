@@ -689,14 +689,15 @@ namespace SmartMetadataMatcher
             window.Content=root;
             try
             {
-                var stages=enrichmentJournal.MediaStaging.Unresolved();
-                if(stages.Count>0)
-                    summary.Text="RECOVERY REQUIRED: "+stages.Count+
-                        " interrupted artwork staging operation(s). New imports are blocked.";
+                var check=CatalogRecoveryConsistency.Inspect(
+                    enrichmentJournal.MediaStaging.AllStages(),enrichmentJournal.AllEntries());
+                if(!check.AllowsWrites)
+                    summary.Text="RECOVERY REQUIRED: "+check.Problems[0]+
+                        " New imports are blocked. Tools > Recovery status shows details.";
             }
             catch(Exception)
             {
-                summary.Text="RECOVERY REQUIRED: artwork staging ledger cannot be read. Imports blocked.";
+                summary.Text="RECOVERY REQUIRED: journals cannot be read. Imports blocked.";
             }
             var completed=enrichmentJournal.Committed();
             var completedIds=new HashSet<Guid>();
@@ -1974,7 +1975,7 @@ namespace SmartMetadataMatcher
         private bool ConfirmImportPlan(List<BatchItem> items,bool automatic,int excluded)
         {
             var dialog=new Window {Title="Smart Metadata Matcher — Final import review",
-                Width=1100,Height=680,MinWidth=720,MinHeight=480,
+                Width=1230,Height=700,MinWidth=760,MinHeight=480,
                 Owner=window,WindowStartupLocation=WindowStartupLocation.CenterOwner,
                 Background=Deep(),ResizeMode=ResizeMode.CanResize};
             var body=new DockPanel {Margin=new Thickness(16)};
@@ -1986,7 +1987,8 @@ namespace SmartMetadataMatcher
             var note=Caption("Verify each matched game, platform, edition and proposed Playnite title. " +
                 (automatic?"All identities passed strict planning; live IGDB evidence is still checked.":
                 "Supervised selection — review identities yourself; a label is not a guarantee.")+
-                " Only missing metadata fields are filled. Nothing below renames ROM files or launch paths.",13);
+                " Fields shown are potential changes from the latest scan, not guaranteed imports. " +
+                "Live IGDB and Playnite preflight may skip unavailable fields. ROM files and launch paths are untouched.",13);
             note.TextWrapping=TextWrapping.Wrap;heading.Children.Add(note);
             if(excluded>0)
             {
@@ -2018,11 +2020,19 @@ namespace SmartMetadataMatcher
             table.Columns.Add(new DataGridTextColumn {Header="Platform",Binding=new Binding("Platform"),Width=155});
             table.Columns.Add(new DataGridTextColumn {Header="IGDB match",Binding=new Binding("Candidate"),Width=230});
             table.Columns.Add(new DataGridTextColumn {Header="IGDB ID",Binding=new Binding("CatalogId"),Width=100});
-            table.Columns.Add(new DataGridTextColumn {Header="Playnite title after import",Binding=new Binding("PlannedTitle"),
+            table.Columns.Add(new DataGridTextColumn {Header="Playnite title after import",Binding=new Binding("PlannedTitle"),Width=205});
+            table.Columns.Add(new DataGridTextColumn {Header="Potential fields (not guaranteed)",Binding=new Binding("PotentialFields"),
                 Width=new DataGridLength(1,DataGridLengthUnitType.Star)});
             table.ItemsSource=items.Select(x=>new ImportReviewRow {
                 Name=x.Name,Platform=x.Platform,Candidate=x.Candidate,
-                CatalogId=x.IgdbId.ToString(),PlannedTitle=x.PlannedTitle
+                CatalogId=x.IgdbId.ToString(),PlannedTitle=x.PlannedTitle,
+                PotentialFields=CatalogImportIntent.Describe(
+                    !String.Equals(x.Name,x.PlannedTitle,StringComparison.Ordinal),
+                    MetadataPlan.Missing(x.Description),MetadataPlan.Missing(x.Cover),
+                    MetadataPlan.Missing(x.Icon),MetadataPlan.Missing(x.Background),
+                    !String.IsNullOrWhiteSpace(x.Row.CatalogSummary),
+                    MetadataPlan.SafeImageId(x.Row.CatalogCoverImageId),
+                    MetadataPlan.SafeImageId(x.Row.CatalogScreenshotImageId))
             }).ToList();
             body.Children.Add(table);
             dialog.Content=body;
@@ -2035,6 +2045,7 @@ namespace SmartMetadataMatcher
             public string Candidate {get;set;}
             public string CatalogId {get;set;}
             public string PlannedTitle {get;set;}
+            public string PotentialFields {get;set;}
         }
 
         // Retain the five-game manually marked path for ambiguous or special cases.
@@ -2070,25 +2081,32 @@ namespace SmartMetadataMatcher
             report.AppendLine();
             try
             {
-                var stages=enrichmentJournal.MediaStaging.Unresolved();
-                var entries=enrichmentJournal.OpenEntries();
-                var pending=entries.Where(e=>!e.Committed).ToList();
-                report.AppendLine("Unresolved media stages: "+stages.Count);
-                report.AppendLine("Uncommitted metadata journal operations: "+pending.Count);
-                report.AppendLine("Open committed (potentially undoable) operations: "+entries.Count(e=>e.Committed));
+                var stages=enrichmentJournal.MediaStaging.AllStages();
+                var entries=enrichmentJournal.AllEntries();
+                var check=CatalogRecoveryConsistency.Inspect(stages,entries);
+                report.AppendLine("Unresolved media stages: "+check.OpenStages);
+                report.AppendLine("Completed artwork handoffs: "+check.HandOffs);
+                report.AppendLine("Cleanly abandoned artwork stages: "+check.CleanAbandons);
+                report.AppendLine("Uncommitted metadata journal operations: "+check.PendingOperations);
+                report.AppendLine("Open committed (potentially undoable) operations: "+
+                    entries.Count(e=>e.Committed && !e.Undone));
                 report.AppendLine();
-                foreach(var stage in stages.Take(20))
+                foreach(var problem in check.Problems.Take(20))
+                    report.AppendLine("BLOCKED: "+problem);
+                if(check.Problems.Count>20)
+                    report.AppendLine("More recovery issues exist; preserve logs and backups.");
+                foreach(var stage in stages.Where(s=>!s.Closed).Take(20))
                 {
                     report.AppendLine("Media stage "+stage.OperationId.ToString("N")+
                         " / game "+stage.GameId.ToString("N"));
                     foreach(var media in stage.Media)
                         report.AppendLine("  "+media.Key+": "+media.Value);
                 }
-                foreach(var e in pending.Take(20))
+                foreach(var e in entries.Where(e=>!e.Committed && !e.Undone).Take(20))
                     report.AppendLine("Uncommitted operation "+e.OperationId.ToString("N")+
                         " / game "+e.GameId.ToString("N"));
-                if(stages.Count==0 && pending.Count==0)
-                    report.AppendLine("No unresolved staging/journal operations detected by these checks.");
+                if(check.AllowsWrites)
+                    report.AppendLine("No unresolved or inconsistent staging/journal operations detected.");
                 else report.AppendLine("RECOVERY REQUIRED. Preserve full Playnite and extension-data backups; "+
                     "do not delete ledgers or guess which artwork to remove.");
             }
@@ -2117,21 +2135,12 @@ namespace SmartMetadataMatcher
         {
             try
             {
-                var unresolvedMedia=enrichmentJournal.MediaStaging.Unresolved();
-                if(unresolvedMedia.Count>0)
-                {
-                    var first=unresolvedMedia[0];
-                    api.Dialogs.ShowErrorMessage("An interrupted artwork staging operation was detected ("+
-                        first.OperationId.ToString("N")+"). No new imports will start. " +
-                        "The image IDs and Playnite game require recovery review against your full backup; " +
-                        "do not delete the staging ledger or guess which media to remove.",
-                        "Artwork recovery required");
-                    return false;
-                }
-                if(!EnrichmentPlan.HasUnresolvedJournalEntry(enrichmentJournal.OpenEntries())) return true;
-                api.Dialogs.ShowErrorMessage("An interrupted metadata operation exists. " +
-                    "Resolve it through history/undo or restore from your verified Playnite backup " +
-                    "before starting another import. No new writes were started.",
+                var check=CatalogRecoveryConsistency.Inspect(
+                    enrichmentJournal.MediaStaging.AllStages(),enrichmentJournal.AllEntries());
+                if(check.AllowsWrites)return true;
+                api.Dialogs.ShowErrorMessage("Recovery verification blocked this import: " +
+                    check.Problems[0]+"\nOpen Tools > Recovery status (read-only). " +
+                    "Preserve your verified Playnite and extension-data backups; do not delete the journals.",
                     "Recovery required before enrichment");
             }
             catch(Exception ex)
@@ -2262,8 +2271,8 @@ namespace SmartMetadataMatcher
                             failed++;errors.Add(item.Name+": "+ex.Message);
                             // An exception after durable Prepare can mean the database
                             // was partially written. Do not start the next game in that case.
-                            try { recoveryRequired=EnrichmentPlan.HasUnresolvedJournalEntry(enrichmentJournal.OpenEntries()) ||
-                                enrichmentJournal.MediaStaging.Unresolved().Count>0; }
+                            try { recoveryRequired=!CatalogRecoveryConsistency.Inspect(
+                                enrichmentJournal.MediaStaging.AllStages(),enrichmentJournal.AllEntries()).AllowsWrites; }
                             catch(Exception journalError)
                             {
                                 recoveryRequired=true;

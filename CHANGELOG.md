@@ -254,3 +254,9 @@
 - Interrupted, unrecorded or partially cleaned media staging blocks later imports instead of silently continuing. A failed cleanup is never recorded as successful.
 - Fail-closed recovery message provides the operation identifier. No automatic filesystem/ROM edits, unsafe guessed deletion, or unattended bulk writes.
 - Added offline interruption/replay/corruption tests; original undo journal format remains unchanged.
+
+## v0.4.24 — Recovery Consistency & Final Preflight (private preview)
+- Read-only consistency audit cross-checks every completed artwork handoff against its metadata journal entry; blocked orphan/mismatched records prevent new writes. Legacy field-only journal records remain valid.
+- Recovery Status shows unresolved and handed-off stages, clean abandons, pending operations and detailed reasons for blockers.
+- Final approval displays *potential* field changes beside the proposed Playnite title; a live IGDB/Playnite preflight still decides actual writes.
+- Added 17 recovery/preview regression checks, including persisted journal replay; preserved the supervised five-game limit pending live Playnite recovery testing.

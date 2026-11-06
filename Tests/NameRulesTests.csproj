@@ -29,6 +29,9 @@
     <Compile Include="EnrichmentJobPlanTests.cs" />
     <Compile Include="../Source/EnrichmentJournal.cs" Link="EnrichmentJournal.cs" />
     <Compile Include="../Source/CatalogMediaStagingJournal.cs" Link="CatalogMediaStagingJournal.cs" />
+    <Compile Include="../Source/CatalogRecoveryConsistency.cs" Link="CatalogRecoveryConsistency.cs" />
+    <Compile Include="../Source/CatalogImportIntent.cs" Link="CatalogImportIntent.cs" />
+    <Compile Include="CatalogRecoveryConsistencyTests.cs" />
     <Compile Include="CatalogMediaStagingJournalTests.cs" />
     <Compile Include="EnrichmentPlanTests.cs" />
     <Compile Include="../Source/NameRules.cs" Link="NameRules.cs" />

@@ -65,9 +65,11 @@ namespace SmartMetadataMatcher
             if(catalog==null || catalog.Id<=0) throw new InvalidOperationException("Missing verified catalog ID.");
             if(expectedExtras==null) throw new InvalidOperationException("Missing original metadata snapshot.");
             // Fail closed on damaged journal before modifying the library.
-            var pending=journal.OpenEntries();
-            if(EnrichmentPlan.HasUnresolvedJournalEntry(pending) || journal.MediaStaging.Unresolved().Count>0)
-                throw new InvalidOperationException("An earlier interrupted metadata/media operation requires recovery before another write.");
+            var recovery=CatalogRecoveryConsistency.Inspect(
+                journal.MediaStaging.AllStages(),journal.AllEntries());
+            if(!recovery.AllowsWrites)
+                throw new InvalidOperationException("A metadata/artwork recovery check failed: " +
+                    recovery.Problems[0]);
             var game=api.Database.Games[gameId];
             if(game==null) throw new InvalidOperationException("The Playnite game no longer exists.");
             if(!EnrichmentPlan.IsExpected(game.Name,expectedName) ||
@@ -250,8 +252,11 @@ namespace SmartMetadataMatcher
             if(api==null || journal==null || gameId==Guid.Empty || igdbId<=0 ||
                !EnrichmentPlan.IsSafeTitle(verifiedTitle))
                 throw new InvalidOperationException("Invalid approved display-title operation.");
-            if(EnrichmentPlan.HasUnresolvedJournalEntry(journal.OpenEntries()))
-                throw new InvalidOperationException("An earlier operation needs recovery before renaming.");
+            var recovery=CatalogRecoveryConsistency.Inspect(
+                journal.MediaStaging.AllStages(),journal.AllEntries());
+            if(!recovery.AllowsWrites)
+                throw new InvalidOperationException("An earlier operation needs recovery before renaming: " +
+                    recovery.Problems[0]);
             // The identity must come from a committed import, never a heuristic-only scan.
             if(!journal.Committed().Any(x=>x.GameId==gameId && x.IgdbId==igdbId &&
                 String.Equals(x.CatalogTitle,verifiedTitle,StringComparison.Ordinal)))
