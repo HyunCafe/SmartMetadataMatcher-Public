@@ -66,8 +66,8 @@ namespace SmartMetadataMatcher
             if(expectedExtras==null) throw new InvalidOperationException("Missing original metadata snapshot.");
             // Fail closed on damaged journal before modifying the library.
             var pending=journal.OpenEntries();
-            if(pending.Any(x=>x.GameId==gameId && !x.Committed))
-                throw new InvalidOperationException("A previous interrupted metadata operation requires undo/recovery first.");
+            if(EnrichmentPlan.HasUnresolvedJournalEntry(pending) || journal.MediaStaging.Unresolved().Count>0)
+                throw new InvalidOperationException("An earlier interrupted metadata/media operation requires recovery before another write.");
             var game=api.Database.Games[gameId];
             if(game==null) throw new InvalidOperationException("The Playnite game no longer exists.");
             if(!EnrichmentPlan.IsExpected(game.Name,expectedName) ||
@@ -132,22 +132,39 @@ namespace SmartMetadataMatcher
             // Every imported image is tracked so undo can remove only files created by us.
             var imported=new List<string>();
             bool prepared=false;
+            bool mediaUploadUncertain=false;
+            // Begin is durably flushed BEFORE AddFile or shared metadata creation.
+            // A crash with an open Begin fails closed rather than silently reusing
+            // an incompletely staged media operation.
+            journal.MediaStaging.Begin(e.OperationId,e.GameId);
             try
             {
                 if(MetadataPlan.Missing(game.CoverImage) && MetadataPlan.LooksLikeJpeg(cover))
                 {
+                    mediaUploadUncertain=true;
                     e.AfterCover=SaveImage(api,game.Id,cover);
-                    imported.Add(e.AfterCover); e.ChangedCover=true;
+                    imported.Add(e.AfterCover);
+                    journal.MediaStaging.Track(e.OperationId,"cover",e.AfterCover);
+                    mediaUploadUncertain=false;
+                    e.ChangedCover=true;
                 }
                 if(MetadataPlan.Missing(game.Icon) && MetadataPlan.LooksLikeJpeg(icon))
                 {
+                    mediaUploadUncertain=true;
                     e.AfterIcon=SaveImage(api,game.Id,icon);
-                    imported.Add(e.AfterIcon); e.ChangedIcon=true;
+                    imported.Add(e.AfterIcon);
+                    journal.MediaStaging.Track(e.OperationId,"icon",e.AfterIcon);
+                    mediaUploadUncertain=false;
+                    e.ChangedIcon=true;
                 }
                 if(MetadataPlan.Missing(game.BackgroundImage) && MetadataPlan.LooksLikeJpeg(background))
                 {
+                    mediaUploadUncertain=true;
                     e.AfterBackground=SaveImage(api,game.Id,background);
-                    imported.Add(e.AfterBackground); e.ChangedBackground=true;
+                    imported.Add(e.AfterBackground);
+                    journal.MediaStaging.Track(e.OperationId,"background",e.AfterBackground);
+                    mediaUploadUncertain=false;
+                    e.ChangedBackground=true;
                 }
                 // Only import reference metadata if the game did not already have it.
                 // Playnite manages shared Genre/Company/Series objects by stable IDs.
@@ -188,6 +205,7 @@ namespace SmartMetadataMatcher
                      e.ChangedGenres || e.ChangedDevelopers || e.ChangedPublishers || e.ChangedSeries))
                     throw new InvalidOperationException("No safe missing fields or title change to apply. " + (e.Note??""));
                 journal.Prepare(e); prepared=true;
+                journal.MediaStaging.HandOff(e.OperationId);
                 if(e.ChangedName) game.Name=e.AfterName;
                 if(e.ChangedSorting) game.SortingName=e.AfterSorting;
                 if(e.ChangedDescription) game.Description=e.AfterDescription;
@@ -208,8 +226,17 @@ namespace SmartMetadataMatcher
             catch
             {
                 if(!prepared)
+                {
+                    bool cleanupSucceeded=true;
                     foreach(var id in imported)
-                        try { if(!String.IsNullOrWhiteSpace(id)) api.Database.RemoveFile(id); } catch { }
+                    {
+                        try { if(!String.IsNullOrWhiteSpace(id)) api.Database.RemoveFile(id); }
+                        catch { cleanupSucceeded=false; }
+                    }
+                    // Do not mark a failed/uncertain cleanup as complete. An open
+                    // stage blocks future imports and must be inspected manually.
+                    if(cleanupSucceeded && !mediaUploadUncertain) journal.MediaStaging.AbandonClean(e.OperationId);
+                }
                 throw;
             }
         }

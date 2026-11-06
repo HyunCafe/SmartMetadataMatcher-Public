@@ -240,3 +240,9 @@
 - Kept Full History as the place to restore hidden entries and inspect journal events.
 - Promoted unique, exact structured-platform matches with substantive summary evidence when the release year is unavailable; known generic series and duplicate same-platform IDs remain review.
 - Added Fire Dragon Game Boy positive/negative regression tests. ROM paths, metadata writer, journals, and approval boundaries unchanged.
+
+## 0.4.22 — durable media staging detection (private preview)
+- Append-only staged-artwork ledger begins before the first Playnite media side effect, tracks returned cover/icon/background media IDs, and transfers ownership only after the full enrichment undo record is durably prepared.
+- Interrupted, unrecorded or partially cleaned media staging blocks later imports instead of silently continuing. A failed cleanup is never recorded as successful.
+- Fail-closed recovery message provides the operation identifier. No automatic filesystem/ROM edits, unsafe guessed deletion, or unattended bulk writes.
+- Added offline interruption/replay/corruption tests; original undo journal format remains unchanged.

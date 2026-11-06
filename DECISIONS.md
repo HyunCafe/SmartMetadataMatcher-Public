@@ -193,3 +193,6 @@ Manual exception: exactly one marked Strong candidate may be tested via the exis
 - Never persist credentials or mark selections in the catalog scan cache; saved candidates cannot qualify for strict automatic planning, even if their old score was strong. Exact live IGDB ID revalidation is still required before supervised writes.
 - User-requested fresh scan archives the previous cache and does not touch Playnite game files, database, metadata histories, or committed undo journals.
 - Defer long-running unattended bulk imports and jobs until crash/media-recovery guarantees are verified; do not treat cache as user-approved identity.
+
+## v0.4.22 recovery decision
+Use a separate durable media-staging ledger instead of rewriting legacy field-undo journals. Begin must precede Playnite AddFile; each returned media ID must be logged before the next step. Prepared enrichment journal owns the recorded IDs after handoff. An unknown ID in the unavoidable AddFile-return interruption window cannot be safely guessed: fail closed and require backup-backed manual recovery. Defer fully automatic recovery until real Playnite process-interruption tests.

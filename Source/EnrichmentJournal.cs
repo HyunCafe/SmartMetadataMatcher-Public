@@ -47,10 +47,12 @@ namespace SmartMetadataMatcher
     {
         private readonly string path;
         private readonly object sync = new object();
+        internal readonly CatalogMediaStagingJournal MediaStaging;
         internal EnrichmentJournal(string dataDir)
         {
             if (String.IsNullOrWhiteSpace(dataDir)) throw new ArgumentException("Missing private plugin data directory");
             path=Path.Combine(dataDir,"enrichment-journal-v2.log");
+            MediaStaging=new CatalogMediaStagingJournal(dataDir);
         }
         private static string Serialize(EnrichmentEntry entry)
         {

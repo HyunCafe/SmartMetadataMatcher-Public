@@ -265,3 +265,6 @@ The results toolbar exposes Select highlighted, Select visible ready, Clear sele
 
 ### Resumable catalog scans (v0.4.20 private preview)
 Candidate results from the past seven days load automatically if the Playnite game name, platform, and missing-field count are unchanged. A restart or cancelled scan does not discard already completed read-only requests. Use Tools > Rescan all to archive saved results and request fresh IGDB searches. Cached results are not auto-write authorization, are never auto-marked for import, and must be checked against IGDB before a supervised import. Cache data stays in private plugin user data; neither credentials nor launch paths are stored.
+
+### Interrupted artwork staging (v0.4.22)
+The plugin records artwork staging separately from its field undo records. If an import was interrupted before its media references were durably handed to the undo journal, later imports are blocked. Do not delete `media-staging-v1.log` or guess which Playnite-managed artwork to delete. Inspect the recorded operation and restore from a verified Playnite/extension-data backup where necessary. This preview does not provide automatic crash cleanup.

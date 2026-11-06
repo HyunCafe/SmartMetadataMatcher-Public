@@ -671,6 +671,17 @@ namespace SmartMetadataMatcher
             previewDiagnostics=Caption("Matching diagnostics appear here after selecting a game.",11);
             previewDiagnostics.Foreground=Muted();detailsBody.Children.Add(previewDiagnostics);
             window.Content=root;
+            try
+            {
+                var stages=enrichmentJournal.MediaStaging.Unresolved();
+                if(stages.Count>0)
+                    summary.Text="RECOVERY REQUIRED: "+stages.Count+
+                        " interrupted artwork staging operation(s). New imports are blocked.";
+            }
+            catch(Exception)
+            {
+                summary.Text="RECOVERY REQUIRED: artwork staging ledger cannot be read. Imports blocked.";
+            }
             var completed=enrichmentJournal.Committed();
             var completedIds=new HashSet<Guid>();
             foreach(var entry in completed)
@@ -2009,6 +2020,17 @@ namespace SmartMetadataMatcher
         {
             try
             {
+                var unresolvedMedia=enrichmentJournal.MediaStaging.Unresolved();
+                if(unresolvedMedia.Count>0)
+                {
+                    var first=unresolvedMedia[0];
+                    api.Dialogs.ShowErrorMessage("An interrupted artwork staging operation was detected ("+
+                        first.OperationId.ToString("N")+"). No new imports will start. " +
+                        "The image IDs and Playnite game require recovery review against your full backup; " +
+                        "do not delete the staging ledger or guess which media to remove.",
+                        "Artwork recovery required");
+                    return false;
+                }
                 if(!EnrichmentPlan.HasUnresolvedJournalEntry(enrichmentJournal.OpenEntries())) return true;
                 api.Dialogs.ShowErrorMessage("An interrupted metadata operation exists. " +
                     "Resolve it through history/undo or restore from your verified Playnite backup " +
@@ -2148,7 +2170,8 @@ namespace SmartMetadataMatcher
                             failed++;errors.Add(item.Name+": "+ex.Message);
                             // An exception after durable Prepare can mean the database
                             // was partially written. Do not start the next game in that case.
-                            try { recoveryRequired=EnrichmentPlan.HasUnresolvedJournalEntry(enrichmentJournal.OpenEntries()); }
+                            try { recoveryRequired=EnrichmentPlan.HasUnresolvedJournalEntry(enrichmentJournal.OpenEntries()) ||
+                                enrichmentJournal.MediaStaging.Unresolved().Count>0; }
                             catch(Exception journalError)
                             {
                                 recoveryRequired=true;
