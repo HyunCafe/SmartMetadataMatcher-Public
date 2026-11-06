@@ -45,6 +45,13 @@ internal static class EnrichmentJobPlanTests
         rows[0].StrictEvidence=false;
         plan=EnrichmentJobPlanner.Create(rows,names,false,false);
         Assert(plan.Single(x=>x.GameId==a).Code=="NeedsReview", "strong label alone cannot authorize preflight");
+        rows[0].FromSavedScan=true;
+        plan=EnrichmentJobPlanner.Create(rows,names,false,false);
+        Assert(plan.Single(x=>x.GameId==a).Code=="CachedNeedsRefresh" &&
+            !plan.Single(x=>x.GameId==a).ReadyForPreflight &&
+            plan.Single(x=>x.GameId==a).Explanation.Contains("refresh"),
+            "cached Strong result requires targeted live refresh before a strict batch");
+        rows[0].FromSavedScan=false;
         rows[0].Status="Review";rows[0].UserConfirmed=true;
         plan=EnrichmentJobPlanner.Create(rows,names,false,false);
         Assert(plan.Single(x=>x.GameId==a).Code=="UserConfirmed" &&

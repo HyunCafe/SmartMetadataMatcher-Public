@@ -36,7 +36,7 @@ try {
         throw "Version mismatch: YAML=$yamlVersion source=$sourceVersion compiled=$dllVersion"
     }
     New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-    $name = "SmartMetadataMatcher-$yamlVersion-media-ownership-preview-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
+    $name = "SmartMetadataMatcher-$yamlVersion-targeted-refresh-preview-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
     $zip = Join-Path $releaseDir ($name + '.zip')
     $pext = Join-Path $releaseDir ($name + '.pext')
     if (Test-Path -LiteralPath $pext) { throw "Refusing to overwrite $pext" }
@@ -52,6 +52,6 @@ try {
     $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $pext).Hash
     Write-Host "SUCCESS: $pext"
     Write-Host "SHA256: $hash"
-    Write-Host 'MEDIA OWNERSHIP PREVIEW: journal field IDs correlated with staged artwork; live Playnite tests still required. No production bulk writes.'
+    Write-Host 'TARGETED REFRESH PREVIEW: saved matches can be rechecked individually before import; writer, recovery and batch caps unchanged.'
 }
 finally { Pop-Location }

@@ -1,3 +1,17 @@
+- Added search-only recovery for titles ending in Legacy/Beta/Test/Playtest/Starter Access/Launcher/SDK and + DLC; ambiguous editions never become Strong automatically.
+### Full 318-game export audit
+- Detected 244 Strong, 48 Review, 24 Unmatched, 1 Completed, 1 Ignored entries.
+- Three unrelated-name exact aliases (Bump Bomb / Manic Troll / Hanoic Tower) were previously Strong; now forced to Review unless independently confirmed.
+- Resolve equal-score IGDB candidates by official catalog title relevance before provider ID; ambiguous same-platform identities still require manual review.
+- Cached Strong results gain targeted read-only Refresh selected without being auto-approved from persisted score labels.
+
+
+## 0.4.26 — Targeted cached-result validation
+- Review explains why saved Strong labels cannot immediately enter strict multi-game imports.
+- Read-only **Refresh cached** action re-queries only selected results instead of clearing the entire catalog cache.
+- A refreshed result preserves its import checkbox only if both IGDB ID and edition title are identical; changed identities are automatically unmarked.
+- Live Playnite title and platform must still match the saved context. Existing writer, five-game supervised cap, staging journal, undo and ROM paths are unchanged.
+
 ## v0.4.25 — media ownership verification and release checks (private preview)
 - Correlate actual cover/icon/background staging IDs with the exact field-level undo journal owner. Failed/corrupt media ownership blocks future writes, including after undo; legacy field-only journals remain compatible.
 - Add offline regressions for three valid artwork slots, mismatched/missing IDs, orphan stage slots, persisted replay, historical undo and legacy entries.

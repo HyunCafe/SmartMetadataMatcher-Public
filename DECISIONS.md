@@ -1,3 +1,15 @@
+- Search non-base edition suffixes only as discovery; even exact beta/launcher/legacy naming is not enough for automatic writes.
+### Full-library matching audit constraints
+- A perfect alias score is not sufficient when official title has no plausible lexical relationship to the original. Classify as Review; do not silently rename to a possibly different bootleg variant.
+- Prefer official-title relevance to arbitrary smaller IGDB IDs when two candidates have equal match scores. Multiple equally exact same-platform records stay in Review.
+- No inferred title rename or ROM/emulator-file mutations based on CSV-only diagnostics.
+
+
+## v0.4.26 cached selection UX
+- Display **Refresh required** as a distinct review state. Do not reinterpret persisted score/status as fresh strict evidence.
+- Targeted refresh is read-only and rate-limited; never use it to automatically approve or import anything.
+- Re-check the exact identity before retaining the user's selection, reject stale Playnite state, and preserve all recovery gates.
+
 ## v0.4.25 decisions
 - **Accepted:** cross-ledger validation must prove exact imported media IDs match the journaled fields, not just operation/game IDs. This is a fail-closed read-only validation, with no automatic deletion/repair.
 - **Accepted:** source consistency checks run before the Windows compiler, preventing repeated hardcoded-version, missing-file and orphan-test mistakes.

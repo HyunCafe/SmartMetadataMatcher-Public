@@ -109,6 +109,52 @@ internal static class CatalogCoreTests
             new CatalogGame{Id=221269,Name="Mario Kart",PlatformIds=new List<long>{6},FirstReleaseYear=2019},
             new CatalogGame{Id=2343,Name="Mario Kart: Super Circuit",PlatformIds=new List<long>{24},FirstReleaseYear=2001}});
         Assert(kart.Game.Id==2343 && kart.MatchStatus=="Review","correct-platform Mario Kart candidate ranked but not auto-approved");
+        // v0.4.26: CSV audit of 318 titles found IGDB alias-only false-strength.
+        // These are legitimate catalog search results, but different canonical
+        // title/edition strings must not be approved from an alias alone.
+        foreach(var pairing in new[]{
+            Tuple.Create("70 Bump Bomb","Flame Beetles"),
+            Tuple.Create("82 Manic Troll","Coin Digger"),
+            Tuple.Create("74 Hanoic Tower","Mystic Totem")})
+        {
+            var aliasOnly=CatalogCore.Choose(new CatalogInput{Name=pairing.Item1,Platform=gba},
+                new[]{new CatalogGame{Id=246318,Name=pairing.Item2,
+                    Aliases=new List<string>{CatalogCore.QueryTitle(pairing.Item1,gba)},
+                    PlatformIds=new List<long>{24},FirstReleaseYear=2010}});
+            Assert(aliasOnly.MatchStatus=="Review" && aliasOnly.AliasOnlyUnrelatedTitle &&
+                !CatalogCore.CanAutoPlan(aliasOnly),
+                "unrelated official JungleTac names cannot inherit trusted alias authority: "+pairing.Item1);
+        }
+        var anguna=CatalogCore.Choose(new CatalogInput{Name="67 Anguna",Platform=gba},
+            new[]{new CatalogGame{Id=7001,Name="Anguna: Warriors of Virtue",
+                Aliases=new List<string>{"Anguna"},PlatformIds=new List<long>{24},FirstReleaseYear=2008}});
+        Assert(anguna.MatchStatus=="Strong candidate" && !anguna.AliasOnlyUnrelatedTitle,
+            "clear official-title prefix is not penalized as an unrelated alias");
+        foreach(var name in new[]{"Human: Fall Flat Legacy", "Nightingale - Legacy Mode",
+            "Monster Hunter Wilds Beta test", "PlanetSide 2 - Test", "Trackmania Starter Access"})
+        {
+            var options=CatalogCore.QueryVariants(name,"PC (Windows)");
+            Assert(options.Count<=4 && options.Skip(1).Any(x=>!x.StrongEvidence),
+                "install/legacy/beta suffix adds search-only discovery: "+name);
+        }
+        Assert(CatalogCore.QueryVariants("Ys One And Two PSP","Sony PlayStation Portable")
+            .Any(x=>x.Text=="Ys I & II Chronicles"&&!x.StrongEvidence),
+            "PSP Ys I and II official packaging lookup is search-only");
+        Assert(CatalogCore.QueryVariants("Besiege + The Splintered Sea DLC","PC (Windows)")
+            .Any(x=>x.Text=="Besiege"&&!x.StrongEvidence),
+            "DLC base-title lookup does not assert edition identity");
+        var beta=CatalogCore.Choose(new CatalogInput{Name="Monster Hunter Wilds Beta test",Platform="PC (Windows)"},
+            new[]{new CatalogGame{Id=9998,Name="Monster Hunter Wilds Beta test",
+                PlatformIds=new List<long>{6},FirstReleaseYear=2025}});
+        Assert(beta.MatchStatus=="Review" && !CatalogCore.CanAutoPlan(beta),
+            "even exact beta/launcher/legacy naming needs manual identity approval");
+        var ff2=CatalogCore.Choose(new CatalogInput{Name="Final Fantasy 2",Platform="Sony PlayStation Portable"},
+            new[]{new CatalogGame{Id=21779,Name="Final Fantasy IV: The Complete Collection",
+                Aliases=new List<string>{"Final Fantasy 2"},PlatformIds=new List<long>{38},FirstReleaseYear=2011},
+                new CatalogGame{Id=121717,Name="Final Fantasy II: 20th Anniversary Edition",
+                Aliases=new List<string>{"Final Fantasy 2"},PlatformIds=new List<long>{38},FirstReleaseYear=2007}});
+        Assert(ff2.Game.Id==121717 && ff2.MatchStatus=="Review",
+            "canonical edition relevance breaks tied aliases, but duplicate exact matches still need review");
         // v0.4.7: only exact, uniquely identified, dated, structured-platform
         // catalog matches may be included in the automatic planning queue.
         Assert(CatalogCore.CanAutoPlan(sonic),"strict auto gate accepts unique exact dated platform-ID match");

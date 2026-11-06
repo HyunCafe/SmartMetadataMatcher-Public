@@ -1,3 +1,11 @@
+Read-only search fallbacks for Legacy, Beta/Test, Playtest, Starter Access, launcher, SDK, selected DLC, and Ys I & II are discovery-only; these editions always require review.
+### Full-library matching safety (v0.4.26)
+A full 318-result CSV audit prompted conservative handling of alternative-name-only matches: an exact IGDB alias linking a completely unrelated official title requires review, even with a corroborated platform ID. Examples include Bump Bomb / Flame Beetles and Manic Troll / Coin Digger. Score 1.000 is not a correctness probability. Cached results still require fresh IGDB evidence; use **Refresh cached** in the review dialog for selected saved games.
+
+
+### v0.4.26 — Refresh cached matches in place
+If a saved scan looks Strong but the import review says Refresh required, mark those rows and click **Refresh cached** in Review matches. This rechecks only the marked cached rows in IGDB without modifying Playnite. Unchanged title/ID selections remain marked; changed matches are deselected for another review. Batch imports still require separate approval and verified recovery state.
+
 ### v0.4.25 private recovery checkpoint
 Run `python Tools/Verify-Source.py` to check version labels, compile references and test-suite wiring without changing files. The normal Windows preview build calls this verifier automatically. Media staging and journal field IDs are now cross-checked before new writes. The five-game test limit remains until one complete import-and-undo is tested inside a disposable Playnite profile; use the official Playnite backup tool to preserve Settings, Library, Library media, Extensions and Extensions data first.
 

@@ -863,7 +863,7 @@ namespace SmartMetadataMatcher
                 GameId=x.GameId,CurrentName=x.CurrentName,Platform=x.Platform,
                 CandidateTitle=x.Candidate,CatalogId=x.IgdbId,Status=x.Status,
                 StrictEvidence=x.AutoPlanEligible,UserConfirmed=x.UserConfirmed,Completed=x.IsCompleted,Ignored=x.IsIgnored,
-                FromHistory=x.FromHistory,Marked=x.Marked,
+                FromHistory=x.FromHistory,FromSavedScan=x.FromSavedScan,Marked=x.Marked,
                 PriorFailure=(x.Evidence??"").StartsWith("Apply failed:",StringComparison.Ordinal)
             }).ToList();
             var decisions=EnrichmentJobPlanner.Create(candidates,library,useCatalogTitle.IsChecked==true,false);
@@ -874,7 +874,7 @@ namespace SmartMetadataMatcher
                 lines.Add(new PlanPreviewRow {
                     SourceRow=r,Game=r.CurrentName??"",Catalog=r.Candidate??"",
                     Platform=r.Platform??"",CatalogId=r.IgdbId??"",
-                    IdentityStatus=d.Code=="UserConfirmed"?"Confirmed by you":d.ReadyForPreflight?"Ready — verify":
+                    IdentityStatus=d.Code=="UserConfirmed"?"Confirmed by you":d.Code=="CachedNeedsRefresh"?"Refresh required":d.ReadyForPreflight?"Ready — verify":
                         d.Code=="Completed"?"Completed":d.Code=="Ignored"?"Ignored":"Needs review",
                     Explanation=d.Explanation,RenameHandling=d.ReadyForPreflight?d.RenameReason:"Not planned",
                     Ready=d.ReadyForPreflight,Archived=d.Code=="Completed"||d.Code=="Ignored"
@@ -900,8 +900,9 @@ namespace SmartMetadataMatcher
             updateCounts();
             heading.Children.Add(counts);
             var warning=Caption("Check each game's title, platform and edition before approving. " +
-                "Ready means automated checks passed, not that the identity is guaranteed. " +
-                "A backup and final approval are required; imports are still supervised.",12);
+                "Saved matches must be refreshed before strict batch approval; use Refresh cached below. " +
+                "Ready means automated checks passed, not that identity is guaranteed. " +
+                "A backup and final approval are required; imports are supervised.",12);
             warning.Foreground=Muted();heading.Children.Add(warning);
             var filters=new WrapPanel{Margin=new Thickness(0,0,0,8)};
             DockPanel.SetDock(filters,Dock.Top);body.Children.Add(filters);
@@ -934,7 +935,7 @@ namespace SmartMetadataMatcher
                 HorizontalAlignment=HorizontalAlignment.Right};
             DockPanel.SetDock(footer,Dock.Bottom);body.Children.Add(footer);
             Button inspect=null,previewApply=null,close=null;
-            Button markReady=null,clearMarked=null;
+            Button markReady=null,clearMarked=null,refreshSelected=null;
             Action updateSelection=()=>{
                 updateCounts();
                 if(inspect!=null)inspect.IsEnabled=table.SelectedItem is PlanPreviewRow;
@@ -948,6 +949,12 @@ namespace SmartMetadataMatcher
                         readyRows.Any(x=>!x.Marked)?"Select all ready ("+readyRows.Count+")":
                         "Deselect all ready ("+readyRows.Count+")";
                     markReady.IsEnabled=readyRows.Count>0;
+                }
+                if(refreshSelected!=null){
+                    var needsRefresh=lines.Count(x=>x.Marked&&!x.Archived&&
+                        !x.Ready && x.SourceRow!=null && x.SourceRow.FromSavedScan);
+                    refreshSelected.Content=needsRefresh>0?"Refresh cached ("+needsRefresh+")":"Refresh cached matches";
+                    refreshSelected.IsEnabled=needsRefresh>0;
                 }
                 if(grid!=null)grid.Items.Refresh();
                 UpdateSelectionActions();
@@ -994,6 +1001,15 @@ namespace SmartMetadataMatcher
                 foreach(var row in lines)row.Marked=false;
                 refreshRows();
             },out clearMarked);
+            AddButton(selectionTools,"Refresh cached matches",()=>{
+                var targets=lines.Where(x=>x.Marked&&!x.Archived&&!x.Ready &&
+                    x.SourceRow!=null&&x.SourceRow.FromSavedScan)
+                    .Select(x=>x.SourceRow).GroupBy(x=>x.GameId).Select(g=>g.First()).ToList();
+                if(targets.Count==0)return;
+                dialog.Close();
+                RefreshSelectedCatalogMatches(targets);
+            },out refreshSelected);
+            refreshSelected.ToolTip="Recheck only selected saved results with live IGDB. No Playnite updates. Keep selections only when exact title and ID agree.";
             Button confirmIdentity=null;
             AddButton(selectionTools,"Confirm highlighted identity...",()=>{
                 var current=table.SelectedItem as PlanPreviewRow;
@@ -1088,11 +1104,15 @@ namespace SmartMetadataMatcher
                     EnrichmentPlan.BatchEligible(blocked[0].SourceRow.Status,false,blocked[0].CatalogId);
                 if(blocked.Count>0 && !manualSingle)
                 {
-                    api.Dialogs.ShowMessage("The marked selection includes games that are not strict-ready. " +
-                        "Only strict-ready games can use the multi-game test path. " +
-                        "For a manually reviewed candidate, mark exactly ONE Strong match whose " +
-                        "IGDB identity, platform and edition you have checked yourself.",
-                        "Smart Metadata Matcher");return;
+                    var stale=blocked.Count(x=>x.SourceRow!=null&&x.SourceRow.FromSavedScan);
+                    var examples=String.Join("\n",blocked.Take(6).Select(x=>"• "+x.Game+" — "+
+                        (x.SourceRow!=null&&x.SourceRow.FromSavedScan?"saved match needs refresh":x.Explanation)));
+                    api.Dialogs.ShowMessage(blocked.Count+" of "+selected.Count+
+                        " selected matches need additional validation.\n"+
+                        (stale>0?"Select Refresh cached ("+stale+") in this window to recheck only those games.\n":"")+
+                        "\n"+examples+"\n\nNo metadata was changed. You can import one manually " +
+                        "verified Strong match, or refresh cached results for batch eligibility.",
+                        "Matches need attention");return;
                 }
                 // Temporary validation cap, not a user-facing batch architecture.
                 // Increase only after recovery/accuracy tests; never silently truncate.
@@ -1804,6 +1824,130 @@ namespace SmartMetadataMatcher
                 ReleaseYear=row.ReleaseYear,FoundCount=row.FoundCount
             };
         }
+        // Refresh ONLY marked saved matches instead of discarding an entire scan cache.
+        // Strict evidence is recalculated from a fresh IGDB search, never restored from disk.
+        // The user's mark survives only when the exact catalog ID/title remains unchanged.
+        private void RefreshSelectedCatalogMatches(List<CatalogViewRow> selected)
+        {
+            if(busy || selected==null || selected.Count==0)return;
+            if(String.IsNullOrWhiteSpace(clientId.Text)||String.IsNullOrWhiteSpace(secret.Password))
+            {
+                api.Dialogs.ShowMessage("Configure IGDB credentials before refreshing saved matches.",
+                    "Smart Metadata Matcher");return;
+            }
+            var targets=new List<Tuple<CatalogViewRow,CatalogInput>>();
+            foreach(var row in selected.GroupBy(x=>x.GameId).Select(g=>g.First()))
+            {
+                if(row.IsCompleted || row.IsIgnored || !row.FromSavedScan)continue;
+                var game=api.Database.Games[row.GameId];
+                var platform=game==null?"":game.Platforms==null?"":
+                    String.Join(", ",game.Platforms.Select(p=>p.Name));
+                if(game==null || !String.Equals(game.Name,row.CurrentName,StringComparison.Ordinal) ||
+                    !String.Equals(platform,row.Platform,StringComparison.Ordinal))
+                {
+                    api.Dialogs.ShowMessage("The Playnite title or platform changed for "+row.CurrentName+
+                        ". Rescan before refreshing saved matches.","Smart Metadata Matcher");return;
+                }
+                var missing=(String.IsNullOrWhiteSpace(game.CoverImage)?1:0)+
+                    (String.IsNullOrWhiteSpace(game.BackgroundImage)?1:0)+
+                    (String.IsNullOrWhiteSpace(game.Description)?1:0);
+                targets.Add(Tuple.Create(row,new CatalogInput{Id=game.Id,Name=game.Name,
+                    Platform=platform,MissingCount=missing}));
+            }
+            if(targets.Count==0)return;
+            var id=clientId.Text;var password=secret.Password;
+            busy=true;scanButton.IsEnabled=false;scanSize.IsEnabled=false;
+            cancelButton.IsEnabled=true;cancelButton.Visibility=Visibility.Visible;
+            UpdateSelectionActions();
+            cancellation=new CancellationTokenSource();var token=cancellation.Token;
+            if(batchProgress!=null)batchProgress.Visibility=Visibility.Collapsed;
+            if(batchProgressText!=null)batchProgressText.Visibility=Visibility.Collapsed;
+            summary.Text="Refreshing "+targets.Count+" selected IGDB matches (read-only).";
+            Task.Run(()=>{
+                var fresh=new List<Tuple<CatalogViewRow,CatalogViewRow>>();
+                string error=null;bool cancelled=false;
+                try
+                {
+                    using(var client=new IgdbReadOnly(id,password))
+                    foreach(var pair in targets)
+                    {
+                        if(token.IsCancellationRequested){cancelled=true;break;}
+                        var item=pair.Item2;
+                        var queries=CatalogCore.QueryVariants(item.Name,item.Platform);
+                        var found=client.SearchVariants(queries.Select(q=>q.Text),token);
+                        var match=CatalogCore.Choose(item,found);
+                        var game=match.Game;
+                        var result=new CatalogViewRow {
+                            GameId=item.Id,CurrentName=item.Name,Platform=item.Platform,
+                            MissingCount=item.MissingCount,FromSavedScan=false,
+                            AutoPlanEligible=CatalogCore.CanAutoPlan(match),
+                            Candidate=game==null?"(none)":game.Name,
+                            Status=match.MatchStatus,
+                            MatchScore=match.Score.ToString("0.000",System.Globalization.CultureInfo.InvariantCulture),
+                            IgdbId=game==null?"":game.Id.ToString(),
+                            AvailableMetadata=game==null?"":
+                                (String.IsNullOrWhiteSpace(game.Summary)?"":"description ")+
+                                (String.IsNullOrWhiteSpace(game.CoverImageId)?"":"cover ")+
+                                (String.IsNullOrWhiteSpace(game.ScreenshotImageId)?"":"screenshot"),
+                            Evidence=match.Reason,
+                            CatalogSummary=game==null?null:game.Summary,
+                            CatalogCoverImageId=game==null?null:game.CoverImageId,
+                            CatalogScreenshotImageId=game==null?null:game.ScreenshotImageId,
+                            Queries=String.Join(" | ",queries.Select(q=>q.Text)),
+                            FoundCount=match.CandidatesFound.ToString(),
+                            ReleaseYear=game==null||game.FirstReleaseYear==0?"":game.FirstReleaseYear.ToString(),
+                            Alternatives=match.Alternatives==null?"":String.Join(" | ",match.Alternatives.Select(g=>
+                                g.Name+" ["+g.Id+"; "+String.Join("/",(g.Platforms??new List<string>()).Take(2))+"]"))
+                        };
+                        fresh.Add(Tuple.Create(pair.Item1,result));
+                        var completed=fresh.Count;
+                        window.Dispatcher.BeginInvoke(new Action(()=>{
+                            if(window.IsVisible)summary.Text="Refreshed "+completed+" / "+targets.Count+
+                                " selected matches (read-only).";
+                        }));
+                        if(completed<targets.Count && token.WaitHandle.WaitOne(340))
+                        {cancelled=true;break;}
+                    }
+                }
+                catch(OperationCanceledException){cancelled=true;}
+                catch(Exception ex){error=ex.Message;}
+                window.Dispatcher.BeginInvoke(new Action(()=>{
+                    int changed=0;
+                    foreach(var pair in fresh)
+                    {
+                        var original=pair.Item1;var replacement=pair.Item2;
+                        // Even with an unchanged ID, a renamed edition requires new approval.
+                        bool unchanged=String.Equals(original.IgdbId,replacement.IgdbId,StringComparison.Ordinal) &&
+                            String.Equals(original.Candidate,replacement.Candidate,StringComparison.Ordinal);
+                        replacement.Marked=original.Marked && unchanged;
+                        if(!unchanged)changed++;
+                        var pos=results.FindIndex(r=>r.GameId==original.GameId &&
+                            Object.ReferenceEquals(r,original));
+                        if(pos>=0)
+                        {
+                            results[pos]=replacement;
+                            ApplyRememberedIdentity(replacement);
+                        }
+                    }
+                    string cacheError=null;
+                    if(scanCacheAvailable && fresh.Count>0)
+                    {
+                        try {scanCache.SaveBatch(fresh.Select(x=>SaveableScanResult(x.Item2)),DateTime.UtcNow);}
+                        catch(Exception ex){scanCacheAvailable=false;cacheError=ex.Message;}
+                    }
+                    grid.ItemsSource=null;grid.ItemsSource=results;
+                    RefreshVisibility();
+                    busy=false;scanButton.IsEnabled=true;scanSize.IsEnabled=true;
+                    cancelButton.IsEnabled=false;cancelButton.Visibility=Visibility.Collapsed;
+                    summary.Text="Fresh IGDB results for "+fresh.Count+" / "+targets.Count+
+                        " selected games. "+changed+" identity changes deselected for safety. " +
+                        "Review the matches before applying; no Playnite metadata changed."+
+                        (cancelled?" Stopped on request.":"")+
+                        (error==null?"":" IGDB error: "+error)+
+                        (cacheError==null?"":" Cache save failed: "+cacheError);
+                }));
+            });
+        }
         private void RescanAllCatalogMatches()
         {
             if(busy)return;
@@ -1953,7 +2097,7 @@ namespace SmartMetadataMatcher
                 GameId=x.GameId,CurrentName=x.CurrentName,Platform=x.Platform,
                 CandidateTitle=x.Candidate,CatalogId=x.IgdbId,Status=x.Status,
                 StrictEvidence=x.AutoPlanEligible,UserConfirmed=x.UserConfirmed,Completed=x.IsCompleted,Ignored=x.IsIgnored,
-                FromHistory=x.FromHistory,Marked=x.Marked,
+                FromHistory=x.FromHistory,FromSavedScan=x.FromSavedScan,Marked=x.Marked,
                 PriorFailure=(x.Evidence??"").StartsWith("Apply failed:",StringComparison.Ordinal)
             }),library,useCatalogTitle.IsChecked==true,false);
             var ready=new HashSet<Guid>(plan.Where(x=>x.ReadyForPreflight).Select(x=>x.GameId));
