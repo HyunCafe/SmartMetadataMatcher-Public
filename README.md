@@ -1,3 +1,13 @@
+# Smart Metadata Matcher — v0.5.0 private RC1
+
+The current personal-use **release candidate** preserves the verified v0.4.32 importer and batch/recovery behavior while strengthening release checks and reproducibility. **This is not a public release or a claim of production-scale validation.** See [RELEASE_READINESS.md](RELEASE_READINESS.md) for the verified features, unresolved runtime cases, and rollback gates.
+
+**Build:** `pwsh -NoLogo -NoProfile -File ./Tools/Build-Preview.ps1` (Windows). The full extension compiles before offline suites, the `.pext` is checked against the DLL and manifest, and the private release report is written by the guarded upgrade after the local commit. No Playnite database or ROM access is performed by the build.
+
+Historical notes below document older stages; their former test limits and unfinished-state statements do not supersede the RC1 acceptance matrix.
+
+---
+
 ## v0.4.32 — Preflight and package verification
 
 A final read-only selection check at import dispatch rejects duplicate Playnite game IDs, archived records, invalid catalog identities and stale strict-ready evidence. The build runs `Tools/Verify-Package.py` on the actual .pext, rejecting unexpected ZIP members, missing manifest/DLL, source-to-package byte mismatches, and known private path/identifier markers. Release verification is **not** a security certification; an isolated multi-game import/undo Playnite test is still required.

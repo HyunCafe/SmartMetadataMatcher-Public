@@ -1,3 +1,10 @@
+## v0.5.0 RC1 — freeze core, ship verifiable private milestone
+
+- **Accepted:** preserve the v0.4.32 engine now that a two-game batch and clean Recovery Status were observed in Playnite; avoid speculative refactors during release candidate validation.
+- **Accepted:** pin package references, verify source and packaged bytes locally, document remaining runtime gaps rather than claiming they are passed, and retain minimal manual tests.
+- **Deferred:** multi-game independent undo and controlled crash injection have not yet been observed; the 25-game strict limit exists but is not a proven full-scale runtime batch.
+- **Prohibited without explicit authorization:** public repository upload, credential export, ROM/emulator path changes, or cleanup of private recovery journals.
+
 ## v0.4.32 — Gate at dispatch and verify release artifacts
 
 Source-only gates are insufficient: reject repeated Playnite game IDs immediately before import, and validate packaged bytes match the just-built DLL and approved manifest. Preserve equivalent duplicate IGDB IDs across distinct Playnite records. Keep `25 strict / 5 supervised`; a real multi-game Playnite import is still required before production claims.

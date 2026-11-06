@@ -1,3 +1,13 @@
+## v0.5.0 private RC1 — release readiness checkpoint
+
+- Bump assembly and extension manifest to `0.5.0` and label the dashboard/package clearly **private RC1**.
+- Freeze v0.4.32 catalog matching, title cleanup, metadata writer, journal formats, batch caps and recovery behavior.
+- Add read-only release candidate checks for pinned build dependencies, release compilation settings, manifest/assembly identity, source private paths, and expected package validation; include negative-case self-tests.
+- Suppress local Python test caches via `.gitignore`; keep diagnostic inventory out of source and package.
+- Add `RELEASE_READINESS.md` with explicit verified versus unknown runtime gates, reversibility/rollback notes and publication boundary.
+- Produce a machine-neutral private JSON release report after successful Windows build and local Git commit.
+- This milestone deliberately does NOT authorize unattended 25-game import, GitHub uploads or automatic crash recovery.
+
 ## v0.4.32 — Batch preflight and package integrity (private preview)
 
 - Reject duplicate Playnite **game IDs** in any submitted batch before network and write stages; allow distinct game records to share one verified IGDB ID.

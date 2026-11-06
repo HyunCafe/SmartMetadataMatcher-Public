@@ -25,3 +25,9 @@ Releases/
 *PRIVATE*
 *private*
 REFERENCE_SOURCE_NOTICE.md
+
+# Keep Python validation caches and diagnostics outside public source control.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.coverage

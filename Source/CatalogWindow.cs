@@ -366,7 +366,7 @@ namespace SmartMetadataMatcher
         internal void Show()
         {
             window=api.Dialogs.CreateWindow(new WindowCreationOptions{ShowMinimizeButton=false});
-            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private preview";
+            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private RC1";
             window.Width=1610;window.Height=935;window.MinWidth=1120;window.MinHeight=675;
             var owner=api.Dialogs.GetCurrentAppWindow();
             if(owner!=null && owner!=window)window.Owner=owner;
@@ -2219,7 +2219,7 @@ namespace SmartMetadataMatcher
             columns.Click += (s,e) => { diagnosticColumnsVisible = columns.IsChecked; UpdateDiagnosticColumns(); };
             menu.Items.Add(columns);
             menu.Items.Add(new Separator());
-            var legacy = new MenuItem { Header = "Legacy supervised testing (private previews only)" };
+            var legacy = new MenuItem { Header = "Legacy supervised testing (advanced)" };
             var one = new MenuItem { Header = "Apply selected game — legacy one-game path" };
             one.Click += (s,e) => ApplySelected(); legacy.Items.Add(one);
             var marked = new MenuItem { Header = "Apply marked games — existing five-game limit" };

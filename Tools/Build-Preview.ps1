@@ -21,6 +21,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Source consistency verification failed' }
     & python (Join-Path $root 'Tools/Test-Package-Integrity.py')
     if ($LASTEXITCODE -ne 0) { throw 'Package verifier self-tests failed' }
+    & python (Join-Path $root 'Tools/Verify-RC.py') --self-test
+    if ($LASTEXITCODE -ne 0) { throw 'Release-candidate guard self-tests failed' }
+    & python (Join-Path $root 'Tools/Verify-RC.py') --check
+    if ($LASTEXITCODE -ne 0) { throw 'Release-candidate source guard failed' }
     # Compile the full extension first: test-only projects do not compile WPF.
     # This fails fast on integration mistakes before running the offline suites.
     Run @('restore', $project, '--source', 'https://api.nuget.org/v3/index.json')
@@ -40,7 +44,7 @@ try {
         throw "Version mismatch: YAML=$yamlVersion source=$sourceVersion compiled=$dllVersion"
     }
     New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-    $name = "SmartMetadataMatcher-$yamlVersion-reliability-checkpoint-preview-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
+    $name = "SmartMetadataMatcher-$yamlVersion-private-rc1-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [Guid]::NewGuid().ToString('N').Substring(0,6)
     $zip = Join-Path $releaseDir ($name + '.zip')
     $pext = Join-Path $releaseDir ($name + '.pext')
     if (Test-Path -LiteralPath $pext) { throw "Refusing to overwrite $pext" }
@@ -60,6 +64,6 @@ try {
     $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $pext).Hash
     Write-Host "SUCCESS: $pext"
     Write-Host "SHA256: $hash"
-    Write-Host 'RELIABILITY PREVIEW: duplicate Playnite game preflight, independent duplicate catalog IDs, package integrity and privacy audit. Writer and undo unchanged.'
+    Write-Host 'PRIVATE RC1: matching, import writer and undo frozen; release guards and package integrity verified. Runtime exception gates remain documented.'
 }
 finally { Pop-Location }

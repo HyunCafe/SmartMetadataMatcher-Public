@@ -40,7 +40,7 @@ with TemporaryDirectory(prefix='smm-qa-') as tmp:
     path=root/'bin/Release/net462'
     path.mkdir(parents=True)
     dll=b'MZ'+b'\x00'*98+b'clean-version'
-    yaml=b'Id: sample\nVersion: 0.4.32\n'
+    yaml=b'Id: sample\nVersion: 0.5.0\n'
     (path/'SmartMetadataMatcher.dll').write_bytes(dll)
     (root/'extension.yaml').write_bytes(yaml)
     original=[('SmartMetadataMatcher.dll',dll),('extension.yaml',yaml)]
