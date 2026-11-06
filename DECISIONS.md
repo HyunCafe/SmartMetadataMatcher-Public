@@ -229,3 +229,6 @@ Deferred: automated media cleanup, unrestricted bulk imports, cross-run executio
 
 ### v0.4.27 duplicate identity policy
 Allow multiple distinct Playnite records to match one IGDB record when the catalog title and normalized platform agree; this is not, by itself, suspicious. Do not weaken individual strict evidence or exact-ID/platform revalidation. Distinct catalog titles or conflicting platforms for a repeated ID still require review. Distinguish duplicate display names automatically with stable console suffixes, keep approved import previews and Playnite write validation aligned, and never touch the underlying ROM filename or launch path. No automatic import authorization.
+
+### v0.4.28 review context actions
+Use Playnite's supported MainView.OpenEditDialog for editing any game metadata rather than recreating its editor or writing unjournaled fields directly. Clearly distinguish manually saved Playnite edits (outside plugin undo) from supervised Matcher imports. Offer read-only exact IGDB inspection and title search inside the Matcher; only adopt matching-platform search results after explicit identity confirmation and preserve live ID/platform preflight and final import approval. Right-clicking must not toggle import marks.

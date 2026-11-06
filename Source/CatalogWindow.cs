@@ -305,14 +305,14 @@ namespace SmartMetadataMatcher
             flat=System.Net.WebUtility.HtmlDecode(flat).Replace('\r',' ').Replace('\n',' ').Trim();
             return flat.Length>limit?flat.Substring(0,limit)+"…":flat;
         }
-        private void ShowFullComparison()
+        private void ShowFullComparison(Window contextOwner=null)
         {
             var row=grid==null?null:grid.SelectedItem as CatalogViewRow;
             if(row==null){api.Dialogs.ShowMessage("Select a catalog row first.","Smart Metadata Matcher");return;}
             var detail=api.Dialogs.CreateWindow(new WindowCreationOptions{ShowMinimizeButton=false});
             detail.Title="Smart Metadata Matcher — Current vs. suggested metadata: "+row.CurrentName;
             detail.Width=1160;detail.Height=760;detail.MinWidth=710;detail.MinHeight=460;
-            detail.Owner=window;detail.WindowStartupLocation=WindowStartupLocation.CenterOwner;
+            detail.Owner=contextOwner??window;detail.WindowStartupLocation=WindowStartupLocation.CenterOwner;
             var layout=new DockPanel{Margin=new Thickness(12),Background=Deep()};
             var lead=Caption("Drag any column boundary, resize the window, or select a field below to inspect and copy its complete current/suggested text. This preview makes no changes.",13);
             DockPanel.SetDock(lead,Dock.Top);layout.Children.Add(lead);
@@ -547,6 +547,7 @@ namespace SmartMetadataMatcher
             grid.Columns[7].Width=136;
             UpdateDiagnosticColumns();
             grid.SelectionChanged+=(s,e)=>{UpdatePreview();UpdateSelectionActions();};
+            AttachGameReviewMenu(grid,()=>grid.SelectedItem as CatalogViewRow,null,null);
             // Checkbox clicks change the import selection, separate from highlighted rows.
             // Defer until the WPF binding has committed the changed checkbox value.
             grid.AddHandler(System.Windows.Controls.Primitives.ButtonBase.ClickEvent,
@@ -637,7 +638,7 @@ namespace SmartMetadataMatcher
             Button apply,skip,inspect;
             AddButton(previewActions,"Review / Apply",ShowPlanReview,out apply);Decorate(apply,"\uE896",true);
             AddButton(previewActions,"Skip / Ignore",ToggleIgnored,out skip);Decorate(skip,"\uE711");
-            AddButton(previewActions,"Full details",ShowFullComparison,out inspect);Decorate(inspect,"\uE8A7");
+            AddButton(previewActions,"Full details",()=>ShowFullComparison(),out inspect);Decorate(inspect,"\uE8A7");
 
             var previewScroll=new ScrollViewer{VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
                 HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};
@@ -845,6 +846,296 @@ namespace SmartMetadataMatcher
             dialog.Content=body;dialog.ShowDialog();
         }
 
+        // Review-first context menu, available on both main results and final match list.
+        // The original Playnite game editor handles ALL editable metadata fields;
+        // Matcher does not make unjournaled direct database writes of its own.
+        private void AttachGameReviewMenu(DataGrid table,Func<CatalogViewRow> selected,
+            Window reviewOwner,Action refreshReview)
+        {
+            table.PreviewMouseRightButtonDown+=(sender,args)=>{
+                // A right-click targets the row under the pointer, not the last
+                // highlighted row. It never checks an import checkbox.
+                var element=args.OriginalSource as DependencyObject;
+                while(element!=null && !(element is DataGridRow))
+                    element=VisualTreeHelper.GetParent(element);
+                var hit=element as DataGridRow;
+                if(hit!=null && hit.Item!=null)table.SelectedItem=hit.Item;
+            };
+            var menu=new ContextMenu();
+            var edit=new MenuItem{Header="Edit Playnite title and metadata..."};
+            edit.Click+=(sender,args)=>{
+                var row=selected();if(row==null)return;
+                // Close only the secondary review window. Keep Matcher open,
+                // then reopen review after the native editor returns.
+                if(reviewOwner!=null)reviewOwner.Close();
+                window.Dispatcher.BeginInvoke(new Action(()=>EditGameFromMatcher(row,reviewOwner!=null)));
+            };
+            menu.Items.Add(edit);
+            var compare=new MenuItem{Header="Compare Playnite and IGDB fields..."};
+            compare.Click+=(sender,args)=>{
+                var row=selected();if(row==null)return;
+                if(grid!=null){grid.SelectedItem=row;UpdatePreview();ShowFullComparison(reviewOwner);}
+            };
+            menu.Items.Add(compare);
+            var inspect=new MenuItem{Header="Inspect exact IGDB metadata (read-only)..."};
+            inspect.Click+=(sender,args)=>{var row=selected();if(row!=null)ShowIgdbRecord(row,reviewOwner);};
+            menu.Items.Add(inspect);
+            var search=new MenuItem{Header="Search IGDB alternatives..."};
+            search.Click+=(sender,args)=>{
+                var row=selected();if(row!=null)ShowIgdbAlternativeSearch(row,reviewOwner,refreshReview);
+            };
+            menu.Items.Add(search);
+            menu.Opened+=(sender,args)=>{
+                var row=selected();var active=row!=null && !busy;
+                edit.IsEnabled=active;
+                compare.IsEnabled=active;
+                long id;
+                inspect.IsEnabled=active && Int64.TryParse(row==null?"":row.IgdbId,out id) && id>0;
+                search.IsEnabled=active && confirmedIdentitiesAvailable && !String.IsNullOrWhiteSpace(clientId.Text)
+                    && !String.IsNullOrWhiteSpace(secret.Password) && !row.IsCompleted;
+            };
+            table.ContextMenu=menu;
+        }
+
+        private bool IsLiveReviewMatch(CatalogViewRow row)
+        {
+            var live=row==null?null:api.Database.Games[row.GameId];
+            return live!=null && CatalogReviewActions.SameLiveIdentity(
+                row.GameId,row.CurrentName,row.Platform,live.Id,live.Name,
+                live.Platforms==null?"":String.Join(", ",live.Platforms.Select(p=>p.Name)));
+        }
+        private void EditGameFromMatcher(CatalogViewRow row,bool returnToReview)
+        {
+            if(row==null || busy)return;
+            try
+            {
+                // SDK-supported, native Playnite editor. Changes are SAVED by
+                // Playnite, not by the Matcher import/undo journal.
+                var changed=api.MainView.OpenEditDialog(row.GameId);
+                if(changed==true)
+                {
+                    var live=api.Database.Games[row.GameId];
+                    if(live==null)
+                        throw new InvalidOperationException("Game is no longer in the library. Reopen Matcher.");
+                    var newPlatform=live.Platforms==null?"":String.Join(", ",live.Platforms.Select(x=>x.Name));
+                    bool changedIdentity=!String.Equals(row.CurrentName,live.Name,StringComparison.Ordinal) ||
+                        !String.Equals(row.Platform,newPlatform,StringComparison.Ordinal);
+                    if(changedIdentity && row.UserConfirmed && confirmedIdentitiesAvailable)
+                    {
+                        try {confirmedIdentities.Forget(row.GameId);}
+                        catch(Exception ex)
+                        {
+                            confirmedIdentitiesAvailable=false;
+                            api.Dialogs.ShowErrorMessage("Saved identity could not be invalidated: "+ex.Message+
+                                ". Do not import until identity storage is repaired.","Identity storage");
+                        }
+                    }
+                    row.CurrentName=live.Name;row.Platform=newPlatform;
+                    row.Marked=false;row.AutoPlanEligible=false;
+                    row.UserConfirmed=false;row.FromSavedScan=true;
+                    if(!row.IsCompleted){row.Status="Review";row.PreviousStatus="Review";}
+                    row.Evidence="Playnite metadata was manually edited; revalidate this game before a Matcher import";
+                    row.MissingCount=(MetadataPlan.Missing(live.Description)?1:0)+
+                        (MetadataPlan.Missing(live.CoverImage)?1:0)+
+                        (MetadataPlan.Missing(live.BackgroundImage)?1:0);
+                    RefreshVisibility();UpdatePreview();
+                    summary.Text="Playnite editor saved changes for "+live.Name+
+                        ". Match approval cleared; rescan before importing. Native edits are outside Matcher undo.";
+                }
+            }
+            catch(Exception ex){api.Dialogs.ShowErrorMessage(ex.Message,"Could not open Playnite game editor");}
+            finally {if(returnToReview && window!=null && window.IsVisible)ShowPlanReview();}
+        }
+
+        private static string CatalogDetailsText(CatalogGame cat)
+        {
+            if(cat==null)return "No IGDB information available.";
+            var detail=new StringBuilder();
+            detail.AppendLine("IGDB RECORD — read-only");
+            detail.AppendLine("Name: "+(cat.Name??""));
+            detail.AppendLine("IGDB ID: "+cat.Id);
+            detail.AppendLine("Platforms: "+String.Join(", ",cat.Platforms??new List<string>()));
+            detail.AppendLine("Year: "+(cat.FirstReleaseYear>0?cat.FirstReleaseYear.ToString():"Unknown"));
+            detail.AppendLine("Aliases: "+String.Join(", ",cat.Aliases??new List<string>()));
+            detail.AppendLine("Genres: "+String.Join(", ",cat.Genres??new List<string>()));
+            detail.AppendLine("Developers: "+String.Join(", ",cat.Developers??new List<string>()));
+            detail.AppendLine("Publishers: "+String.Join(", ",cat.Publishers??new List<string>()));
+            detail.AppendLine("Series: "+String.Join(", ",cat.SeriesNames??new List<string>()));
+            detail.AppendLine("Cover image ID: "+(cat.CoverImageId??""));
+            detail.AppendLine("Screenshot ID: "+(cat.ScreenshotImageId??""));
+            detail.AppendLine();detail.AppendLine("IGDB description:");
+            detail.AppendLine(cat.Summary??"(none)");
+            return detail.ToString();
+        }
+        private void ShowIgdbRecord(CatalogViewRow row,Window parent,long overrideId=0)
+        {
+            long id=overrideId;
+            if(row==null)return;
+            if(id<=0 && (!Int64.TryParse(row.IgdbId,out id) || id<=0))return;
+            if(String.IsNullOrWhiteSpace(clientId.Text) || String.IsNullOrWhiteSpace(secret.Password))
+            {api.Dialogs.ShowMessage("Configure IGDB credentials first.","Inspect IGDB");return;}
+            var dialog=new Window {Title="IGDB metadata — "+row.CurrentName,Width=920,Height=670,
+                MinWidth=580,MinHeight=380,Owner=parent??window,
+                WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=Deep()};
+            var body=new DockPanel{Margin=new Thickness(12)};
+            var note=Caption("Exact IGDB ID "+id+" · fetched live · read-only; no Playnite changes",13);
+            DockPanel.SetDock(note,Dock.Top);body.Children.Add(note);
+            var footer=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};
+            DockPanel.SetDock(footer,Dock.Bottom);body.Children.Add(footer);
+            Button close;AddButton(footer,"Close",()=>dialog.Close(),out close);
+            var details=new TextBox{Text="Loading exact IGDB record...",IsReadOnly=true,
+                TextWrapping=TextWrapping.Wrap,AcceptsReturn=true,Padding=new Thickness(12),
+                VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,
+                Background=PanelBrush(),Foreground=Muted(),BorderBrush=StrokeBrush()};
+            body.Children.Add(details);dialog.Content=body;
+            var token=new CancellationTokenSource();dialog.Closed+=(sender,args)=>token.Cancel();
+            var cid=clientId.Text;var sec=secret.Password;
+            Task.Run(()=>{
+                try
+                {
+                    CatalogGame cat;
+                    using(var client=new IgdbReadOnly(cid,sec))cat=client.FetchById(id,token.Token);
+                    dialog.Dispatcher.BeginInvoke(new Action(()=>{
+                        if(!dialog.IsVisible)return;
+                        inspectedCatalog[id]=cat;
+                        details.Text=CatalogDetailsText(cat);
+                        if(grid!=null && grid.SelectedItem==row)UpdatePreview();
+                    }));
+                }
+                catch(OperationCanceledException){}
+                catch(Exception ex){var message=ex.Message;dialog.Dispatcher.BeginInvoke(new Action(()=>{
+                    if(dialog.IsVisible)details.Text="IGDB lookup failed: "+message;
+                }));}
+            });
+            dialog.ShowDialog();
+        }
+        private sealed class IgdbSearchChoice
+        {
+            public CatalogGame Game{get;set;}
+            public string Name{get{return Game==null?"":Game.Name;}}
+            public string Id{get{return Game==null?"":Game.Id.ToString();}}
+            public string Platforms{get{return Game==null?"":String.Join(", ",Game.Platforms??new List<string>());}}
+            public string Year{get{return Game==null || Game.FirstReleaseYear<=0?"Unknown":Game.FirstReleaseYear.ToString();}}
+            public string Compatibility{get;set;}
+        }
+        private void ShowIgdbAlternativeSearch(CatalogViewRow row,Window parent,Action onChanged)
+        {
+            if(row==null || row.IsCompleted || busy || !confirmedIdentitiesAvailable)return;
+            var dialog=new Window {Title="Search IGDB matches — "+row.CurrentName,Width=1020,Height=670,
+                MinWidth=670,MinHeight=460,Owner=parent??window,
+                WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=Deep()};
+            var body=new DockPanel{Margin=new Thickness(12)};
+            var lead=Caption("Search IGDB without changing Playnite. Select a result with the SAME console; " +
+                "you must explicitly confirm the replacement identity. Imports still require final approval.",13);
+            DockPanel.SetDock(lead,Dock.Top);body.Children.Add(lead);
+            var searchBar=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,9,0,9)};
+            DockPanel.SetDock(searchBar,Dock.Top);body.Children.Add(searchBar);
+            var searchText=new TextBox{Width=340,MinHeight=33,Text=CatalogCore.QueryTitle(row.CurrentName,row.Platform),
+                ToolTip="Search official IGDB game titles"};searchBar.Children.Add(searchText);
+            var status=Caption("",12);DockPanel.SetDock(status,Dock.Top);body.Children.Add(status);
+            var footer=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,10,0,0)};
+            DockPanel.SetDock(footer,Dock.Bottom);body.Children.Add(footer);
+            var resultsTable=NewTable();resultsTable.SelectionMode=DataGridSelectionMode.Single;
+            resultsTable.Columns.Add(new DataGridTextColumn{Header="IGDB game",Binding=new Binding("Name"),Width=new DataGridLength(2,DataGridLengthUnitType.Star)});
+            resultsTable.Columns.Add(new DataGridTextColumn{Header="Platforms",Binding=new Binding("Platforms"),Width=new DataGridLength(2,DataGridLengthUnitType.Star)});
+            resultsTable.Columns.Add(new DataGridTextColumn{Header="Year",Binding=new Binding("Year"),Width=74});
+            resultsTable.Columns.Add(new DataGridTextColumn{Header="IGDB ID",Binding=new Binding("Id"),Width=96});
+            resultsTable.Columns.Add(new DataGridTextColumn{Header="Console check",Binding=new Binding("Compatibility"),Width=120});
+            body.Children.Add(resultsTable);
+            Button find=null,adopt=null,inspect=null,close=null;
+            var token=new CancellationTokenSource();
+            dialog.Closed+=(sender,args)=>token.Cancel();
+            AddButton(searchBar,"Search",()=>{
+                var query=(searchText.Text??"").Trim();
+                if(query.Length<3 || query.Length>150)
+                {status.Text="Enter a search title of 3–150 characters.";return;}
+                if(String.IsNullOrWhiteSpace(clientId.Text)||String.IsNullOrWhiteSpace(secret.Password))
+                {status.Text="IGDB credentials are not configured.";return;}
+                find.IsEnabled=false;adopt.IsEnabled=false;
+                status.Text="Searching IGDB (read-only)...";
+                var cid=clientId.Text;var sec=secret.Password;
+                Task.Run(()=>{
+                    try
+                    {
+                        List<CatalogGame> candidates;
+                        using(var client=new IgdbReadOnly(cid,sec))
+                            candidates=client.SearchVariants(new[]{query},token.Token);
+                        var ranked=(candidates??new List<CatalogGame>())
+                            .OrderByDescending(c=>CatalogReviewActions.PlatformVerified(row.Platform,c.Id,c.Name,c.PlatformIds))
+                            .ThenByDescending(c=>String.Equals(c.Name,query,StringComparison.OrdinalIgnoreCase))
+                            .ThenBy(c=>c.Name,StringComparer.OrdinalIgnoreCase).Take(35)
+                            .Select(c=>new IgdbSearchChoice{Game=c,
+                                Compatibility=CatalogReviewActions.PlatformVerified(row.Platform,c.Id,c.Name,c.PlatformIds)?"Same console":"Other console"}).ToList();
+                        dialog.Dispatcher.BeginInvoke(new Action(()=>{
+                            if(!dialog.IsVisible)return;
+                            resultsTable.ItemsSource=ranked;
+                            status.Text=ranked.Count+" result(s). Verify edition, title and console before using a result.";
+                            find.IsEnabled=true;
+                        }));
+                    }
+                    catch(OperationCanceledException){}
+                    catch(Exception ex){var msg=ex.Message;dialog.Dispatcher.BeginInvoke(new Action(()=>{
+                        if(!dialog.IsVisible)return;
+                        status.Text="Search failed: "+msg;find.IsEnabled=true;
+                    }));}
+                });
+            },out find);
+            AddButton(footer,"Inspect selected IGDB record...",()=>{
+                var choice=resultsTable.SelectedItem as IgdbSearchChoice;
+                if(choice==null)return;
+                ShowIgdbRecord(row,dialog,choice.Game.Id);
+            },out inspect);
+            AddButton(footer,"Use selected IGDB match...",()=>{
+                var choice=resultsTable.SelectedItem as IgdbSearchChoice;
+                if(choice==null || !CatalogReviewActions.PlatformVerified(row.Platform,choice.Game.Id,choice.Game.Name,choice.Game.PlatformIds))return;
+                if(!IsLiveReviewMatch(row))
+                {api.Dialogs.ShowMessage("Playnite game changed since scanning. Rescan before choosing a match.","IGDB identity stale");return;}
+                if(api.Dialogs.ShowMessage("Confirm this exact IGDB identity for the Playnite game?\n\n"+
+                    "Playnite: "+row.CurrentName+"\nConsole: "+row.Platform+"\n"+
+                    "IGDB: "+choice.Game.Name+" (ID "+choice.Game.Id+")\n\n"+
+                    "This saves a LOCAL match decision, not a metadata import. " +
+                    "A later import still rechecks the exact ID and platform, then requests approval.",
+                    "Use IGDB identity",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)return;
+                try
+                {
+                    confirmedIdentities.Confirm(row.GameId,row.CurrentName,row.Platform,
+                        choice.Game.Id,choice.Game.Name,DateTime.UtcNow);
+                    row.Candidate=choice.Game.Name;row.IgdbId=choice.Game.Id.ToString();
+                    row.Status="Confirmed";row.PreviousStatus="Review";
+                    row.UserConfirmed=true;row.AutoPlanEligible=false;row.FromSavedScan=false;
+                    row.Marked=false;row.Evidence="IGDB identity manually selected and confirmed; live ID/platform validation required before import";
+                    row.CatalogSummary=choice.Game.Summary;row.CatalogCoverImageId=choice.Game.CoverImageId;
+                    row.CatalogScreenshotImageId=choice.Game.ScreenshotImageId;
+                    row.ReleaseYear=choice.Game.FirstReleaseYear<=0?"":choice.Game.FirstReleaseYear.ToString();
+                    // Persist the reviewed candidate as a READ-ONLY cache entry,
+                    // allowing the exact confirmed ID/title to survive a restart.
+                    if(scanCacheAvailable)
+                    {
+                        try {scanCache.SaveBatch(new[]{SaveableScanResult(row)},DateTime.UtcNow);}
+                        catch(Exception ex)
+                        {
+                            scanCacheAvailable=false;
+                            api.Dialogs.ShowErrorMessage("The identity is saved, but scan-cache refresh failed: "+ex.Message,
+                                "Saved scan warning");
+                        }
+                    }
+                    grid.Items.Refresh();RefreshVisibility();UpdatePreview();
+                    if(onChanged!=null)onChanged();
+                    dialog.Close();
+                }
+                catch(Exception ex){api.Dialogs.ShowErrorMessage(ex.Message,"Unable to save IGDB decision");}
+            },out adopt);
+            adopt.IsEnabled=false;inspect.IsEnabled=false;
+            resultsTable.SelectionChanged+=(sender,args)=>{
+                var chosen=resultsTable.SelectedItem as IgdbSearchChoice;
+                inspect.IsEnabled=chosen!=null;
+                adopt.IsEnabled=chosen!=null && CatalogReviewActions.PlatformVerified(row.Platform,chosen.Game.Id,chosen.Game.Name,chosen.Game.PlatformIds);
+            };
+            AddButton(footer,"Cancel",()=>dialog.Close(),out close);
+            dialog.Content=body;dialog.ShowDialog();
+        }
+
         // Identity preview itself is read-only. A separate, explicitly confirmed
         // private testing action may dispatch marked, strictly eligible rows
         // through the EXISTING journaled batch writer. This is not the v0.5 runner.
@@ -982,6 +1273,21 @@ namespace SmartMetadataMatcher
             view.SelectionChanged+=(s,e)=>refreshRows();
             search.TextChanged+=(s,e)=>refreshRows();
             table.SelectionChanged+=(s,e)=>updateSelection();
+            AttachGameReviewMenu(table,()=>{
+                var selected=table.SelectedItem as PlanPreviewRow;
+                return selected==null?null:selected.SourceRow;
+            },dialog,()=>{
+                var selected=table.SelectedItem as PlanPreviewRow;
+                if(selected==null || selected.SourceRow==null)return;
+                selected.Catalog=selected.SourceRow.Candidate;
+                selected.CatalogId=selected.SourceRow.IgdbId;
+                selected.IdentityStatus=selected.SourceRow.UserConfirmed?"Confirmed by you":"Needs review";
+                selected.Explanation=selected.SourceRow.Evidence;
+                selected.Ready=selected.SourceRow.UserConfirmed;
+                selected.RenameHandling=selected.Ready?"Recalculate title at final approval":"Not planned";
+                view.SelectedIndex=4;
+                refreshRows();
+            });
             // Checkboxes update the same underlying marks as the main dashboard.
             // Refresh on the dispatcher after the binding has committed its value.
             table.AddHandler(System.Windows.Controls.Primitives.ButtonBase.ClickEvent,

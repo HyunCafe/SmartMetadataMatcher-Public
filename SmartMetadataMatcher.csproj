@@ -33,6 +33,7 @@
     <Compile Include="Source/CatalogConfirmedIdentities.cs" />
     <Compile Include="Source/HistoryVisibilityStore.cs" />
     <Compile Include="Source/IgdbReadOnly.cs" />
+    <Compile Include="Source/CatalogReviewActions.cs" />
     <Compile Include="Source/CatalogWindow.cs" />
     <Compile Include="Source/MetadataPlan.cs" />
     <Compile Include="Source/MetadataJournal.cs" />

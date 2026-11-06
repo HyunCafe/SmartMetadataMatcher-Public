@@ -286,3 +286,9 @@
 - Conflicting official titles or console identities sharing a catalog ID remain blocked for review. Ignored or completed equivalent records do not disqualify an independent eligible game.
 - Display-title cleanup adds a console suffix (e.g. `04 Donkey Kong` → `Donkey Kong (GBA)`) when the clean name exists on the same or another console. Does not modify ROM paths. A second suffix collision remains unmodified rather than generating invented edition numbers.
 - Regression tests use actual repeated-ID patterns identified in the full-library CSV.
+
+### 0.4.28 — Context-sensitive game review and editing
+- Right-click a game in the main results or Review Matches list to open the supported native Playnite Edit Game dialog (all fields), compare current/suggested fields, inspect live exact IGDB metadata, or search alternative IGDB records.
+- Searches are read-only. An alternative match can be used only after explicit confirmation and a structured platform-ID match; the selected decision persists locally, but is not import authorization.
+- Edits made in the Playnite native editor are outside the plugin undo journal. After saving, import marks and auto eligibility are invalidated, and the game needs revalidation. Review Matches reopens automatically.
+- The original metadata writer, title cleanup, ROM paths, recovery journals, and five-game supervised cap are unchanged.
