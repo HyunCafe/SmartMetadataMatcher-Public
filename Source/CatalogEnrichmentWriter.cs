@@ -60,7 +60,7 @@ namespace SmartMetadataMatcher
             string expectedName,string expectedPlatform,string expectedDescription,string expectedCover,
             string expectedIcon,string expectedBackground,string expectedSorting,CatalogGame catalog,
             byte[] cover,byte[] icon,byte[] background,bool rename,GameExtrasSnapshot expectedExtras,
-            string approvedDisplayTitle)
+            string approvedDisplayTitle,CatalogImportDraft draft=null)
         {
             if(catalog==null || catalog.Id<=0) throw new InvalidOperationException("Missing verified catalog ID.");
             if(expectedExtras==null) throw new InvalidOperationException("Missing original metadata snapshot.");
@@ -81,6 +81,9 @@ namespace SmartMetadataMatcher
                !String.Equals(Platforms(game),expectedPlatform,StringComparison.Ordinal) ||
                !expectedExtras.Matches(game))
                 throw new InvalidOperationException("The game changed after preview. Rescan before applying.");
+            if(draft!=null && (!CatalogImportDraft.Valid(draft) ||
+                !draft.Matches(gameId,expectedName,expectedPlatform,catalog.Id,catalog.Name)))
+                throw new InvalidOperationException("The staged edit no longer matches this game and catalog identity; review again.");
             long platformId=CatalogCore.PlatformId(expectedPlatform);
             if(platformId<=0 || catalog.PlatformIds==null || !catalog.PlatformIds.Contains(platformId))
                 throw new InvalidOperationException("IGDB platform does not corroborate this Playnite game.");
@@ -104,14 +107,17 @@ namespace SmartMetadataMatcher
             // During the SAME approved metadata import, clean only Playnite's
             // display title. Never change ROM filenames, launch paths or actions.
             // This uses the same pure planner shown to the user before approval.
-            if(rename)
+            if(rename || (draft!=null && draft.CustomTitleEnabled))
             {
                 var names=api.Database.Games.Where(g=>g!=null).Select(g=>
                     Tuple.Create(g.Id,g.Name,Platforms(g))).ToList();
-                var wanted=EnrichmentPlan.SuggestedUniqueDisplayTitle(
-                    game.Name,catalog.Name,game.Id,expectedPlatform,names);
-                if(String.IsNullOrWhiteSpace(wanted))
-                    e.Note="No unambiguous display title available; metadata may still be updated.";
+                var wanted=CatalogImportDraft.ResolveTitle(
+                    game.Name,catalog.Name,game.Id,expectedPlatform,names,rename,draft);
+                if(wanted==null)
+                    throw new InvalidOperationException("The edited title is invalid or conflicts with another Playnite game.");
+                if(String.Equals(game.Name,wanted,StringComparison.Ordinal) && rename &&
+                   (draft==null || !draft.CustomTitleEnabled))
+                    e.Note="No unambiguous replacement title available; metadata may still be updated.";
                 else if(!String.Equals(game.Name,wanted,StringComparison.Ordinal))
                 {
                     e.AfterName=wanted; e.ChangedName=true;
@@ -126,7 +132,15 @@ namespace SmartMetadataMatcher
             // staging. Fail closed if earlier batch changes altered this title.
             if(!String.Equals(e.AfterName,approvedDisplayTitle,StringComparison.Ordinal))
                 throw new InvalidOperationException("Approved Playnite title differs from current plan; rescan before applying.");
-            if(MetadataPlan.Missing(game.Description) && !String.IsNullOrWhiteSpace(catalog.Summary))
+            if(draft!=null && draft.CustomDescriptionEnabled)
+            {
+                if(!CatalogImportDraft.SafeDescription(draft.CustomDescription))
+                    throw new InvalidOperationException("The custom description is empty or too long.");
+                e.AfterDescription=MetadataPlan.HtmlFromSummary(draft.CustomDescription);
+                e.ChangedDescription=!EnrichmentPlan.IsExpected(e.BeforeDescription,e.AfterDescription);
+            }
+            else if((draft==null || draft.Description) &&
+                    MetadataPlan.Missing(game.Description) && !String.IsNullOrWhiteSpace(catalog.Summary))
             {
                 e.AfterDescription=MetadataPlan.HtmlFromSummary(catalog.Summary);
                 e.ChangedDescription=true;
@@ -141,7 +155,7 @@ namespace SmartMetadataMatcher
             journal.MediaStaging.Begin(e.OperationId,e.GameId);
             try
             {
-                if(MetadataPlan.Missing(game.CoverImage) && MetadataPlan.LooksLikeJpeg(cover))
+                if((draft==null || draft.Cover) && MetadataPlan.Missing(game.CoverImage) && MetadataPlan.LooksLikeJpeg(cover))
                 {
                     mediaUploadUncertain=true;
                     e.AfterCover=SaveImage(api,game.Id,cover);
@@ -150,7 +164,7 @@ namespace SmartMetadataMatcher
                     mediaUploadUncertain=false;
                     e.ChangedCover=true;
                 }
-                if(MetadataPlan.Missing(game.Icon) && MetadataPlan.LooksLikeJpeg(icon))
+                if((draft==null || draft.Icon) && MetadataPlan.Missing(game.Icon) && MetadataPlan.LooksLikeJpeg(icon))
                 {
                     mediaUploadUncertain=true;
                     e.AfterIcon=SaveImage(api,game.Id,icon);
@@ -159,7 +173,7 @@ namespace SmartMetadataMatcher
                     mediaUploadUncertain=false;
                     e.ChangedIcon=true;
                 }
-                if(MetadataPlan.Missing(game.BackgroundImage) && MetadataPlan.LooksLikeJpeg(background))
+                if((draft==null || draft.Background) && MetadataPlan.Missing(game.BackgroundImage) && MetadataPlan.LooksLikeJpeg(background))
                 {
                     mediaUploadUncertain=true;
                     e.AfterBackground=SaveImage(api,game.Id,background);
@@ -172,7 +186,7 @@ namespace SmartMetadataMatcher
                 // Playnite manages shared Genre/Company/Series objects by stable IDs.
                 // Never use the catalog's generic first release year for a platform-specific
                 // ROM, because a console game's GBA port may have a different release year.
-                if(!game.ReleaseDate.HasValue && catalog.ReleaseDates!=null)
+                if((draft==null || draft.Release) && !game.ReleaseDate.HasValue && catalog.ReleaseDates!=null)
                 {
                     var years=catalog.ReleaseDates.Where(r=>r!=null && r.PlatformId==platformId &&
                         r.Year>=1970 && r.Year<=DateTime.UtcNow.Year+5).Select(r=>r.Year).ToList();
@@ -182,22 +196,22 @@ namespace SmartMetadataMatcher
                         e.ChangedRelease=true;
                     }
                 }
-                if((game.GenreIds==null || game.GenreIds.Count==0) && catalog.Genres!=null && catalog.Genres.Count>0)
+                if((draft==null || draft.Genres) && (game.GenreIds==null || game.GenreIds.Count==0) && catalog.Genres!=null && catalog.Genres.Count>0)
                 {
                     e.AfterGenres=catalog.Genres.Select(v=>api.Database.Genres.Add(v).Id).Distinct().ToList();
                     e.ChangedGenres=e.AfterGenres.Count>0;
                 }
-                if((game.DeveloperIds==null || game.DeveloperIds.Count==0) && catalog.Developers!=null && catalog.Developers.Count>0)
+                if((draft==null || draft.Developers) && (game.DeveloperIds==null || game.DeveloperIds.Count==0) && catalog.Developers!=null && catalog.Developers.Count>0)
                 {
                     e.AfterDevelopers=catalog.Developers.Select(v=>api.Database.Companies.Add(v).Id).Distinct().ToList();
                     e.ChangedDevelopers=e.AfterDevelopers.Count>0;
                 }
-                if((game.PublisherIds==null || game.PublisherIds.Count==0) && catalog.Publishers!=null && catalog.Publishers.Count>0)
+                if((draft==null || draft.Publishers) && (game.PublisherIds==null || game.PublisherIds.Count==0) && catalog.Publishers!=null && catalog.Publishers.Count>0)
                 {
                     e.AfterPublishers=catalog.Publishers.Select(v=>api.Database.Companies.Add(v).Id).Distinct().ToList();
                     e.ChangedPublishers=e.AfterPublishers.Count>0;
                 }
-                if((game.SeriesIds==null || game.SeriesIds.Count==0) && catalog.SeriesNames!=null && catalog.SeriesNames.Count>0)
+                if((draft==null || draft.Series) && (game.SeriesIds==null || game.SeriesIds.Count==0) && catalog.SeriesNames!=null && catalog.SeriesNames.Count>0)
                 {
                     e.AfterSeries=catalog.SeriesNames.Select(v=>api.Database.Series.Add(v).Id).Distinct().ToList();
                     e.ChangedSeries=e.AfterSeries.Count>0;

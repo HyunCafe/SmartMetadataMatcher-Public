@@ -8,8 +8,8 @@ using Playnite.SDK.Plugins;
 [assembly: AssemblyCompany("HyunCafe")]
 [assembly: AssemblyProduct("Smart Metadata Matcher")]
 [assembly: AssemblyDescription("Private preview: unified import review, progress and recovery inspection") ]
-[assembly: AssemblyVersion("0.4.28.0")]
-[assembly: AssemblyFileVersion("0.4.28.0")]
+[assembly: AssemblyVersion("0.4.29.0")]
+[assembly: AssemblyFileVersion("0.4.29.0")]
 
 namespace SmartMetadataMatcher
 {

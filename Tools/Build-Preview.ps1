@@ -36,7 +36,7 @@ try {
         throw "Version mismatch: YAML=$yamlVersion source=$sourceVersion compiled=$dllVersion"
     }
     New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-    $name = "SmartMetadataMatcher-$yamlVersion-review-context-actions-preview-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
+    $name = "SmartMetadataMatcher-$yamlVersion-in-app-import-drafts-preview-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
     $zip = Join-Path $releaseDir ($name + '.zip')
     $pext = Join-Path $releaseDir ($name + '.pext')
     if (Test-Path -LiteralPath $pext) { throw "Refusing to overwrite $pext" }
@@ -52,6 +52,6 @@ try {
     $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $pext).Hash
     Write-Host "SUCCESS: $pext"
     Write-Host "SHA256: $hash"
-    Write-Host 'REVIEW ACTIONS PREVIEW: native game editor, IGDB details and manual candidate search in Matcher. Writer, recovery and batch caps unchanged.'
+    Write-Host 'IMPORT DRAFT PREVIEW: staged title/description edits and field exclusions, final approval, journalled undo. Five-game cap unchanged.'
 }
 finally { Pop-Location }

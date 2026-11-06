@@ -292,3 +292,10 @@
 - Searches are read-only. An alternative match can be used only after explicit confirmation and a structured platform-ID match; the selected decision persists locally, but is not import authorization.
 - Edits made in the Playnite native editor are outside the plugin undo journal. After saving, import marks and auto eligibility are invalidated, and the game needs revalidation. Review Matches reopens automatically.
 - The original metadata writer, title cleanup, ROM paths, recovery journals, and five-game supervised cap are unchanged.
+
+## v0.4.29 — In-app import drafts
+- Stage a custom Playnite title, plain-text description override, and opt-outs for missing metadata fields from right-click or Review Matches. No Playnite write occurs on Save draft.
+- The final approval window allows editing the selected proposal and recomputes the displayed plan before approval.
+- Pure title/identity guards prevent accidental duplicate titles, stale game/IGDB IDs and unsafe content. The same title resolver is used at preview and write time.
+- Optional description replacement is HTML-escaped and recorded in the original enrichment journal for undo. Media/metadata exclusions are honored by downloader and writer.
+- Retains existing supervised caps, recovery gates and platform/identity verification.

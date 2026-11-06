@@ -232,3 +232,9 @@ Allow multiple distinct Playnite records to match one IGDB record when the catal
 
 ### v0.4.28 review context actions
 Use Playnite's supported MainView.OpenEditDialog for editing any game metadata rather than recreating its editor or writing unjournaled fields directly. Clearly distinguish manually saved Playnite edits (outside plugin undo) from supervised Matcher imports. Offer read-only exact IGDB inspection and title search inside the Matcher; only adopt matching-platform search results after explicit identity confirmation and preserve live ID/platform preflight and final import approval. Right-clicking must not toggle import marks.
+
+## v0.4.29 — Staged metadata changes
+- Only title and description are editable as staged text. Other missing fields can be individually included/excluded; genres/developers/publishers/release editing stays in Playnite native editor, outside Matcher undo.
+- Staged drafts are in-memory and tied to the exact Playnite game name/platform and IGDB ID/title. Closing Matcher discards unapproved drafts. Saving a draft never changes the library.
+- The only path to write a staged draft is the same explicit final approved import and write-ahead enrichment journal.
+- Custom titles must be unique by normalized display name; unsafe or changing identities fail closed.
