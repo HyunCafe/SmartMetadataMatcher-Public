@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net462</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>SmartMetadataMatcher.Tests</AssemblyName>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <LangVersion>5</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net462" Version="[1.0.3]" PrivateAssets="all" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Compile Include="../Source/CatalogCore.cs" Link="CatalogCore.cs" />
+    <Compile Include="CatalogCoreTests.cs" />
+    <Compile Include="../Source/CatalogIgnored.cs" Link="CatalogIgnored.cs" />
+    <Compile Include="CatalogIgnoredTests.cs" />
+    <Compile Include="../Source/MetadataPlan.cs" Link="MetadataPlan.cs" />
+    <Compile Include="../Source/MetadataJournal.cs" Link="MetadataJournal.cs" />
+    <Compile Include="MetadataPlanTests.cs" />
+    <Compile Include="../Source/EnrichmentPlan.cs" Link="EnrichmentPlan.cs" />
+    <Compile Include="../Source/EnrichmentJobPlan.cs" Link="EnrichmentJobPlan.cs" />
+    <Compile Include="EnrichmentJobPlanTests.cs" />
+    <Compile Include="../Source/EnrichmentJournal.cs" Link="EnrichmentJournal.cs" />
+    <Compile Include="EnrichmentPlanTests.cs" />
+    <Compile Include="../Source/NameRules.cs" Link="NameRules.cs" />
+    <Compile Include="../Source/RenameJournal.cs" Link="RenameJournal.cs" />
+    <Compile Include="RenameJournalTests.cs" />
+    <Compile Include="../Source/DiagnosticCsv.cs" Link="DiagnosticCsv.cs" />
+    <Compile Include="DiagnosticCsvTests.cs" />
+    <Compile Include="NameRulesTests.cs" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net462</TargetFramework>
+    <AssemblyName>SmartMetadataMatcher</AssemblyName>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <LangVersion>5</LangVersion>
+    <Deterministic>true</Deterministic>
+    <Optimize>true</Optimize>
+    <Nullable>disable</Nullable>
+    <OutputType>Library</OutputType>
+    <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+    <DebugSymbols Condition="'$(Configuration)' == 'Release'">false</DebugSymbols>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="PlayniteSDK" Version="[6.18.0]" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net462" Version="[1.0.3]" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="System.Xaml" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Security" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Compile Include="Source/CatalogCore.cs" />
+    <Compile Include="Source/CatalogIgnored.cs" />
+    <Compile Include="Source/IgdbReadOnly.cs" />
+    <Compile Include="Source/CatalogWindow.cs" />
+    <Compile Include="Source/MetadataPlan.cs" />
+    <Compile Include="Source/MetadataJournal.cs" />
+    <Compile Include="Source/CatalogMetadataWriter.cs" />
+    <Compile Include="Source/CatalogEnrichmentWriter.cs" />
+    <Compile Include="Source/EnrichmentJournal.cs" />
+    <Compile Include="Source/EnrichmentPlan.cs" />
+    <Compile Include="Source/EnrichmentJobPlan.cs" />
+    <Compile Include="Source/NameRules.cs" />
+    <Compile Include="Source/RenameJournal.cs" />
+    <Compile Include="Source/PreviewWindow.cs" />
+    <Compile Include="Source/DiagnosticCsv.cs" />
+    <Compile Include="Source/DiagnosticExport.cs" />
+    <Compile Include="Source/Plugin.cs" />
+  </ItemGroup>
+</Project>

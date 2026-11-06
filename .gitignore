@@ -1,0 +1,27 @@
+# Local builds, generated artifacts, private handoffs, and IDE state.
+bin/
+obj/
+.vs/
+.vscode/
+*.user
+*.suo
+*.pdb
+*.pext
+*.zip
+*.private.md
+*PROJECT_STATE*
+*PROJECT-MASTER*
+Releases/
+
+# Local/private data excluded from Git
+*.csv
+*.log
+*.dpapi
+*.env
+.env.*
+*.sqlite
+*.db
+*.bak
+*PRIVATE*
+*private*
+REFERENCE_SOURCE_NOTICE.md
