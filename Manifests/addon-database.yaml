@@ -1,0 +1,13 @@
+# DRAFT ONLY — NOT SUBMITTED. Playnite add-on submission intake is currently on hold.
+# Requires valid, published installer URL and a verified public source/release first.
+AddonId: '11D77564-F56F-5BF3-9CBB-7BB0CB427537'
+Type: Generic
+Name: Smart Metadata Matcher
+Author: HyunCafe
+ShortDescription: Review IGDB game matches and safely enrich missing Playnite metadata.
+Description: Inspect game, platform and edition evidence, confirm matching identities, preview supported metadata additions, and apply approved changes with recovery history.
+InstallerManifestUrl: https://raw.githubusercontent.com/HyunCafe/SmartMetadataMatcher-Public/main/Manifests/installer.yaml
+SourceUrl: https://github.com/HyunCafe/SmartMetadataMatcher-Public
+Tags: [metadata, igdb, utilities]
+Links:
+  Website: https://github.com/HyunCafe/SmartMetadataMatcher-Public

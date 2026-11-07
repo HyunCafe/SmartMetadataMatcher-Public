@@ -1,0 +1,71 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net462</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>SmartMetadataMatcher.Tests</AssemblyName>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <LangVersion>5</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net462" Version="[1.0.3]" PrivateAssets="all" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Security" />
+    <Compile Include="../Source/CatalogReviewActions.cs" Link="CatalogReviewActions.cs" />
+    <Compile Include="../Source/CatalogImportDraft.cs" Link="CatalogImportDraft.cs" />
+    <Compile Include="CatalogImportDraftTests.cs" />
+    <Compile Include="CatalogReviewActionsTests.cs" />
+    <Compile Include="../Source/CatalogEnrichmentNeeds.cs" Link="CatalogEnrichmentNeeds.cs" />
+    <Compile Include="../Source/CatalogQueueView.cs" Link="CatalogQueueView.cs" />
+    <Compile Include="../Source/CatalogStrictBatchFlow.cs" Link="CatalogStrictBatchFlow.cs" />
+    <Compile Include="../Source/CatalogManualReviewFlow.cs" Link="CatalogManualReviewFlow.cs" />
+    <Compile Include="CatalogManualReviewFlowTests.cs" />
+    <Compile Include="CatalogStrictBatchFlowTests.cs" />
+    <Compile Include="CatalogQueueViewTests.cs" />
+    <Compile Include="CatalogEnrichmentNeedsTests.cs" />
+    <Compile Include="../Source/CatalogCore.cs" Link="CatalogCore.cs" />
+    <Compile Include="../Source/CatalogCandidateEvidence.cs" Link="CatalogCandidateEvidence.cs" />
+    <Compile Include="../Source/CatalogSmartResolver.cs" Link="CatalogSmartResolver.cs" />
+    <Compile Include="CatalogCandidateEvidenceTests.cs" />
+    <Compile Include="CatalogSmartResolverTests.cs" />
+    <Compile Include="../Source/IgdbReadOnly.cs" Link="IgdbReadOnly.cs" />
+    <Compile Include="IgdbConnectionTests.cs" />
+    <Compile Include="CatalogCoreTests.cs" />
+    <Compile Include="../Source/CatalogIgnored.cs" Link="CatalogIgnored.cs" />
+    <Compile Include="../Source/CatalogScanCache.cs" Link="CatalogScanCache.cs" />
+    <Compile Include="../Source/CatalogConfirmedIdentities.cs" Link="CatalogConfirmedIdentities.cs" />
+    <Compile Include="CatalogConfirmedIdentitiesTests.cs" />
+    <Compile Include="CatalogScanCacheTests.cs" />
+    <Compile Include="../Source/HistoryVisibilityStore.cs" Link="HistoryVisibilityStore.cs" />
+    <Compile Include="../Source/HistoryViewFilter.cs" Link="HistoryViewFilter.cs" />
+    <Compile Include="HistoryViewFilterTests.cs" />
+    <Compile Include="CatalogIgnoredTests.cs" />
+    <Compile Include="../Source/MetadataPlan.cs" Link="MetadataPlan.cs" />
+    <Compile Include="../Source/MetadataJournal.cs" Link="MetadataJournal.cs" />
+    <Compile Include="MetadataPlanTests.cs" />
+    <Compile Include="../Source/EnrichmentPlan.cs" Link="EnrichmentPlan.cs" />
+    <Compile Include="../Source/EnrichmentJobPlan.cs" Link="EnrichmentJobPlan.cs" />
+    <Compile Include="../Source/CatalogBatchProgress.cs" Link="CatalogBatchProgress.cs" />
+    <Compile Include="../Source/CatalogBatchPolicy.cs" Link="CatalogBatchPolicy.cs" />
+    <Compile Include="CatalogBatchProgressTests.cs" />
+    <Compile Include="CatalogBatchPolicyTests.cs" />
+    <Compile Include="EnrichmentJobPlanTests.cs" />
+    <Compile Include="../Source/EnrichmentJournal.cs" Link="EnrichmentJournal.cs" />
+    <Compile Include="../Source/CatalogMediaStagingJournal.cs" Link="CatalogMediaStagingJournal.cs" />
+    <Compile Include="../Source/CatalogRecoveryConsistency.cs" Link="CatalogRecoveryConsistency.cs" />
+    <Compile Include="../Source/CatalogImportIntent.cs" Link="CatalogImportIntent.cs" />
+    <Compile Include="CatalogRecoveryConsistencyTests.cs" />
+    <Compile Include="CatalogMediaStagingJournalTests.cs" />
+    <Compile Include="EnrichmentPlanTests.cs" />
+    <Compile Include="../Source/NameRules.cs" Link="NameRules.cs" />
+    <Compile Include="../Source/RenameJournal.cs" Link="RenameJournal.cs" />
+    <Compile Include="RenameJournalTests.cs" />
+    <Compile Include="../Source/DiagnosticCsv.cs" Link="DiagnosticCsv.cs" />
+    <Compile Include="DiagnosticCsvTests.cs" />
+    <Compile Include="JournalReplayBenchmarkTests.cs" />
+    <Compile Include="EnrichmentJournalReplayTests.cs" />
+    <Compile Include="JournalFaultMatrixTests.cs" />
+    <Compile Include="NameRulesTests.cs" />
+  </ItemGroup>
+</Project>
