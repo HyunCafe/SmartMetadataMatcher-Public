@@ -1,3 +1,9 @@
+## v0.5.17 private candidate — manual batch usability / public preparation
+- The previous 50-game manual identity-review limit is raised to a bounded 1000-game resource ceiling to enable selecting the current eligible library in one explicit review.
+- Mixed strict/confirmed selections can mark all rows, but must pass full manual confirmation, live IGDB preflight, verified backup acknowledgement and sequential per-game journaled imports.
+- 50-game *progress groups* are display-only; this does not add chunk transactions or remove the stop-on-error gate. Five-game weak-evidence supervised selection remains bounded.
+- This is a private candidate requiring Windows and Playnite testing before any public release. Public documentation and manifests are staged separately, without exposing private Git history.
+
 ## v0.5.16 private review-window correction
 The 50-game manual review dialog no longer closes when checkboxes are clicked rapidly; use Inspect game to navigate intentionally. After approving a reviewed bulk batch, the window now shows a live, read-only IGDB identity preflight counter before any metadata writes begin. Identity validation, network pacing, final approval, backup, journal and undo safety rules remain unchanged. This private build needs Windows and Playnite validation before public release.
 

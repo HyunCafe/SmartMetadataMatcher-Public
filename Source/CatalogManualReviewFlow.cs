@@ -5,7 +5,7 @@ using System.Linq;
 namespace SmartMetadataMatcher
 {
     // A checked row identifies a proposed decision; it is not yet approval.
-    // Manual bulk approval is explicit, bounded, and rejected in its entirety
+    // Manual bulk approval is explicit, bounded by available review and persistence resources, and rejected in its entirety
     // for stale/corrupt/conflicting selections before any identity file changes.
     internal sealed class CatalogManualReviewCandidate
     {
@@ -16,7 +16,10 @@ namespace SmartMetadataMatcher
 
     internal static class CatalogManualReviewFlow
     {
-        internal const int MaxReviewedBatch=50;
+        internal const int MaxReviewedBatch=1000;
+        // Read-only preflight and sequential writes can be displayed in groups of 50;
+        // there is no separate bulk transaction, and individual undo records are retained.
+        internal const int ProgressGroupSize=50;
 
         internal static string Validate(IEnumerable<CatalogManualReviewCandidate> source)
         {
@@ -24,7 +27,7 @@ namespace SmartMetadataMatcher
             var rows=source.ToList();
             if(rows.Count==0)return "No games were selected";
             if(rows.Count>MaxReviewedBatch)
-                return "Manual identity review is limited to 50 games per approval; select fewer games";
+                return "Manual identity review exceeds the 1000-game resource limit; select fewer games";
             var seen=new HashSet<Guid>();
             foreach(var row in rows)
             {

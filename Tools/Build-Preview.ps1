@@ -64,6 +64,6 @@ try {
     $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $pext).Hash
     Write-Host "SUCCESS: $pext"
     Write-Host "SHA256: $hash"
-    Write-Host 'PRIVATE v0.5.16: review checkbox navigation safety and visible preflight; matching and writes unchanged.'
+    Write-Host 'PRIVATE v0.5.17: expanded manual identity-review resource envelope; live Playnite acceptance pending.'
 }
 finally { Pop-Location }

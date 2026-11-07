@@ -31,14 +31,15 @@ namespace SmartMetadataMatcher
         }
 
         // Strict selection can include every remaining independently verified
-        // candidate. A selected user-confirmed identity keeps the five-item cap.
+        // candidate. Mixed selections must pass full explicit identity confirmation;
+        // do not silently limit checkbox selection to five before that review.
         internal static int AvailableSelectionSlots(int remainingReady, int alreadyMarked,
             bool includesConfirmed)
         {
             if(remainingReady<=0)return 0;
-            if(!includesConfirmed)return remainingReady;
-            return Math.Min(remainingReady,
-                Math.Max(0,SupervisedLimit-Math.Max(0,alreadyMarked)));
+            // Selection is not approval. Even a mixed selection can mark all
+            // candidates; the final supervised or reviewed-bulk gate still runs.
+            return remainingReady;
         }
 
         // Defensive final gate: checking the selection again in RunBatch avoids
@@ -54,7 +55,7 @@ namespace SmartMetadataMatcher
                 return "The strict and manually reviewed batch modes cannot be combined";
             if(!WithinLimit(items.Count,strictBatch,reviewedBulk))
                 return strictBatch ? "Reviewed strict selection is empty" :
-                    reviewedBulk ? "Manually confirmed batch exceeds 50 games or is empty" :
+                    reviewedBulk ? "Manually confirmed batch exceeds the 1000-game resource limit or is empty" :
                     "Reviewed supervised selection exceeds five games or is empty";
             var seen=new HashSet<Guid>();
             foreach(var row in items)

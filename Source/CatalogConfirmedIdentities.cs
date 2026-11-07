@@ -103,7 +103,7 @@ namespace SmartMetadataMatcher
             if(selected==null)throw new InvalidDataException("Missing reviewed identities.");
             var incoming=selected.ToList();
             if(incoming.Count==0 || incoming.Count>CatalogManualReviewFlow.MaxReviewedBatch)
-                throw new InvalidDataException("Reviewed identity batch must contain 1-50 games.");
+                throw new InvalidDataException("Reviewed identity batch must contain 1-1000 games.");
             var unique=new HashSet<Guid>();
             foreach(var record in incoming)
             {

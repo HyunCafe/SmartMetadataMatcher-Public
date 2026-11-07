@@ -1,3 +1,9 @@
+## v0.5.17 — candidate, public-release gates NOT PASSED
+- Pending Windows `net462` compile and entire offline test suite, Playnite 10 end-to-end review-selection check, 51+ and 431-game read-only preflight check, cancel, re-run, close/reopen, and synthetic/actual interruption recovery acceptance.
+- 1000 resource limit vs five supervised limit; entire reviewed selection still checked against live IGDB before any Playnite database write. Display-group boundaries do not perform separate transactions.
+- Full public-source privacy check, README/LICENSE/SECURITY/PRIVACY, public clean history, checksums, add-on and installer manifests, official Toolbox manifest verification and compiled DLL/package content audit are still required.
+- Dependency package provenance uncertainty and independent crash testing remain release blockers; do not mark v0.5.17 public-ready from Python-only checks.
+
 ## v0.5.16 private — UI bugfix acceptance pending
 - Exact predecessor: private v0.5.15 local commit `23502b89cf2fa0afac7e0b44548e29ee13c4cf21`; source guard includes CatalogWindow, CatalogBatchProgress and tests.
 - Verify: double or rapid clicks on review checkboxes cannot close the review dialog; check 52→50 selection and original table filters.

@@ -55,6 +55,19 @@ internal static class CatalogBatchProgressTests
             catch(ArgumentOutOfRangeException){rejected=true;}
             Assert(rejected,"invalid preflight counts rejected");
         }
+        Assert(CatalogBatchProgress.GroupLabel(0,431,50).Contains("Group 1 / 9"),
+            "431 reviewed identities are displayed in bounded progress groups");
+        Assert(CatalogBatchProgress.GroupLabel(49,431,50).Contains("Group 1 / 9"),
+            "group boundary at 49");
+        Assert(CatalogBatchProgress.GroupLabel(50,431,50).Contains("Group 2 / 9"),
+            "group boundary advances at 50");
+        Assert(CatalogBatchProgress.GroupLabel(431,431,50).Contains("Group 9 / 9"),
+            "complete progress group does not roll beyond last group");
+        Assert(CatalogBatchProgress.GroupLabel(1,1,50).Contains("Group 1 / 1"),
+            "single-game group");
+        bool invalidGroup=false;
+        try {CatalogBatchProgress.GroupLabel(1,1,0);}catch(ArgumentOutOfRangeException){invalidGroup=true;}
+        Assert(invalidGroup,"invalid zero group size blocked");
         Console.WriteLine("PASS: "+checks+" batch progress/cancellation presentation checks.");
     }
 }

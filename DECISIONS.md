@@ -1,3 +1,10 @@
+## v0.5.17 — resource-bounded manual approval and separate public staging
+- 50 was a development-only manual approval limit. Up to 1000 human-reviewed identities may now be confirmed atomically; this is a UI/resource bound, not identity confidence.
+- Selection of mixed strict/confirmed matches can mark every row; before writing, each must go through explicit manual confirmation and live IGDB preflight.
+- The existing five-game supervised limit remains for unconfirmed weak-evidence selections. All live preflight must succeed before the first reviewed-bulk write; every write remains serial and journaled, and errors fail closed.
+- 50-game groups are displayed for progress only; no misleading guarantee of chunk-level transaction rollback.
+- A fresh public source repository or clean orphan history is required before making a private repo public; publishing the old history may disclose untracked private context.
+
 ## Decision — v0.5.16 review interaction and preflight UX
 Review-table selection checkboxes must never close the dialog: remove its generic routed double-click inspect shortcut; explicit Inspect game remains. During reviewed-bulk approval, the existing all-ID network preflight stays mandatory and rate-limited. Show count/status from the first IGDB lookup, and distinguish preflight validation from actual applied metadata. Do not change matching rules, writers, journals, IGDB request bounds or completion counts.
 

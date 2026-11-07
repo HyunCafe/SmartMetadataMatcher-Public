@@ -14,9 +14,18 @@ internal static class CatalogBatchPolicyTests
     internal static void Run()
     {
         Assert(CatalogBatchPolicy.SupervisedLimit==5,"legacy supervised limit unchanged");
-        Assert(CatalogBatchPolicy.ReviewedBulkLimit==50,"explicitly reviewed limit bounded");
+        Assert(CatalogBatchPolicy.ReviewedBulkLimit==1000,"explicitly reviewed resource ceiling");
         Assert(CatalogBatchPolicy.WithinLimit(46,false,true),"46 explicitly confirmed games accepted");
-        Assert(!CatalogBatchPolicy.WithinLimit(51,false,true),"51 explicitly reviewed games rejected");
+        Assert(CatalogBatchPolicy.WithinLimit(51,false,true),"51 explicitly reviewed games accepted");
+        Assert(CatalogBatchPolicy.WithinLimit(837,false,true),"837 reviewed games accepted");
+        var largeReviewed=Enumerable.Range(0,837).Select(i=>new CatalogBatchSelection{
+            GameId=Guid.NewGuid(),IgdbId="10",CatalogTitle="Review",UserConfirmed=true}).ToList();
+        Assert(CatalogBatchPolicy.ValidateSelection(largeReviewed,false,true)==null,
+            "837 explicitly confirmed identities accepted at final gate");
+        largeReviewed[836].UserConfirmed=false;
+        Assert(CatalogBatchPolicy.ValidateSelection(largeReviewed,false,true)!=null,
+            "last unconfirmed identity blocks entire large reviewed batch");
+        Assert(!CatalogBatchPolicy.WithinLimit(1001,false,true),"1001 manually reviewed games rejected");
         Assert(CatalogBatchPolicy.IsStrictBatch(false,false,false),"fully strict reviews can batch");
         Assert(!CatalogBatchPolicy.IsStrictBatch(true,false,false),"blocked match not strict");
         Assert(!CatalogBatchPolicy.IsStrictBatch(false,true,false),"confirmed identity not strict");
@@ -32,8 +41,8 @@ internal static class CatalogBatchPolicyTests
         Assert(!CatalogBatchPolicy.WithinLimit(-1,false),"negative size blocked");
         Assert(CatalogBatchPolicy.AvailableSelectionSlots(707,0,false)==707,"all strict-ready matches selectable");
         Assert(CatalogBatchPolicy.AvailableSelectionSlots(702,5,false)==702,"existing strict marks do not cap additional ready games");
-        Assert(CatalogBatchPolicy.AvailableSelectionSlots(100,1,true)==4,"confirmed selections keep small cap");
-        Assert(CatalogBatchPolicy.AvailableSelectionSlots(100,5,true)==0,"confirmed track cannot exceed five");
+        Assert(CatalogBatchPolicy.AvailableSelectionSlots(100,1,true)==100,"mixed selection can mark all, approval still required");
+        Assert(CatalogBatchPolicy.AvailableSelectionSlots(100,5,true)==100,"mixed selection does not silently truncate");
         Assert(CatalogBatchPolicy.AvailableSelectionSlots(0,0,false)==0,"no ready matches");
         Assert(CatalogBatchPolicy.StopOnFailure(true),"any failure stops before next game");
         Assert(!CatalogBatchPolicy.StopOnFailure(false),"no error allows next game");

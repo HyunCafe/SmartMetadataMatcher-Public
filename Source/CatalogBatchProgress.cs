@@ -5,6 +5,14 @@ namespace SmartMetadataMatcher
     // Pure presentation logic: no Playnite state, networking or writes.
     internal static class CatalogBatchProgress
     {
+        internal static string GroupLabel(int processed,int total,int groupSize)
+        {
+            if(total<1 || processed<0 || processed>total || groupSize<1)
+                throw new ArgumentOutOfRangeException("Invalid grouped progress counters.");
+            var groups=(int)(((long)total+groupSize-1)/groupSize);
+            var current=(processed>=total)?groups:processed/groupSize+1;
+            return "Group "+current+" / "+groups+" (up to "+groupSize+" per progress group)";
+        }
         internal static string Describe(int total,int applied,int skipped,int failed,string current,
             bool stopRequested,bool recoveryRequired)
         {

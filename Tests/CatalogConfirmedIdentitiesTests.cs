@@ -37,6 +37,14 @@ internal static class CatalogConfirmedIdentitiesTests
                 ConfirmedUtc=DateTime.UtcNow.ToString("o",System.Globalization.CultureInfo.InvariantCulture)
             }).ToList();
             loaded.ConfirmMany(bulk);loaded.Load();
+            var large=System.Linq.Enumerable.Range(0,431).Select(i=>new ConfirmedIdentity {
+                GameId=Guid.NewGuid(),GameName="Large review "+i,Platform="PC (Windows)",
+                IgdbId=150000+i,CatalogTitle="Verified IGDB "+i,
+                ConfirmedUtc=DateTime.UtcNow.ToString("o",System.Globalization.CultureInfo.InvariantCulture)
+            }).ToList();
+            loaded.ConfirmMany(large);loaded.Load();
+            Check(large.All(x=>loaded.TryMatch(x.GameId,x.GameName,x.Platform,x.IgdbId,x.CatalogTitle)),
+                "431 identities persist atomically across reload");
             Check(bulk.All(x=>loaded.TryMatch(x.GameId,x.GameName,x.Platform,x.IgdbId,x.CatalogTitle)),
                 "46 identity decisions persisted atomically");
             var existingBytes=File.ReadAllBytes(Path.Combine(folder,"confirmed-igdb-identities-v1.json"));
@@ -46,6 +54,16 @@ internal static class CatalogConfirmedIdentitiesTests
             Check(invalidBatch,"duplicate batch identity rejected");
             Check(existingBytes.SequenceEqual(File.ReadAllBytes(Path.Combine(folder,"confirmed-igdb-identities-v1.json"))),
                 "failed batch preserves exact identity file bytes");
+            var tooMany=System.Linq.Enumerable.Range(0,1001).Select(i=>new ConfirmedIdentity {
+                GameId=Guid.NewGuid(),GameName="Resource limit "+i,Platform="PC (Windows)",
+                IgdbId=250000+i,CatalogTitle="Verified IGDB "+i,
+                ConfirmedUtc=DateTime.UtcNow.ToString("o",System.Globalization.CultureInfo.InvariantCulture)
+            }).ToList();
+            bool rejected=false;
+            try {loaded.ConfirmMany(tooMany);}catch(InvalidDataException){rejected=true;}
+            Check(rejected,"1001 identities rejected before write");
+            Check(existingBytes.SequenceEqual(File.ReadAllBytes(Path.Combine(folder,"confirmed-igdb-identities-v1.json"))),
+                "resource overflow preserves exact preexisting identity file bytes");
             loaded.Forget(id);loaded.Load();Check(!loaded.Has(id),"forget persists");
             var path=Path.Combine(folder,"confirmed-igdb-identities-v1.json");
             File.WriteAllText(path,"{ corrupted");

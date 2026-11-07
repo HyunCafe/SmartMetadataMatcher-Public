@@ -1,3 +1,10 @@
+## v0.5.17 — private public-readiness candidate (NOT YET RELEASED)
+- Remove the 50-game manual identity approval ceiling; support up to 1000 explicitly reviewed identities, with source and persistence validation, full-list preflight and per-game undo journals.
+- Show 50-game groups in live IGDB preflight progress; this is presentation grouping, not a transaction boundary.
+- Keep the five-game weak-evidence supervised limit, strict-auto independent checks, all-before-first-write reviewed identity preflight and fail-fast behavior.
+- Add 51/431/831/1000/1001 case regression fixtures, byte-for-byte identity persistence rollback tests and 50-group progress coverage.
+- Prepare separate clean-history public source and Playnite add-on manifests; no publication authorized.
+
 ## v0.5.16 — Private review selection and preflight progress fix (2026-11-07)
 - Stop review-dialog checkbox double-clicks from invoking Inspect game and closing the review window. Keep explicit Inspect game navigation.
 - Show immediate, live progress for read-only 50-game identity preflight, with an indeterminate bar until metadata updates begin; do not mislabel these checks as applied.

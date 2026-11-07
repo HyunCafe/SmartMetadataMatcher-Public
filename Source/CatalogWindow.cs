@@ -1520,9 +1520,9 @@ namespace SmartMetadataMatcher
                 "This step saves your identity decisions only; a second final approval and backup " +
                 "acknowledgement are required before any Playnite update.",13);
             explanation.TextWrapping=TextWrapping.Wrap;heading.Children.Add(explanation);
-            var caveat=Caption("Bulk confirmation is limited to 50 selected games. " +
+            var caveat=Caption("Bulk confirmation supports up to 1000 selected games in one explicit approval. " +
                 "Before any write, ALL selected IGDB IDs/titles/platforms are checked live. " +
-                "A mismatch stops the batch without applying any of its games. " +
+                "A mismatch stops the entire preflight before metadata changes begin. " +
                 "A later write failure stops on that game; earlier completed games retain undo records.",12);
             caveat.TextWrapping=TextWrapping.Wrap;caveat.Foreground=Caution();heading.Children.Add(caveat);
             var footer=new StackPanel {Margin=new Thickness(0,12,0,0)};
@@ -1729,8 +1729,8 @@ namespace SmartMetadataMatcher
                     int canAdd=CatalogBatchPolicy.AvailableSelectionSlots(
                         strictRows.Count(x=>!x.Marked),markedCount(),
                         lines.Any(x=>x.Marked&&x.UserConfirmed));
-                    markReady.Content=canAdd>0?(lines.Any(x=>x.Marked&&x.UserConfirmed)?
-                        "Add "+canAdd+" (supervised max 5)":"Select all ready ("+canAdd+")"):
+                    markReady.Content=canAdd>0?
+                        "Select all ready ("+canAdd+")":
                         strictRows.Any(x=>x.Marked)?"Deselect ready matches":"No ready matches";
                     markReady.IsEnabled=canAdd>0 || strictRows.Any(x=>x.Marked);
                 }
@@ -1837,7 +1837,7 @@ namespace SmartMetadataMatcher
                 refreshRows();
             },out markReady);
             markReady.ToolTip="Select all remaining freshly verified strict-ready matches, not just the next 25. " +
-                "You may select fewer manually. User-confirmed selections are limited to five. " +
+                "You may select fewer manually. Mixed selections require full manual identity confirmation before import. " +
                 "Every import still requires final approval and a verified backup.";
             AddButton(selectionTools,"Clear selection",()=>{
                 foreach(var row in lines)row.Marked=false;
@@ -1963,7 +1963,7 @@ namespace SmartMetadataMatcher
                 if(!CatalogBatchPolicy.WithinLimit(selected.Count,strictBatch,reviewedBulk))
                 {
                     api.Dialogs.ShowMessage(strictBatch?"No eligible games were selected.":
-                        "Manual confirmations may apply up to 50 games at once. " +
+                        "Manual confirmations may apply up to 1000 games at once. " +
                         "Without a complete reviewed selection, the supervised limit is five. " +
                         "Reduce the selection; nothing is silently skipped.",
                         "Review batch size");return;
@@ -3407,7 +3407,9 @@ namespace SmartMetadataMatcher
             batchProgress.IsIndeterminate=reviewedBulk;
             batchProgressText.Visibility=Visibility.Visible;
             batchProgressText.Text=reviewedBulk?
-                CatalogBatchProgress.DescribeIdentityPreflight(0,items.Count,"Starting live IGDB identity checks"):
+                CatalogBatchProgress.DescribeIdentityPreflight(0,items.Count,
+                    CatalogBatchProgress.GroupLabel(0,items.Count,CatalogManualReviewFlow.ProgressGroupSize)+
+                    " — starting live IGDB identity checks"):
                 CatalogBatchProgress.Describe(items.Count,0,0,0,"Starting live IGDB validation",false,false);
             cancellation=new CancellationTokenSource();var token=cancellation.Token;
             Task.Run(()=>{
@@ -3430,7 +3432,9 @@ namespace SmartMetadataMatcher
                                 window.Dispatcher.BeginInvoke(new Action(()=>{
                                     if(!window.IsVisible)return;
                                     batchProgressText.Text=CatalogBatchProgress.DescribeIdentityPreflight(
-                                        checkedSoFar,items.Count,"Checking "+checkingName);
+                                        checkedSoFar,items.Count,
+                                        CatalogBatchProgress.GroupLabel(checkedSoFar,items.Count,CatalogManualReviewFlow.ProgressGroupSize)+
+                                        " — checking "+checkingName);
                                 }));
                                 try
                                 {
@@ -3450,7 +3454,9 @@ namespace SmartMetadataMatcher
                                     window.Dispatcher.BeginInvoke(new Action(()=>{
                                         if(!window.IsVisible)return;
                                         batchProgressText.Text=CatalogBatchProgress.DescribeIdentityPreflight(
-                                            verifiedSoFar,items.Count,"Verified "+checkingName);
+                                            verifiedSoFar,items.Count,
+                                            CatalogBatchProgress.GroupLabel(verifiedSoFar,items.Count,CatalogManualReviewFlow.ProgressGroupSize)+
+                                            " — verified "+checkingName);
                                     }));
                                 }
                                 catch(OperationCanceledException){cancelled=true;break;}
