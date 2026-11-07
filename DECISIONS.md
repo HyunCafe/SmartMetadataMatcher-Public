@@ -1,3 +1,8 @@
+## Post-v0.5.8 release gate (2026-11-06)
+- Add source-only, non-destructive private release evidence tooling after synthetic recovery checks; preserve current v0.5.8 binaries and journals.
+- Require exact existing `.pext` hash and DLL/YAML byte identity, pinned dependency declarations and local-only Git provenance. Verify these on Windows rather than infer them from an archive label.
+- Keep independent third-party binary vetting, real Playnite crash testing and public distribution **unapproved** until separate evidence is available. Historical release notes below are retained, with the current status indexed from `RELEASE_READINESS.md`.
+
 ## v0.5.8 — Optimize only measured replay bottleneck
 
 Benchmark measured 3000-record metadata replay at 144.42 ms versus 6.95 ms for 300 records. Use a replay-local operation-ID dictionary to remove O(n²) marker/duplicate searches while preserving full-log verification on every call. Defer media-stage session caching, compaction and recovery-state changes because they would risk stale state after interruption or external modification. Rebenchmark on Windows and retain rollback to v0.5.7.

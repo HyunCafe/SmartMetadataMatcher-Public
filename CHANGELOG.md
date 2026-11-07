@@ -1,3 +1,7 @@
+## Post-v0.5.8 — private release evidence gate (tooling only)
+- Introduced a deterministic source/package/Git evidence audit and 11 positive/negative fixtures. Requires the recorded exact v0.5.8 `.pext` SHA and byte identity with a freshly built Release DLL and manifest; outputs a private JSON report outside tracked source.
+- Added a current acceptance matrix distinguishing reported Windows/live observations from synthetic tests and unresolved real crash/supply-chain evidence. No production C# change, no new `.pext`, journal edits, GitHub actions, or public release approval.
+
 ## v0.5.8 — Indexed enrichment journal replay (2026-11-06)
 
 - Replaced repeated list-wide duplicate/commit/undo searches with a transient per-replay `Dictionary<Guid, EnrichmentEntry>`. Same P/C/U log data, oldest-to-newest replay, public history ordering and undo rules.

@@ -1,3 +1,29 @@
+# Current release readiness — v0.5.8 (private, 2026-11-06)
+
+**Current development checkpoint:** `5445fc212a0b571f0f8063111e222130be1950b3` (reported Windows Git result). The v0.5.8 Playnite package was built at `ee2ba3f8` and has SHA-256 `05C79F1AD4883D70D4ADBCB0EA86852E8F00BD189F24107AE872162EE0D9A3B4`. The subsequent recovery fault-matrix commit changes tests and documentation only; it did **not** build another `.pext`.
+
+| Acceptance gate | Evidence | Status |
+| --- | --- | --- |
+| Full Windows WPF compile and offline tests | User Windows log through `5445fc21` | **Passed (reported)** |
+| 30-game approved strict batch | User-reported 30 applied / zero failed, review/history screenshots | **Passed for that batch** |
+| Independent undo/history | User-reported successful undo, mixed-selection UI checks | **Passed for tested operations** |
+| Scan resume/IGDB connection UI | User reports v0.5.5 connection test works; offline scan tests pass | **Partly live-verified** |
+| Metadata journal 3,000-record replay | v0.5.8 synthetic 80.45 ms, reduced from 144.42 ms | **Passed benchmark; synthetic** |
+| Cross-ledger interruption matrix | 45 assertions on disposable files | **Passed; synthetic only** |
+| Exact extension package contents | DLL + `extension.yaml` verifier and recorded package SHA | **Passed for prior Windows build** |
+| Real mid-write process crash and recovery | No disposable Playnite integration test evidence | **Not verified** |
+| Third-party compiled dependencies/supply chain | Declared versions pinned; independent provenance audit absent | **Not verified** |
+| Compiled-binary security certification | No independent review | **Not verified** |
+| Public release approval | No authorization, supply-chain proof or crash integration gate | **Not approved** |
+
+**Private-readiness audit tooling:** `Tools/Run-Release-Readiness.ps1` recompiles and reruns all offline tests, verifies the *existing* v0.5.8 `.pext` using its exact recorded SHA-256, checks local Git status/pins and writes a private JSON report outside the source tree. `Tools/Test-Release-Audit.py` exercises negative fixtures. This tool creates **no new package, version bump, Git remote, release tag or library edits**. The audit may restore NuGet dependencies through the official configured source; it does not independently authenticate those dependencies.
+
+**Residual risk:** Journals contain guarded recovery logic but no evidence yet that all crash windows are recoverable after a real interrupted Playnite database/artwork write. Do not intentionally crash a primary Playnite profile. A disposable profile, isolated media directory, restore-tested backup and explicit failure-point plan are prerequisites to a live crash-injection campaign.
+
+**Historical checkpoints below are retained for traceability and may refer to earlier versions, limits or pending validations that have since changed.**
+
+---
+
 ## v0.5.8 private indexed journal replay — acceptance
 
 - **Source baseline:** local Git commit `2ed6804d3eb561ecd04f775a0a10979afd6281f3` (v0.5.7 plus benchmark-only tooling); must be clean with stable `v0.5.0-private-stable` tag.

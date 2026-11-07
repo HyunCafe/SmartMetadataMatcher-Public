@@ -1,3 +1,7 @@
+## Private release evidence (v0.5.8)
+
+The latest local release-readiness status is in [`RELEASE_READINESS.md`](RELEASE_READINESS.md). After the guarded recovery-test milestone, run `pwsh -NoProfile -File Tools/Run-Release-Readiness.ps1` from the project root to verify existing compiled package bytes, dependency version declarations, full offline suites and local-only Git provenance. It creates a private report outside the source tree but no new `.pext`, release tag or remote. This is not a supply-chain or actual Playnite crash-recovery certification.
+
 ## v0.5.8 private — Faster journal history replay
 
 The enrichment journal replay now indexes operation identifiers in memory while parsing to avoid repeated linear scans. The index exists only during a full, verified replay; journals are always reread from disk and retain the exact prior on-disk format, ordering, legacy timestamp support, and fail-closed semantics. Media staging remains unchanged. Run the synthetic 300/3000-operation benchmark after building to compare with the v0.5.7 baseline; existing data is never used.
