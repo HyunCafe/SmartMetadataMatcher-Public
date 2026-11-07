@@ -17,6 +17,8 @@
     <Compile Include="CatalogImportDraftTests.cs" />
     <Compile Include="CatalogReviewActionsTests.cs" />
     <Compile Include="../Source/CatalogEnrichmentNeeds.cs" Link="CatalogEnrichmentNeeds.cs" />
+    <Compile Include="../Source/CatalogQueueView.cs" Link="CatalogQueueView.cs" />
+    <Compile Include="CatalogQueueViewTests.cs" />
     <Compile Include="CatalogEnrichmentNeedsTests.cs" />
     <Compile Include="../Source/CatalogCore.cs" Link="CatalogCore.cs" />
     <Compile Include="../Source/IgdbReadOnly.cs" Link="IgdbReadOnly.cs" />

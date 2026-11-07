@@ -1,3 +1,13 @@
+## v0.5.9 private review-queue candidate — acceptance pending
+
+- Based on the 837-row IGDB scan export: 330 completed, 376 no changes, 101 manual review, 28 unmatched, 1 strong candidate, 1 ignored. The previous 505 count incorrectly grouped no-change rows with review work.
+- **Required Windows validation:** compile WPF and offline tests including new review-queue suite, verify package DLL/YAML, ensure no unintended repository changes.
+- **Required focused host-app check:** launch the private v0.5.9 `.pext` only after backing up Playnite; confirm tab counts, visual layout, actionable-first ordering, unchanged title match eligibility and platform mismatch warning; do not rerun 706 writes.
+- Scope limited to read-only UI presentation, warnings and version/docs. No schema, writer, journal or IGDB matching threshold edits.
+- **State-continuity limitation:** the 376 post-apply `No changes available` rows were session-local. The existing read-only scan cache stores search statuses only, so after restart those games may reappear as saved match candidates. A v0.5.9 UI change cannot reconstruct the original 376 count without another explicit state-capture design. Do not infer new approval eligibility from any cache row.
+- Old v0.5.8 release evidence audit is pinned to the *prior* package and should not be interpreted as proof for this build.
+- Unresolved: NuGet dependency-cache/archive vs assets hash discrepancies (5 instances), public security provenance and genuine crash-recovery acceptance.
+
 # Current release readiness — v0.5.8 (private, 2026-11-06)
 
 **Current development checkpoint:** `5445fc212a0b571f0f8063111e222130be1950b3` (reported Windows Git result). The v0.5.8 Playnite package was built at `ee2ba3f8` and has SHA-256 `05C79F1AD4883D70D4ADBCB0EA86852E8F00BD189F24107AE872162EE0D9A3B4`. The subsequent recovery fault-matrix commit changes tests and documentation only; it did **not** build another `.pext`.

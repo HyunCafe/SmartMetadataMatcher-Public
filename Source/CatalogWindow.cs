@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -47,6 +48,10 @@ namespace SmartMetadataMatcher
         public bool FromSavedScan { get; set; }
         public bool UserConfirmed { get; set; }
         public bool PreviousAutoPlanEligible { get; set; }
+        // Read-only presentation order. Candidate field availability does not
+        // constitute identity verification or permission to change Playnite.
+        public int ReviewPriority { get { return CatalogQueueView.ReviewPriority(
+            MissingMask,AvailableMetadata); } }
         // Main list shows the next action. Raw Status remains available to the
         // planner, CSV exporter and evidence diagnostics without modification.
         public string DisplayStatus { get { return EnrichmentJobPlanner.DashboardStatus(
@@ -279,10 +284,10 @@ namespace SmartMetadataMatcher
         }
         private static void SetTabContent(Button button,string label,int index,bool selected)
         {
-            var symbols=new[]{"\uE80F","\uE73E","\uE7BA","\uE711","\uE8A7"};
+            var symbols=new[]{"\uE80F","\uE7BA","\uE721","\uE8A7","\uE73E","\uE711","\uE8A7"};
             var panel=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Center};
             panel.Children.Add(Icon(symbols[index],17,
-                index==2 && !label.EndsWith("(0)",StringComparison.Ordinal)?Caution():
+                index==1 && !label.EndsWith("(0)",StringComparison.Ordinal)?Caution():
                 selected?Accent():Muted()));
             var text=new TextBlock{Text=label,FontSize=14,VerticalAlignment=VerticalAlignment.Center};
             text.Foreground=selected?Accent():Muted();panel.Children.Add(text);
@@ -294,7 +299,7 @@ namespace SmartMetadataMatcher
         private Button MakeTab(string label,int index,Panel parent)
         {
             Button button;AddButton(parent,label,()=>{resultView.SelectedIndex=index;},out button);
-            button.MinWidth=index==4?150:171;button.Padding=new Thickness(13,12,13,12);
+            button.MinWidth=index==6?118:139;button.Padding=new Thickness(13,12,13,12);
             button.Margin=new Thickness(0,0,5,0);
             tabButtons.Add(button);SetTabContent(button,label,index,index==0);return button;
         }
@@ -331,7 +336,8 @@ namespace SmartMetadataMatcher
             style.Setters.Add(new Setter(TextBlock.ForegroundProperty,Good()));
             foreach(var pair in new[]{
                 Tuple.Create("Needs review",Caution()),Tuple.Create("Refresh required",Caution()),
-                Tuple.Create("Unmatched",Attention()),Tuple.Create("Ignored",Quiet())})
+                Tuple.Create("Unmatched",Attention()),Tuple.Create("No changes available",Quiet()),
+                Tuple.Create("Ignored",Quiet())})
             {
                 var trigger=new DataTrigger{Binding=new Binding("DisplayStatus"),Value=pair.Item1};
                 trigger.Setters.Add(new Setter(TextBlock.ForegroundProperty,pair.Item2));
@@ -426,7 +432,7 @@ namespace SmartMetadataMatcher
         internal void Show()
         {
             window=api.Dialogs.CreateWindow(new WindowCreationOptions{ShowMinimizeButton=false});
-            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — private history search";
+            window.Title="Smart Metadata Matcher " + typeof(CatalogWindow).Assembly.GetName().Version.ToString(3) + " — actionable review queue";
             window.Width=1610;window.Height=935;window.MinWidth=1120;window.MinHeight=675;
             var owner=api.Dialogs.GetCurrentAppWindow();
             if(owner!=null && owner!=window)window.Owner=owner;
@@ -534,11 +540,15 @@ namespace SmartMetadataMatcher
 
             var tabs=new WrapPanel{Margin=new Thickness(0,0,0,9)};top.Children.Add(tabs);
             resultView=new ComboBox{Visibility=Visibility.Collapsed};
-            resultView.Items.Add("Candidates");resultView.Items.Add("Completed");
-            resultView.Items.Add("Needs review");resultView.Items.Add("Ignored");resultView.Items.Add("All results");
+            resultView.Items.Add("Candidates");resultView.Items.Add("Needs review");
+            resultView.Items.Add("Unmatched");resultView.Items.Add("No changes");
+            resultView.Items.Add("Completed");resultView.Items.Add("Ignored");
+            resultView.Items.Add("All results");
             resultView.SelectionChanged+=(s,e)=>RefreshVisibility();resultView.SelectedIndex=0;
-            MakeTab("Candidates",0,tabs);MakeTab("Completed",1,tabs);
-            MakeTab("Needs review",2,tabs);MakeTab("Ignored",3,tabs);MakeTab("All results",4,tabs);
+            MakeTab("Candidates",0,tabs);MakeTab("Needs review",1,tabs);
+            MakeTab("Unmatched",2,tabs);MakeTab("No changes",3,tabs);
+            MakeTab("Completed",4,tabs);MakeTab("Ignored",5,tabs);
+            MakeTab("All results",6,tabs);
 
             var filterBar=new Grid{Margin=new Thickness(0,0,0,9)};
             filterBar.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(1,GridUnitType.Star)});
@@ -699,7 +709,7 @@ namespace SmartMetadataMatcher
             };
             historyGrid.MouseDoubleClick+=(s,e)=>{
                 var selected=historyGrid.SelectedItem as HistoryRow;if(selected==null)return;
-                resultView.SelectedIndex=1;
+                resultView.SelectedIndex=4;
                 var match=results.FirstOrDefault(r=>r.GameId==selected.GameId&&r.IsCompleted);
                 if(match!=null){grid.SelectedItem=match;grid.ScrollIntoView(match);}
             };
@@ -1445,10 +1455,12 @@ namespace SmartMetadataMatcher
                 lines.Add(new PlanPreviewRow {
                     SourceRow=r,Game=r.CurrentName??"",Catalog=r.Candidate??"",
                     Platform=r.Platform??"",CatalogId=r.IgdbId??"",
-                    IdentityStatus=d.Code=="UserConfirmed"?"Confirmed by you":d.Code=="CachedNeedsRefresh"?"Refresh required":d.ReadyForPreflight?"Ready — verify":
+                    IdentityStatus=r.Status=="No changes available"?"No changes":
+                        d.Code=="UserConfirmed"?"Confirmed by you":d.Code=="CachedNeedsRefresh"?"Refresh required":d.ReadyForPreflight?"Ready — verify":
                         d.Code=="Completed"?"Completed":d.Code=="Ignored"?"Ignored":"Needs review",
                     Explanation=d.Explanation,RenameHandling=d.ReadyForPreflight?d.RenameReason:"Not planned",
-                    Ready=d.ReadyForPreflight,Archived=d.Code=="Completed"||d.Code=="Ignored"
+                    Ready=d.ReadyForPreflight,
+                    Archived=CatalogQueueView.ArchivedInReview(r.Status,d.Code)
                 });
             }
             var ready=lines.Count(x=>x.Ready);
@@ -1467,7 +1479,7 @@ namespace SmartMetadataMatcher
             var counts=Caption("",14);
             Action updateCounts=()=>counts.Text=markedCount()+" selected for import  •  "+
                 lines.Count(x=>x.Ready)+" ready  •  "+
-                lines.Count(x=>!x.Ready&&!x.Archived)+" need attention  •  "+archived+" completed/ignored";
+                lines.Count(x=>!x.Ready&&!x.Archived)+" need attention  •  "+archived+" completed/no-change/ignored";
             updateCounts();
             heading.Children.Add(counts);
             var warning=Caption("Check each game's title, platform and edition before approving. " +
@@ -1480,7 +1492,7 @@ namespace SmartMetadataMatcher
             filters.Children.Add(Caption("Show",12));
             var view=new ComboBox {Width=225,Height=31,Margin=new Thickness(10,0,10,0)};
             view.Items.Add("Selected for import");view.Items.Add("Ready matches");
-            view.Items.Add("Needs review");view.Items.Add("Completed / ignored");view.Items.Add("All matches");
+            view.Items.Add("Needs review");view.Items.Add("Completed / no changes / ignored");view.Items.Add("All matches");
             filters.Children.Add(view);
             var search=new TextBox {Width=210,Height=31,Margin=new Thickness(0,0,12,0),
                 ToolTip="Find a Playnite game or IGDB candidate in this plan"};
@@ -1704,7 +1716,7 @@ namespace SmartMetadataMatcher
                 if(row==null){api.Dialogs.ShowMessage("No game selected. Choose a category with rows, " +
                     "then highlight a game to inspect.","Smart Metadata Matcher");return;}
                 dialog.Close();
-                resultView.SelectedIndex=4;
+                resultView.SelectedIndex=6;
                 catalogSearch.Text="";platformFilter.SelectedIndex=0;
                 RefreshVisibility();
                 if(grid.Items.Contains(row.SourceRow))
@@ -1779,12 +1791,14 @@ namespace SmartMetadataMatcher
 
         private void UpdateTabs()
         {
-            int active=results.Count(x=>!x.IsCompleted&&!x.IsIgnored&&ReadyForSelection(x));
-            int completed=results.Count(x=>x.IsCompleted);
-            int review=results.Count(x=>!x.IsCompleted&&!x.IsIgnored&&!ReadyForSelection(x));
-            int ignored=results.Count(x=>x.IsIgnored);
-            var labels=new[]{"Candidates ("+active+")","Completed ("+completed+")",
-                "Needs review ("+review+")","Ignored ("+ignored+")","All results ("+results.Count+")"};
+            int[] counts=new int[6];
+            foreach(var row in results)
+                counts[CatalogQueueView.Bucket(row.Status,row.IsCompleted,row.IsIgnored,
+                    ReadyForSelection(row))]++;
+            var labels=new[]{"Candidates ("+counts[0]+")","Needs review ("+counts[1]+")",
+                "Unmatched ("+counts[2]+")","No changes ("+counts[3]+")",
+                "Completed ("+counts[4]+")","Ignored ("+counts[5]+")",
+                "All ("+results.Count+")"};
             for(int i=0;i<tabButtons.Count;i++)
                 SetTabContent(tabButtons[i],labels[i],i,i==resultView.SelectedIndex);
         }
@@ -1947,20 +1961,19 @@ namespace SmartMetadataMatcher
             if(grid==null || grid.ItemsSource==null || resultView==null)return;
             var view=CollectionViewSource.GetDefaultView(grid.ItemsSource);
             if(view==null)return;
+            // No-change, unmatched and All views are status inventory views.
+            // Showing all their records is more important than the default
+            // Series-only suppression used for the actionable review queue.
+            bool applyMissingScope=resultView.SelectedIndex!=2 &&
+                resultView.SelectedIndex!=3 && resultView.SelectedIndex!=6;
+            if(missingFilter!=null)missingFilter.Visibility=
+                applyMissingScope?Visibility.Visible:Visibility.Collapsed;
             view.Filter=item=>{
                 var row=item as CatalogViewRow;
                 if(row==null)return false;
-                bool state;
-                switch(resultView.SelectedIndex)
-                {
-                    case 0: state=!row.IsCompleted && !row.IsIgnored && ReadyForSelection(row);break;
-                    case 1: state=row.IsCompleted;break;
-                    case 2: state=!row.IsCompleted && !row.IsIgnored && !ReadyForSelection(row);break;
-                    case 3: state=row.IsIgnored;break;
-                    default: state=true;break;
-                }
-                if(!state)return false;
-                if(missingFilter!=null && row.MissingMask>0 &&
+                if(!CatalogQueueView.VisibleInTab(row.Status,row.IsCompleted,
+                    row.IsIgnored,ReadyForSelection(row),resultView.SelectedIndex))return false;
+                if(applyMissingScope && missingFilter!=null && row.MissingMask>0 &&
                     !CatalogEnrichmentNeeds.VisibleInMissingScope(row.MissingMask,
                         missingFilter.SelectedIndex==0?1:missingFilter.SelectedIndex==1?0:2))return false;
                 if(platformFilter!=null && platformFilter.SelectedIndex>0 &&
@@ -1973,6 +1986,14 @@ namespace SmartMetadataMatcher
                 }
                 return true;
             };
+            // Only the manual review view uses opportunity-first presentation.
+            // All other tabs retain scan order; no approval or writer state changes.
+            view.SortDescriptions.Clear();
+            if(resultView.SelectedIndex==1)
+            {
+                view.SortDescriptions.Add(new SortDescription("ReviewPriority",ListSortDirection.Ascending));
+                view.SortDescriptions.Add(new SortDescription("CurrentName",ListSortDirection.Ascending));
+            }
             view.Refresh();
             UpdateTabs();
             // Show a useful preview immediately after scans or tab changes; do
@@ -2252,6 +2273,7 @@ namespace SmartMetadataMatcher
             if(previewState!=null)
             {
                 previewState.Text=row.IsCompleted?"Completed — check again for newly supported missing fields":row.IsIgnored?"Ignored":
+                    row.Status=="No changes available"?"No safe changes available — no action needed":
                     row.UserConfirmed?"Confirmed by you — final live verification still required":
                     row.FromSavedScan && !row.AutoPlanEligible?"Saved match — refresh IGDB before strict import":
                     catalogReady?"Ready for review — final verification required":"Needs manual review";
@@ -2268,13 +2290,26 @@ namespace SmartMetadataMatcher
                 (draft==null?"":"Edited draft saved only in Matcher until final approval. ")+
                 (collision?"Title needs a separate manual decision. ":"")+
                 "Only Playnite display names change; ROM filenames and launch paths remain untouched. " +
-                "Review the identity before applying.";
+                "Review the identity before applying."+
+                (CatalogQueueView.HighScoreTitleMismatch(row.CurrentName,row.Candidate,
+                    row.Platform,row.MatchScore)?
+                    " High-score title difference: check the IGDB alias and edition before approval.":"")+
+                ((row.Evidence??"").IndexOf("Platform mismatch",StringComparison.OrdinalIgnoreCase)>=0?
+                    " Platform mismatch: verify the exact console before approval.":"");
+            if(row.Status=="No changes available")
+                previewSummary.Text="No safe metadata changes were available during the previous approved batch. " +
+                    "This is an informational result, not a pending manual review.";
             if(previewDiagnostics!=null)
+            {
+                var caution=CatalogQueueView.TitleMismatchWarning(row.CurrentName,row.Candidate,
+                    row.Platform,row.MatchScore,row.Evidence);
                 previewDiagnostics.Text="IGDB ID: "+(row.IgdbId??"—")+"  •  Match score: "+
                     (row.MatchScore??"—")+" (heuristic, not a probability)\n"+
+                    (caution.Length==0?"":caution+"\n")+
                     (row.Evidence??"")+"\n"+
                     (haveDetails?"Additional fields inspected for this exact ID.":
                     "Inspect additional IGDB fields to see optional metadata.");
+            }
             RefreshPreviewHighlights();
             SetPreviewImage(previewCover,row.CatalogCoverImageId,"t_cover_big");
             SetPreviewImage(previewIcon,row.CatalogCoverImageId,"t_thumb");
@@ -2440,7 +2475,7 @@ namespace SmartMetadataMatcher
         private void FocusCompleted(CatalogViewRow row)
         {
             if (row==null || grid==null || !row.IsCompleted) return;
-            resultView.SelectedIndex=1;
+            resultView.SelectedIndex=4;
             RefreshVisibility();
             if (!grid.Items.Contains(row))
             {
@@ -2462,7 +2497,7 @@ namespace SmartMetadataMatcher
             if (grid==null) return;
             var row=results.FirstOrDefault(r=>r.GameId==gameId);
             if (row==null) return;
-            resultView.SelectedIndex=4; // All results: applies to restored history rows too.
+            resultView.SelectedIndex=6; // All results: applies to restored history rows too.
             if (catalogSearch!=null) catalogSearch.Text="";
             if (platformFilter!=null) platformFilter.SelectedIndex=0;
             RefreshVisibility();
@@ -2808,6 +2843,7 @@ namespace SmartMetadataMatcher
                             results.Count(x=>x.UserConfirmed)+" user-confirmed  •  "+
                             results.Count(x=>x.Status=="Review")+" review  •  "+
                             results.Count(x=>x.Status=="Unmatched")+" unmatched  •  "+
+                            results.Count(x=>x.Status=="No changes available")+" no changes  •  "+
                             results.Count(x=>x.IsCompleted)+" completed.  "+
                             "No changes made.  Strong is not a calibrated probability."+
                             (finalCacheWarning==null?"":"  "+finalCacheWarning);

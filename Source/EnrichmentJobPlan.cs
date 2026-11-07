@@ -32,6 +32,7 @@ namespace SmartMetadataMatcher
         {
             if(completed)return "Completed";
             if(ignored)return "Ignored";
+            if(status=="No changes available")return "No changes available";
             if(userConfirmed)return "Confirmed — review";
             if(fromSavedScan && !strictEvidence && status=="Strong candidate")return "Refresh required";
             if(status=="Strong candidate")return strictEvidence ? "Ready for review" : "Needs review";

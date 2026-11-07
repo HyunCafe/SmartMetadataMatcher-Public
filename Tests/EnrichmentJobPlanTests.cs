@@ -106,6 +106,8 @@ internal static class EnrichmentJobPlanTests
             "completed state takes precedence over other labels");
         Assert(EnrichmentJobPlanner.DashboardStatus("Strong candidate",false,true,false,true,false)=="Ignored",
             "ignored state takes precedence over strict evidence");
+        Assert(EnrichmentJobPlanner.DashboardStatus("No changes available",false,false,false,false,false)=="No changes available",
+            "no-change status is not mislabeled as needs review");
         Assert(EnrichmentJobPlanner.DashboardStatus("Unmatched",false,false,false,false,false)=="Unmatched",
             "unmatched status is explicit");
         Console.WriteLine("PASS: "+checks+" pure job-plan and recovery-gate checks.");

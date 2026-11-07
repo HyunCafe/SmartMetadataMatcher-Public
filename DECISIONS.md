@@ -1,3 +1,11 @@
+## v0.5.9 decision: display-only status separation (2026-11-06)
+
+- Observation: a 706-game approved run reported 330 applied, 376 safe no-change skips, 0 failures. The 837-row CSV contains 101 Review, 28 Unmatched, 1 Strong and 1 Ignored. A composite `Needs review (505)` wrongly grouped the 376 no-change rows.
+- Accepted: separate seven dashboard result views and sort manual review by potential field overlap, while retaining the exact same import eligibility, IGDB identity evaluation and undo logic. The no-change/unmatched/All inventory views bypass the default Series-only screen filter so they show the expected records.
+- Accepted: explicitly warn for high heuristic scores when canonical titles differ, and for reported platform mismatches. This is advisory; never change trust gates or auto-approval.
+- Deferred: new providers, match-threshold relaxations, re-scanning all 837 entries, schema changes or architecture refactoring.
+- Required: Windows extension build, regression tests, guarded private package, optional narrow Playnite visual verification. No public release or automatic GitHub push.
+
 ## Post-v0.5.8 release gate (2026-11-06)
 - Add source-only, non-destructive private release evidence tooling after synthetic recovery checks; preserve current v0.5.8 binaries and journals.
 - Require exact existing `.pext` hash and DLL/YAML byte identity, pinned dependency declarations and local-only Git provenance. Verify these on Windows rather than infer them from an archive label.

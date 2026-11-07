@@ -1,3 +1,10 @@
+## v0.5.9 — Private actionable review queue (2026-11-06)
+- Separate reviewed no-change results from needs-review; split unmatched results into a distinct view while retaining an unrestricted All tab.
+- Sort manual-review results by potential missing-field overlap; do not change approvals, writer behavior or confidence thresholds.
+- Add high-score canonical-title mismatch and known platform-mismatch cautions in the metadata preview.
+- Add pure offline queue classification and alias-warning regression tests; retain per-game undo and previous journal data.
+- Requires Windows WPF build, offline tests and private Playnite acceptance before deployment. No public release authorized.
+
 ## Post-v0.5.8 — private release evidence gate (tooling only)
 - Introduced a deterministic source/package/Git evidence audit and 11 positive/negative fixtures. Requires the recorded exact v0.5.8 `.pext` SHA and byte identity with a freshly built Release DLL and manifest; outputs a private JSON report outside tracked source.
 - Added a current acceptance matrix distinguishing reported Windows/live observations from synthetic tests and unresolved real crash/supply-chain evidence. No production C# change, no new `.pext`, journal edits, GitHub actions, or public release approval.

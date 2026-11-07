@@ -1,3 +1,10 @@
+## v0.5.9 private — Actionable review queue (2026-11-06)
+
+- After a 837-row real scan and a 706-game import (330 applied, 376 safe no-change skips, zero reported failures), the dashboard separates *Candidates / Needs review / Unmatched / No changes / Completed / Ignored / All*. No-change entries no longer inflate manual-review counts.
+- Needs review sorts games with candidate metadata overlapping currently missing fields first, followed by lower-opportunity reviews. This is only an advisory presentation sort; no ranking confers approval or changes matching thresholds.
+- The preview flags a high heuristic score when IGDB's canonical title looks different after known platform-aware prefix normalization, and separately flags reported platform mismatches. Existing manual identity and strict write gates remain intact.
+- Existing game metadata, on-disk journal formats, scan cache, recovery behavior and ROM paths are unchanged. Current v0.5.8 dependency provenance limitation remains unresolved; this private build does not claim public readiness.
+
 ## Private release evidence (v0.5.8)
 
 The latest local release-readiness status is in [`RELEASE_READINESS.md`](RELEASE_READINESS.md). After the guarded recovery-test milestone, run `pwsh -NoProfile -File Tools/Run-Release-Readiness.ps1` from the project root to verify existing compiled package bytes, dependency version declarations, full offline suites and local-only Git provenance. It creates a private report outside the source tree but no new `.pext`, release tag or remote. This is not a supply-chain or actual Playnite crash-recovery certification.
