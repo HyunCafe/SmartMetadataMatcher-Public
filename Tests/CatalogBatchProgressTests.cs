@@ -40,6 +40,21 @@ internal static class CatalogBatchProgressTests
             catch(ArgumentOutOfRangeException){rejected=true;}
             Assert(rejected,"invalid batch counter rejected");
         }
+        var validating=CatalogBatchProgress.DescribeIdentityPreflight(0,50,"Checking Naruto");
+        Assert(validating.Contains("0 / 50 verified") && validating.Contains("No Playnite changes yet"),
+            "preflight must show a zero-of-50 identity phase without claiming writes");
+        var verified=CatalogBatchProgress.DescribeIdentityPreflight(25,50,"Verified Astro Boy");
+        Assert(verified.Contains("25 / 50 verified") && verified.Contains("Verified Astro Boy"),
+            "preflight shows live progress and game identity");
+        Assert(CatalogBatchProgress.DescribeIdentityPreflight(50,50,"").Contains("50 / 50 verified"),
+            "full preflight complete without marking games applied");
+        foreach(var invalid in new[]{new[]{0,0},new[]{-1,50},new[]{51,50}})
+        {
+            bool rejected=false;
+            try{CatalogBatchProgress.DescribeIdentityPreflight(invalid[0],invalid[1],"a");}
+            catch(ArgumentOutOfRangeException){rejected=true;}
+            Assert(rejected,"invalid preflight counts rejected");
+        }
         Console.WriteLine("PASS: "+checks+" batch progress/cancellation presentation checks.");
     }
 }

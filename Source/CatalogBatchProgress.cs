@@ -18,6 +18,18 @@ namespace SmartMetadataMatcher
             if(!String.IsNullOrWhiteSpace(current))return text+"  •  "+current;
             return text;
         }
+        // A bulk reviewed batch first validates *all* selected IGDB identities.
+        // Its progress is distinct from applied/skipped metadata counts: no
+        // Playnite writes have occurred during this phase.
+        internal static string DescribeIdentityPreflight(int verified,int total,string current)
+        {
+            if(total<1 || verified<0 || verified>total)
+                throw new ArgumentOutOfRangeException("Identity preflight counters must be in range.");
+            var text="IGDB identity preflight: "+verified+" / "+total+
+                " verified  •  No Playnite changes yet";
+            if(!String.IsNullOrWhiteSpace(current))return text+"  •  "+current;
+            return text;
+        }
         // Older diagnostic callers retain their original signature.
         internal static string Describe(int total,int applied,int failed,string current,
             bool stopRequested,bool recoveryRequired)

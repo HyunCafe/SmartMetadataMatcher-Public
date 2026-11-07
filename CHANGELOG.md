@@ -1,3 +1,9 @@
+## v0.5.16 — Private review selection and preflight progress fix (2026-11-07)
+- Stop review-dialog checkbox double-clicks from invoking Inspect game and closing the review window. Keep explicit Inspect game navigation.
+- Show immediate, live progress for read-only 50-game identity preflight, with an indeterminate bar until metadata updates begin; do not mislabel these checks as applied.
+- Preserve the 350 ms IGDB pacing, all existing identity checks, backup acknowledgement, stop-on-error and undo paths. Add pure preflight status regression tests.
+- Requires Windows .NET build/tests and interactive review-selection validation before public release.
+
 ## v0.5.15 — Private paired-bundle and undated-port identity repair (2026-11-07)
 - Recognize explicit Ys I & II PSP pair naming as the standard Chronicles compilation; retain Premium/other-edition, sequel, game-type, platform and incomplete-search safeguards.
 - Prevent an undated same-name child port from vetoing a dated original on the requested platform when direct IGDB parent lineage is proven; independent conflicting local release year remains Review.

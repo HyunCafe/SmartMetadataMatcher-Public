@@ -1,3 +1,9 @@
+## v0.5.16 private — UI bugfix acceptance pending
+- Exact predecessor: private v0.5.15 local commit `23502b89cf2fa0afac7e0b44548e29ee13c4cf21`; source guard includes CatalogWindow, CatalogBatchProgress and tests.
+- Verify: double or rapid clicks on review checkboxes cannot close the review dialog; check 52→50 selection and original table filters.
+- Verify: after approving up to 50 reviewed identities, preflight status advances before applying, keeps 350 ms pacing, is cancelable, and never claims writes before the first game.
+- Verify: compile and run all Windows tests, private package/RC/privacy checks, and preserve clean-tree rollback on failure. No GitHub push or public release.
+
 ## v0.5.15 private — Windows acceptance pending
 
 - Source-only changes to smart resolver and tests plus version/doc/release tooling; no writer, journal, ROM, data cache or Playnite DB edits from installer.

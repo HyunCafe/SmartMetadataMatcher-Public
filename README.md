@@ -1,3 +1,6 @@
+## v0.5.16 private review-window correction
+The 50-game manual review dialog no longer closes when checkboxes are clicked rapidly; use Inspect game to navigate intentionally. After approving a reviewed bulk batch, the window now shows a live, read-only IGDB identity preflight counter before any metadata writes begin. Identity validation, network pacing, final approval, backup, journal and undo safety rules remain unchanged. This private build needs Windows and Playnite validation before public release.
+
 ## v0.5.15 private focused matcher
 
 This update targets two read-only identity decisions (explicit numbered compilations and undated same-name ports). It does not claim to resolve generic Final Fantasy IV PSP editions, Legend of Heroes numbering, PC same-title homonyms, ROM-only titles, or wrong-platform provider records. Run Windows regression tests, install privately, and compare export IDs before authorizing writes.

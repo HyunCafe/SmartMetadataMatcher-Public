@@ -1,3 +1,6 @@
+## Decision — v0.5.16 review interaction and preflight UX
+Review-table selection checkboxes must never close the dialog: remove its generic routed double-click inspect shortcut; explicit Inspect game remains. During reviewed-bulk approval, the existing all-ID network preflight stays mandatory and rate-limited. Show count/status from the first IGDB lookup, and distinguish preflight validation from actual applied metadata. Do not change matching rules, writers, journals, IGDB request bounds or completion counts.
+
 ## Decision — v0.5.15 focused evidence rule
 
 Do not loosen global title thresholds or auto-approve name-only franchise labels. A plainly numbered I & II PSP compilation is eligible only as a verified IGDB type-3 title, after exact platform, game-type, edition, complete-rival and live preflight gates. A same-name port with a direct parent link and no date on the requested platform is an undated shadow, not independently corroborated rival evidence; conflicting local-year data blocks suppression. Other data/write policies stay unchanged.

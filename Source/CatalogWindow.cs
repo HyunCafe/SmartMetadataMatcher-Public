@@ -1979,7 +1979,11 @@ namespace SmartMetadataMatcher
             previewApply.ToolTip="Review all marked identities together; confirm uncertain matches explicitly, " +
                 "then check live IGDB identity and approve exact changes with a verified backup.";
             AddButton(footer,"Close",()=>dialog.Close(),out close);
-            table.MouseDoubleClick+=(s,e)=>focus();
+            // The review table contains live checkboxes and immediately filters
+            // unchecked rows out of the Selected view. A routed MouseDoubleClick
+            // can fire during rapid unchecking and accidentally call focus(),
+            // which deliberately closes this dialog. Inspect via the explicit
+            // button instead; selection clicks must never navigate away.
             body.Children.Add(table);
             // Prioritize the user's marked subset. If no marks exist and no
             // strict-ready matches exist, show all rather than an empty list.
@@ -3400,8 +3404,11 @@ namespace SmartMetadataMatcher
             autoBatchButton.IsEnabled=false;
             undoButton.IsEnabled=false;scanSize.IsEnabled=false;cancelButton.IsEnabled=true;cancelButton.Visibility=Visibility.Visible;
             batchProgress.Visibility=Visibility.Visible;batchProgress.Maximum=items.Count;batchProgress.Value=0;
+            batchProgress.IsIndeterminate=reviewedBulk;
             batchProgressText.Visibility=Visibility.Visible;
-            batchProgressText.Text=CatalogBatchProgress.Describe(items.Count,0,0,0,"Starting live IGDB validation",false,false);
+            batchProgressText.Text=reviewedBulk?
+                CatalogBatchProgress.DescribeIdentityPreflight(0,items.Count,"Starting live IGDB identity checks"):
+                CatalogBatchProgress.Describe(items.Count,0,0,0,"Starting live IGDB validation",false,false);
             cancellation=new CancellationTokenSource();var token=cancellation.Token;
             Task.Run(()=>{
                 int completed=0,skipped=0,failed=0;var errors=new List<string>();
@@ -3414,9 +3421,17 @@ namespace SmartMetadataMatcher
                         var verifiedRecords=new Dictionary<long,CatalogGame>();
                         if(reviewedBulk)
                         {
+                            int verified=0;
                             foreach(var item in items)
                             {
                                 if(token.IsCancellationRequested){cancelled=true;break;}
+                                var checkedSoFar=verified;
+                                var checkingName=item.Name;
+                                window.Dispatcher.BeginInvoke(new Action(()=>{
+                                    if(!window.IsVisible)return;
+                                    batchProgressText.Text=CatalogBatchProgress.DescribeIdentityPreflight(
+                                        checkedSoFar,items.Count,"Checking "+checkingName);
+                                }));
                                 try
                                 {
                                     CatalogGame cat;
@@ -3430,6 +3445,13 @@ namespace SmartMetadataMatcher
                                             cat.Id,cat.Name,cat.PlatformIds))
                                         throw new InvalidOperationException("IGDB title or platform does not match the " +
                                             "reviewed identity. Inspect this game separately.");
+                                    verified++;
+                                    var verifiedSoFar=verified;
+                                    window.Dispatcher.BeginInvoke(new Action(()=>{
+                                        if(!window.IsVisible)return;
+                                        batchProgressText.Text=CatalogBatchProgress.DescribeIdentityPreflight(
+                                            verifiedSoFar,items.Count,"Verified "+checkingName);
+                                    }));
                                 }
                                 catch(OperationCanceledException){cancelled=true;break;}
                                 catch(Exception ex)
@@ -3442,6 +3464,14 @@ namespace SmartMetadataMatcher
                             }
                         }
                         if(!cancelled && !stoppedOnError)
+                        {
+                            if(reviewedBulk)
+                                window.Dispatcher.BeginInvoke(new Action(()=>{
+                                    if(!window.IsVisible)return;
+                                    batchProgress.IsIndeterminate=false;
+                                    batchProgressText.Text=CatalogBatchProgress.Describe(items.Count,0,0,0,
+                                        "All reviewed identities validated; starting metadata updates",false,false);
+                                }));
                         foreach(var item in items)
                         {
                         if(token.IsCancellationRequested){cancelled=true;break;}
@@ -3555,6 +3585,7 @@ namespace SmartMetadataMatcher
                             break;
                         }
                         if(token.WaitHandle.WaitOne(350)){cancelled=true;break;}
+                        }
                         }
                     }
                 }
@@ -3739,6 +3770,9 @@ namespace SmartMetadataMatcher
         }
         private void EndApply()
         {
+            // Restore the normal progress bar after either identity-preflight
+            // completion, cancellation or failure (also used by single imports).
+            batchProgress.IsIndeterminate=false;
             busy=false;
             scanButton.IsEnabled=true; applyButton.IsEnabled=true; batchButton.IsEnabled=true;
             autoBatchButton.IsEnabled=true;undoButton.IsEnabled=true;
