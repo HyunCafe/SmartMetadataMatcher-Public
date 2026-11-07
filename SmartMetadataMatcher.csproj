@@ -29,6 +29,7 @@
     <Compile Include="Source/CatalogStrictBatchFlow.cs" />
     <Compile Include="Source/CatalogManualReviewFlow.cs" />
     <Compile Include="Source/CatalogCore.cs" />
+    <Compile Include="Source/CatalogCandidateEvidence.cs" />
     <Compile Include="Source/CatalogIgnored.cs" />
     <Compile Include="Source/CatalogScanCache.cs" />
     <Compile Include="Source/CatalogMediaStagingJournal.cs" />

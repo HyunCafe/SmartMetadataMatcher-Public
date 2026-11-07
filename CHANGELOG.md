@@ -1,4 +1,12 @@
 ## v0.5.11 private — Manual review confirmation in one workflow
+
+## v0.5.12 — Read-only rival evidence (private Stage A)
+- Inspect up to 12 competing IGDB IDs only when a freshly scanned game is already marked Review.
+- Gather game type, version/parent relationship and platform-specific release years, with explicit incomplete coverage.
+- Include concise read-only evidence in match reasons and the existing exported CSV.
+- Leave auto-plan rules, selected identity, metadata writer, undo, journal formats and ROM files unchanged.
+- Add mock-only regression tests for candidate bounds, coverage and no inferred approval.
+- Live authenticated IGDB replay against the 100-case cohort remains required before Stage B automatic promotion.
 - Checkbox selections no longer dead-end at zero ready: show a full, scrollable per-game identity confirmation and explicit acknowledgement before saving confirmed IDs.
 - Save up to 50 explicitly verified identities in one atomic private JSON update; a failed check preserves existing decisions.
 - Permit a bounded batch of 1–50 explicitly user-confirmed, freshly scanned games through the existing final backup approval, sequential writer and undo journal. Existing five-game legacy supervised cap is retained.

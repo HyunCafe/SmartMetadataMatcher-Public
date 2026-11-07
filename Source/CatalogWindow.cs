@@ -136,6 +136,39 @@ namespace SmartMetadataMatcher
             List<CatalogGame> found,IgdbReadOnly client,CancellationToken token)
         {
             var match=CatalogCore.Choose(input,found);
+            if(match.MatchStatus=="Review")
+            {
+                // Extra catalog evidence is diagnostic ONLY. Never change the
+                // selected ID, match status, or automatic-plan eligibility.
+                // A probe error cannot invalidate an otherwise completed scan.
+                try
+                {
+                    // One capped exact-title follow-up exposes rival IDs that a
+                    // fuzzy/capped search might have missed. Neither the chosen
+                    // game nor MatchStatus is changed by this investigation.
+                    var evidencePool=(found??new List<CatalogGame>()).ToList();
+                    var exactTitle=CatalogCore.QueryTitle(input.Name,input.Platform);
+                    if(exactTitle.Length>=3 && exactTitle.Length<=100)
+                    {
+                        var rivals=client.SearchExactTitle(exactTitle,token);
+                        evidencePool.AddRange(rivals);
+                    }
+                    var ids=CatalogCandidateEvidence.SelectIds(input,evidencePool,
+                        match.Game==null?0:match.Game.Id);
+                    if(ids.Count>0)
+                    {
+                        var details=client.InspectCandidateIds(ids,token);
+                        match.Reason+="; "+CatalogCandidateEvidence.Describe(input,evidencePool,ids,details);
+                    }
+                }
+                catch(OperationCanceledException){throw;}
+                catch(Exception ex)
+                {
+                    match.Reason+="; optional read-only rival probe unavailable ("+
+                        ex.GetType().Name+"); no identity approval granted";
+                }
+                return match;
+            }
             if(match.MatchStatus!="Unmatched")return match;
             try
             {

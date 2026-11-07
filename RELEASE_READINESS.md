@@ -1,5 +1,12 @@
 ## v0.5.11 private manual identity review — PENDING WINDOWS AND PLAYNITE ACCEPTANCE
 
+## v0.5.12 private Stage A evidence gate
+- Offline: bounded candidate ID set, incomplete coverage, platform-specific year and no-write evidence tests.
+- Windows: extension build, full offline suites, packaged DLL/manifest/privacy verifier required.
+- Live: fresh read-only scan of representative review cases, export and compare rival diagnostics before any promotion.
+- Unknown: unqueried IGDB records and classification precision on the full 100-case cohort.
+- No automatic-write policy expansion, no ROM inspection and no provider secrets in reports.
+
 - Planned: scrollable all-selected identity confirmation, explicit acknowledgement, atomic private identity persistence, bounded 50-game manual review, read-only whole-batch IGDB ID/title/platform validation before any writes.
 - Existing: normal five-game legacy supervised cap, unrestricted strict-ready batch, final backup acknowledgement, serial fail-fast metadata writer, journaled undo, no ROM/path changes.
 - Verified here: source/version/privacy audit, package-verifier fixtures and disposable mocked Git installer preflight/rollback.

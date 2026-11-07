@@ -1,5 +1,10 @@
 ## Decision — v0.5.11 manually verified batch (2026-11-06)
 
+## v0.5.12 — Research first, no inferred auto approval
+- Accepted: bounded read-only IGDB rival inspection using numeric candidate IDs, no new dependencies.
+- Deferred: automated candidate promotion and local ROM inspection until live evidence confirms separation of competing editions.
+- Explicitly preserve strict and reviewed-batch eligibility checks. A single returned candidate is not proof of catalog completeness.
+
 **Accepted:** The user's already-marked game subset opens one full-list identity review with explicit manual confirmation instead of failing at `0 ready`. Up to 50 freshly scanned, explicitly confirmed identities may proceed through one final backup-gated approval, with read-only verification of **all** exact IGDB IDs/names/platforms before any writes. Preserve atomic identity-store persistence and fail-fast journaling.
 
 **Preserved:** Legacy five-game supervised limit; strict-ready automation; live game title/platform checks; no automatic selection-as-confirmation; no altered IGDB similarity thresholds.

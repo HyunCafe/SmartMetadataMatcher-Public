@@ -32,6 +32,11 @@ namespace SmartMetadataMatcher
         public List<string> Publishers { get; set; }
         public List<string> SeriesNames { get; set; }
         public List<CatalogRelease> ReleaseDates { get; set; }
+        // Read-only candidate diagnostic fields; never used as a write permission.
+        public long? GameTypeId { get; set; }
+        public long? VersionParentId { get; set; }
+        public long? ParentGameId { get; set; }
+        public string VersionTitle { get; set; }
     }
 
     internal sealed class CatalogRelease

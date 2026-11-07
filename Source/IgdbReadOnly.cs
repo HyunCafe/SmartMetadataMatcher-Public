@@ -66,6 +66,10 @@ namespace SmartMetadataMatcher
         [DataMember(Name="involved_companies")] public List<IgdbCompanyRelation> InvolvedCompanies { get; set; }
         [DataMember(Name="collections")] public List<IgdbNamed> Collections { get; set; }
         [DataMember(Name="release_dates")] public List<IgdbRelease> ReleaseDates { get; set; }
+        [DataMember(Name="game_type")] public long? GameTypeId { get; set; }
+        [DataMember(Name="version_parent")] public long? VersionParentId { get; set; }
+        [DataMember(Name="parent_game")] public long? ParentGameId { get; set; }
+        [DataMember(Name="version_title")] public string VersionTitle { get; set; }
     }
     [DataContract]
     internal sealed class CatalogCredentialData
@@ -321,6 +325,65 @@ namespace SmartMetadataMatcher
             cache[key]=result;
             return result;
         }
+        // Read-only follow-up for a small set of competing IDs. Uses a fixed
+        // query with numeric IDs only. No scan result can become write-eligible
+        // through this method; the existing strict preflight remains unchanged.
+        internal List<CatalogGame> InspectCandidateIds(IEnumerable<long> ids,CancellationToken ct)
+        {
+            var selected=(ids??Enumerable.Empty<long>()).Distinct().ToList();
+            if(selected.Count==0)return new List<CatalogGame>();
+            if(selected.Count>CatalogCandidateEvidence.MaxIds || selected.Any(id=>id<=0))
+                throw new ArgumentException("Out-of-bounds IGDB candidate investigation");
+            ct.ThrowIfCancellationRequested();
+            var key="evidence:"+String.Join(",",selected.OrderBy(x=>x));
+            List<CatalogGame> saved;
+            if(cache.TryGetValue(key,out saved))return saved;
+            Authenticate(ct);
+            var query="fields id,name,platforms.id,platforms.name,game_type,version_parent,"+
+                "parent_game,version_title,release_dates.date,release_dates.platform.id; where id = ("+
+                String.Join(",",selected.Select(x=>x.ToString(System.Globalization.CultureInfo.InvariantCulture)))+
+                "); limit "+CatalogCandidateEvidence.MaxIds+";";
+            for(int attempt=0;attempt<3;attempt++)
+            {
+                ct.ThrowIfCancellationRequested();
+                using(var message=new HttpRequestMessage(HttpMethod.Post,"https://api.igdb.com/v4/games"))
+                {
+                    message.Headers.Add("Client-ID",clientId);
+                    message.Headers.Authorization=new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",token);
+                    message.Content=new StringContent(query,Encoding.UTF8,"text/plain");
+                    using(var response=http.SendAsync(message,ct).GetAwaiter().GetResult())
+                    {
+                        int status=(int)response.StatusCode;
+                        if((status==429 || status==502 || status==503 || status==504) && attempt<2)
+                        {
+                            if(ct.WaitHandle.WaitOne(800*(attempt+1)))ct.ThrowIfCancellationRequested();
+                            continue;
+                        }
+                        if(!response.IsSuccessStatusCode)
+                            throw new InvalidOperationException("IGDB read-only candidate probe failed (HTTP "+status+").");
+                        var received=Parse<List<IgdbRecord>>(
+                            response.Content.ReadAsStringAsync().GetAwaiter().GetResult()) ?? new List<IgdbRecord>();
+                        var allow=new HashSet<long>(selected);
+                        var result=received.Where(x=>x!=null && allow.Contains(x.Id))
+                            .GroupBy(x=>x.Id).Select(g=>g.First()).Select(x=>new CatalogGame {
+                                Id=x.Id,Name=x.Name,GameTypeId=x.GameTypeId,
+                                VersionParentId=x.VersionParentId,ParentGameId=x.ParentGameId,
+                                VersionTitle=x.VersionTitle,
+                                PlatformIds=(x.Platforms??new List<IgdbPlatform>()).Where(p=>p!=null).Select(p=>p.Id).ToList(),
+                                Platforms=(x.Platforms??new List<IgdbPlatform>()).Where(p=>p!=null).Select(p=>p.Name).ToList(),
+                                ReleaseDates=(x.ReleaseDates??new List<IgdbRelease>()).Where(r=>r!=null)
+                                    .Select(r=>new CatalogRelease { PlatformId=r.Platform==null?0:r.Platform.Id,
+                                        Year=ReleaseYear(r.Date) }).ToList()
+                            }).ToList();
+                        cache[key]=result;
+                        if(ct.WaitHandle.WaitOne(310))ct.ThrowIfCancellationRequested();
+                        return result;
+                    }
+                }
+            }
+            throw new InvalidOperationException("IGDB read-only candidate probe failed.");
+        }
+
         // Read-only exact-name discovery fallback. Unlike IGDB's broad search,
         // case-insensitive name filtering can find an exact short/common title
         // buried behind dozens of unrelated fuzzy results (e.g. THE FINALS).

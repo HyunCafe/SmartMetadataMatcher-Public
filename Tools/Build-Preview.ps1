@@ -44,7 +44,7 @@ try {
         throw "Version mismatch: YAML=$yamlVersion source=$sourceVersion compiled=$dllVersion"
     }
     New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-    $name = "SmartMetadataMatcher-$yamlVersion-private-manual-review-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [Guid]::NewGuid().ToString('N').Substring(0,6)
+    $name = "SmartMetadataMatcher-$yamlVersion-private-evidence-probe-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [Guid]::NewGuid().ToString('N').Substring(0,6)
     $zip = Join-Path $releaseDir ($name + '.zip')
     $pext = Join-Path $releaseDir ($name + '.pext')
     if (Test-Path -LiteralPath $pext) { throw "Refusing to overwrite $pext" }
@@ -64,6 +64,6 @@ try {
     $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $pext).Hash
     Write-Host "SUCCESS: $pext"
     Write-Host "SHA256: $hash"
-    Write-Host 'PRIVATE v0.5.11: explicit multi-identity review, bounded supervised batch and safe upfront platform preflight.'
+    Write-Host 'PRIVATE v0.5.12: bounded read-only IGDB rival inspection; matching and write eligibility unchanged.'
 }
 finally { Pop-Location }
