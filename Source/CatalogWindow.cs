@@ -168,7 +168,7 @@ namespace SmartMetadataMatcher
         private HashSet<Guid> ignoredIds = new HashSet<Guid>();
         private readonly List<Button> tabButtons = new List<Button>();
         private TextBox catalogSearch;
-        private Button selectionToggleButton, visibleToggleButton, reviewSelectionButton;
+        private Button selectionToggleButton, visibleToggleButton, reviewSelectionButton, verifiedBatchButton;
         private Button clearImportSelectionButton, ignoreHighlightedButton;
         private Button restoreHistoryButton, removeRecentButton;
         private ComboBox platformFilter;
@@ -566,10 +566,17 @@ namespace SmartMetadataMatcher
             clearImportSelectionButton.ToolTip="Uncheck every game selected for import. Does not delete or ignore games.";
             AddButton(filters,"Ignore highlighted",ToggleIgnored,out ignoreHighlightedButton);
             ignoreHighlightedButton.ToolTip="Ignore or restore the highlighted game. Only unresolved games can be ignored.";
-            AddButton(filters,"Review & apply",ShowPlanReview,out reviewSelectionButton);
-            Decorate(reviewSelectionButton,"\uE896",true);
-            reviewSelectionButton.ToolTip="Review selected games and approve proposed Playnite metadata changes.";
-            reviewSelectionButton.Foreground=Deep();
+            // verified-match preflight: strict-ready matches no longer require
+            // checkbox selection in a second
+            // window. The existing AutoPlan -> RunBatch path still performs live
+            // exact-ID/platform verification and requires the final backed-up approval.
+            AddButton(filters,"Apply verified matches...",AutoPlan,out verifiedBatchButton);
+            Decorate(verifiedBatchButton,"\uE896",true);
+            verifiedBatchButton.ToolTip="Include all freshly verified strict-ready matches, regardless of checkboxes. " +
+                "Live verification, a full change preview, backup acknowledgement and final approval are still required.";
+            verifiedBatchButton.Background=Accent();verifiedBatchButton.Foreground=Deep();
+            AddButton(filters,"Review matches",ShowPlanReview,out reviewSelectionButton);
+            reviewSelectionButton.ToolTip="Review uncertain matches, inspect identities, or apply a manually selected subset.";
             var quickFilters=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right};
             Grid.SetColumn(quickFilters,1);filterBar.Children.Add(quickFilters);
             quickFilters.Children.Add(Icon("\uE721",15));
@@ -1426,9 +1433,9 @@ namespace SmartMetadataMatcher
             dialog.Content=body;dialog.ShowDialog();
         }
 
-        // Identity preview itself is read-only. A separate, explicitly confirmed
-        // private testing action may dispatch marked, strictly eligible rows
-        // through the EXISTING journaled batch writer. This is not the v0.5 runner.
+        // The review dialog handles uncertain identities and user-selected subsets.
+        // Fresh strict-ready matches can bypass this checkbox stage via AutoPlan,
+        // but never bypass the live revalidation and final approval in RunBatch.
         private void ShowPlanReview()
         {
             if(busy)return;
@@ -1498,8 +1505,10 @@ namespace SmartMetadataMatcher
                 ToolTip="Find a Playnite game or IGDB candidate in this plan"};
             filters.Children.Add(search);
             var filterStatus=Caption("",12);filters.Children.Add(filterStatus);
-            var table=NewTable();table.SelectionMode=DataGridSelectionMode.Single;
-            // Only the checkbox column is editable; identity fields are read-only.
+            var table=NewTable();table.SelectionMode=DataGridSelectionMode.Extended;
+            table.SelectionUnit=DataGridSelectionUnit.FullRow;
+            // Ctrl/Shift/Ctrl+A select highlighted rows; the Mark column remains
+            // independent. Only the checkbox column is editable.
             table.IsReadOnly=false;
             var markFactory=new FrameworkElementFactory(typeof(CheckBox));
             markFactory.SetBinding(CheckBox.IsCheckedProperty,new Binding("Marked"){
@@ -1519,7 +1528,18 @@ namespace SmartMetadataMatcher
             DockPanel.SetDock(footer,Dock.Bottom);body.Children.Add(footer);
             Button inspect=null,previewApply=null,close=null;
             Button markReady=null,clearMarked=null,refreshSelected=null,editDraft=null;
+            Button markHighlightedRows=null,unmarkHighlightedRows=null;
             Action updateSelection=()=>{
+                var highlighted=table.SelectedItems.OfType<PlanPreviewRow>()
+                    .Where(x=>!x.Archived).ToList();
+                if(markHighlightedRows!=null){
+                    markHighlightedRows.Content="Mark highlighted ("+highlighted.Count+")";
+                    markHighlightedRows.IsEnabled=highlighted.Any(x=>!x.Marked);
+                }
+                if(unmarkHighlightedRows!=null){
+                    unmarkHighlightedRows.Content="Unmark highlighted ("+highlighted.Count+")";
+                    unmarkHighlightedRows.IsEnabled=highlighted.Any(x=>x.Marked);
+                }
                 updateCounts();
                 if(inspect!=null)inspect.IsEnabled=table.SelectedItem is PlanPreviewRow;
                 if(editDraft!=null){
@@ -1608,6 +1628,19 @@ namespace SmartMetadataMatcher
                 }));
             var selectionTools=new WrapPanel{Margin=new Thickness(0,2,0,8)};
             DockPanel.SetDock(selectionTools,Dock.Top);body.Children.Add(selectionTools);
+            AddButton(selectionTools,"Mark highlighted",()=>{
+                foreach(var row in table.SelectedItems.OfType<PlanPreviewRow>()
+                    .Where(x=>!x.Archived).ToList())row.Marked=true;
+                refreshRows();
+            },out markHighlightedRows);
+            markHighlightedRows.ToolTip="Ctrl/Shift/Ctrl+A highlights rows; this action marks only highlighted, non-archived rows. " +
+                "Unverified identities remain blocked by the final approval rules.";
+            AddButton(selectionTools,"Unmark highlighted",()=>{
+                foreach(var row in table.SelectedItems.OfType<PlanPreviewRow>()
+                    .Where(x=>!x.Archived).ToList())row.Marked=false;
+                refreshRows();
+            },out unmarkHighlightedRows);
+            unmarkHighlightedRows.ToolTip="Unmark highlighted rows without ignoring or changing Playnite games.";
             AddButton(selectionTools,"Edit highlighted draft...",()=>{
                 var highlighted=table.SelectedItem as PlanPreviewRow;
                 if(highlighted!=null && highlighted.SourceRow!=null &&
@@ -2375,9 +2408,14 @@ namespace SmartMetadataMatcher
                     "Restore highlighted":"Ignore highlighted";
                 ignoreHighlightedButton.IsEnabled=!busy && active!=null && !active.IsCompleted;
             }
+            if(verifiedBatchButton!=null){
+                verifiedBatchButton.IsEnabled=!busy&&results.Any(x=>x.AutoPlanEligible &&
+                    !x.FromSavedScan && !x.FromHistory && !x.IsCompleted && !x.IsIgnored &&
+                    !x.UserConfirmed && x.Status=="Strong candidate");
+            }
             if(reviewSelectionButton!=null){
                 reviewSelectionButton.Content=selected>0?
-                    "Review & apply ("+selected+")":"Review matches";
+                    "Review selected ("+selected+")...":"Review matches";
                 reviewSelectionButton.IsEnabled=!busy&&results.Count>0;
             }
         }
@@ -2462,9 +2500,7 @@ namespace SmartMetadataMatcher
             one.Click += (s,e) => ApplySelected(); legacy.Items.Add(one);
             var marked = new MenuItem { Header = "Apply marked games — existing five-game limit" };
             marked.Click += (s,e) => ApplyMarked(); legacy.Items.Add(marked);
-            var automatic = new MenuItem { Header = "Strict auto-plan — all ready matches (approval required)" };
-            automatic.Click += (s,e) => AutoPlan(); legacy.Items.Add(automatic);
-            legacy.ToolTip="Legacy testing only. Not the approved v0.5 bulk-workflow design. Back up Playnite before any writing.";
+            legacy.ToolTip="Legacy single-game and supervised five-game actions. Use Apply verified matches on the dashboard for strict-ready batches.";
             menu.Items.Add(legacy);
             menu.PlacementTarget = source;
             menu.IsOpen = true;
@@ -2884,15 +2920,16 @@ namespace SmartMetadataMatcher
             if(busy) return;
             var library=api.Database.Games.Where(g=>g!=null).Select(g=>Tuple.Create(
                 g.Id,g.Name,g.Platforms==null?"":String.Join(", ",g.Platforms.Select(p=>p.Name)))).ToList();
-            var plan=EnrichmentJobPlanner.Create(results.Select(x=>new EnrichmentCandidate {
+            var candidates=results.Select(x=>new EnrichmentCandidate {
                 GameId=x.GameId,CurrentName=x.CurrentName,Platform=x.Platform,
                 CandidateTitle=x.Candidate,CatalogId=x.IgdbId,Status=x.Status,
                 StrictEvidence=x.AutoPlanEligible,UserConfirmed=x.UserConfirmed,Completed=x.IsCompleted,Ignored=x.IsIgnored,
                 FromHistory=x.FromHistory,FromSavedScan=x.FromSavedScan,Marked=x.Marked,
                 PriorFailure=(x.Evidence??"").StartsWith("Apply failed:",StringComparison.Ordinal)
-            }),library,useCatalogTitle.IsChecked==true,false);
-            var ready=new HashSet<Guid>(plan.Where(x=>x.ReadyForPreflight).Select(x=>x.GameId));
-            var safe=results.Where(x=>ready.Contains(x.GameId) && x.AutoPlanEligible && !x.UserConfirmed)
+            }).ToList();
+            var plan=EnrichmentJobPlanner.Create(candidates,library,useCatalogTitle.IsChecked==true,false);
+            var ready=CatalogStrictBatchFlow.EligibleIds(candidates,plan);
+            var safe=results.Where(x=>ready.Contains(x.GameId))
                 .OrderBy(x=>x.CurrentName,StringComparer.OrdinalIgnoreCase)
                 .ToList();
             if(safe.Count==0)

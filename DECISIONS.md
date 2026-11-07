@@ -1,3 +1,12 @@
+## v0.5.10 decision: direct strict-ready preflight (2026-11-06)
+
+- **Accepted:** streamline fresh strict-ready matches by offering a primary Apply verified matches action. Its only authorization is the existing scrollable final confirmation and backup acknowledgement.
+- **Accepted:** preserve a separate manual Review matches path for uncertain matches and hand-picked subsets; restore Ctrl/Shift/Ctrl+A highlighting and Mark/Unmark actions.
+- **Rejected:** equating identical titles or high similarity scores with confirmed identity; no relaxed IGDB platform/edition gates.
+- **Deferred:** persistent no-change states, expanded metadata providers, crash-injection tests on the user's primary Playnite environment.
+
+---
+
 ## v0.5.9 decision: display-only status separation (2026-11-06)
 
 - Observation: a 706-game approved run reported 330 applied, 376 safe no-change skips, 0 failures. The 837-row CSV contains 101 Review, 28 Unmatched, 1 Strong and 1 Ignored. A composite `Needs review (505)` wrongly grouped the 376 no-change rows.

@@ -1,3 +1,14 @@
+## v0.5.10 — Private verified-batch workflow (2026-11-06)
+
+- Expose **Apply verified matches...** as the main dashboard action, using the existing strict planner and live revalidation without requiring intermediate checkbox selection.
+- The final scrollable approval, Playnite + extension-data backup acknowledgement, sequential fail-fast writer and per-game undo are unchanged.
+- Preserve ambiguous/confirmed/stale identity paths in **Review matches**, separate from strict batch selection.
+- Fix Ctrl/Shift/Ctrl+A highlighting in Review matches by using extended row selection and explicit Mark/Unmark highlighted controls.
+- Add a pure automated verified-batch selector and regression tests covering 358 unmarked ready matches, mixed ambiguous cases, duplicate IDs and empty inputs.
+- No matching threshold, journal format, Playnite library changes during installation, or automatic approval.
+
+---
+
 ## v0.5.9 — Private actionable review queue (2026-11-06)
 - Separate reviewed no-change results from needs-review; split unmatched results into a distinct view while retaining an unrestricted All tab.
 - Sort manual-review results by potential missing-field overlap; do not change approvals, writer behavior or confidence thresholds.

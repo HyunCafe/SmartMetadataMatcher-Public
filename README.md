@@ -1,3 +1,11 @@
+## v0.5.10 private workflow — apply verified matches directly
+
+After a fresh read-only IGDB scan, use **Apply verified matches...** from the main dashboard to include every strictly eligible match without first marking hundreds of games in Review matches. This performs the existing exact IGDB ID/platform/field verification, shows a scrollable final plan, and requires both a verified backup acknowledgement and explicit final approval before any Playnite writes. A saved or ambiguous match is not auto-approved.
+
+Use **Review matches** to handle ambiguous identities, saved results needing refresh, or manually chosen subsets. Ctrl/Shift/Ctrl+A highlights multiple rows; **Mark highlighted** and **Unmark highlighted** change the checkboxes separately from highlighting. User-confirmed identity matches still follow the supervised batch safeguards.
+
+---
+
 ## v0.5.9 private — Actionable review queue (2026-11-06)
 
 - After a 837-row real scan and a 706-game import (330 applied, 376 safe no-change skips, zero reported failures), the dashboard separates *Candidates / Needs review / Unmatched / No changes / Completed / Ignored / All*. No-change entries no longer inflate manual-review counts.

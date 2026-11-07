@@ -173,6 +173,24 @@ if not all(x in journal for x in ('var byId=new Dictionary<Guid,EnrichmentEntry>
 if 'EnrichmentJournalReplayTests.Run();' not in program:
     problems.append('Indexed journal corruption/ordering tests not wired')
 
+# v0.5.10: primary strict-ready action must bypass only intermediate marking,
+# never the existing verified batch or backup-gated final confirmation.
+if not all(x in view for x in (
+    'AddButton(filters,"Apply verified matches...",AutoPlan,out verifiedBatchButton)',
+    'AddButton(filters,"Review matches",ShowPlanReview,out reviewSelectionButton)',
+    'var ready=CatalogStrictBatchFlow.EligibleIds(candidates,plan);',
+    'RunBatch(safe,true,excluded);',
+    'table.SelectionMode=DataGridSelectionMode.Extended;',
+    'table.SelectionUnit=DataGridSelectionUnit.FullRow;',
+    'table.SelectedItems.OfType<PlanPreviewRow>()',
+    'AddButton(selectionTools,"Mark highlighted"',
+    'AddButton(selectionTools,"Unmark highlighted"',
+    'I verified a restorable backup of my Playnite library AND extension data.')):
+    problems.append('Primary guarded verified-batch path or extended review selection missing')
+if 'CatalogStrictBatchFlowTests.Run();' not in program or \
+    'Link="CatalogStrictBatchFlow.cs"' not in (root/'Tests/NameRulesTests.csproj').read_text(encoding='utf-8-sig'):
+    problems.append('Verified-batch routing tests not linked into offline runner')
+
 if problems:
     for problem in problems:
         print("STOP:", problem)

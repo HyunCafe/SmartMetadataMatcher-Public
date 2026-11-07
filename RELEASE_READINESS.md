@@ -1,3 +1,13 @@
+## v0.5.10 private verified-batch workflow — acceptance pending
+
+- **Expected local baseline:** clean `ea3562db0eee5f9500e5924a6e4a006991d21f3f` on `main` with private `origin`; GitHub push is separate.
+- **Windows gates:** compile full WPF extension; run offline suites plus strict-ready routing tests; run source/privacy and compiled-package checks; build a new v0.5.10 `.pext`; local commit only after validation.
+- **Focused Playnite acceptance:** after installing v0.5.10, use an existing freshly scanned candidate set to verify the main **Apply verified matches...** action enters the backup-gated final review with no intermediate select-all. CANCEL without writes. In **Review matches**, Ctrl/Shift highlights multiple rows and Mark/Unmark highlighted toggles only those checkboxes. No 358-game import needed.
+- **Preserved protections:** live IGDB ID/platform checks, duplicate conflicts, exclusion of saved-only evidence, user-confirmed five-game supervised limit, per-game journaling and undo. No unattended import.
+- **Unverified:** real crash recovery and independent transitive dependency provenance; five NuGet hash inconsistencies documented.
+
+---
+
 ## v0.5.9 private review-queue candidate — acceptance pending
 
 - Based on the 837-row IGDB scan export: 330 completed, 376 no changes, 101 manual review, 28 unmatched, 1 strong candidate, 1 ignored. The previous 505 count incorrectly grouped no-change rows with review work.
