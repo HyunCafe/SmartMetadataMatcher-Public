@@ -1,3 +1,9 @@
+## v0.5.15 private — Windows acceptance pending
+
+- Source-only changes to smart resolver and tests plus version/doc/release tooling; no writer, journal, ROM, data cache or Playnite DB edits from installer.
+- Mandatory: complete Windows .NET Framework build and regression tests, SHA-verified package, clean local commit; then read-only replay of 49 Review cases plus all prior changed-ID promotions.
+- Treat newly Strong classifications as review hypotheses until IGDB IDs and versions are audited. No public release or automatic GitHub push.
+
 ## v0.5.14 private — 60-case title and port resolver acceptance
 
 - Baseline: exact clean private v0.5.13 commit `a631a71258aec87788a321af9683c750c65f82fb` and its verified `.pext`.

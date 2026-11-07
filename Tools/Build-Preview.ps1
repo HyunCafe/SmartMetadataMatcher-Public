@@ -64,6 +64,6 @@ try {
     $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $pext).Hash
     Write-Host "SUCCESS: $pext"
     Write-Host "SHA256: $hash"
-    Write-Host 'PRIVATE v0.5.14: case-audited title/suffix/port resolution and guarded missing-field-only assisted matches.'
+    Write-Host 'PRIVATE v0.5.15: case-audited title/suffix/port resolution and guarded missing-field-only assisted matches.'
 }
 finally { Pop-Location }

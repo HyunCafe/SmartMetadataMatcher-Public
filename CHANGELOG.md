@@ -1,3 +1,9 @@
+## v0.5.15 — Private paired-bundle and undated-port identity repair (2026-11-07)
+- Recognize explicit Ys I & II PSP pair naming as the standard Chronicles compilation; retain Premium/other-edition, sequel, game-type, platform and incomplete-search safeguards.
+- Prevent an undated same-name child port from vetoing a dated original on the requested platform when direct IGDB parent lineage is proven; independent conflicting local release year remains Review.
+- Keep generic first-number franchise names (e.g., Legend of Heroes 1) in Review. Add positive/negative identity regression fixtures; retain existing writer, undo and local data unchanged.
+- Requires Windows full build/tests and read-only 49-case IGDB replay before any metadata approval; no GitHub push.
+
 ## v0.5.14 — 60-case title and port resolver follow-up (private)
 
 - Extend smart reranking for distinctive omitted franchise prefixes, named episodes, PSP/GBA ports and annotated series ordinals.

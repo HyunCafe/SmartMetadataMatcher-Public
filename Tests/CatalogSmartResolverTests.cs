@@ -59,6 +59,56 @@ internal static class CatalogSmartResolverTests
         Expect(!Resolve(I("Ys One And Two","PlayStation Portable"),true,
             G(10016,"Ys I & II Chronicles: Premium Edition",38,0,2009)).SmartAutoEvidence,
             "abbreviated PSP titles cannot guess the premium edition");
+        var ysPair=G(21020,"Ys I & II Chronicles",38,3,2009);
+        var ysPremium=G(42692,"Ys I & II Chronicles: Premium Edition",38,3,2011);
+        ysPremium.VersionParentId=21020;
+        ysPremium.VersionTitle="Premium Edition";
+        Expect(Resolve(I("Ys One And Two PSP","Sony PlayStation Portable"),true,
+            ysPair,ysPremium).SmartAutoEvidence,
+            "explicitly named Ys I & II PSP pair resolves the base Chronicles bundle");
+        Expect(Resolve(I("Ys One And Two PSP","Sony PlayStation Portable"),true,
+            ysPair,ysPremium).Game.Id==21020,
+            "the named Premium Edition cannot replace the standard PSP compilation");
+        Expect(!Resolve(I("Ys One And Two PSP","Sony PlayStation Portable"),true,
+            ysPremium).SmartAutoEvidence,
+            "Premium-only results must not be mistaken for standard Chronicles");
+        Expect(!Resolve(I("Ys One And Two PSP","Sony PlayStation Portable"),false,
+            ysPair,ysPremium).SmartAutoEvidence,
+            "incomplete IGDB coverage never authorizes the Chronicles shortcut");
+        Expect(!Resolve(I("Ys One And Two PSP","Sony PlayStation Portable"),true,
+            G(21021,"Ys I & II Chronicles",38,0,2009)).SmartAutoEvidence,
+            "an untyped-as-bundle pair cannot use the bundle-specific shortcut");
+        Expect(!Resolve(I("Ys One And Two PSP","Sony PlayStation Portable"),true,
+            G(21022,"Ys III & IV Chronicles",38,3,2009)).SmartAutoEvidence,
+            "different pairs of numbered releases cannot be conflated");
+        Expect(!Resolve(I("Ys One And Two PSP","Sony PlayStation Portable"),true,
+            G(21023,"Ys I & II Chronicles",6,3,2013)).SmartAutoEvidence,
+            "correct title on wrong platform cannot authorize a PSP bundle");
+        Expect(!Resolve(I("Legend Of Heroes 1","Sony PlayStation Portable"),true,
+            G(405426,"Legend of Heroes",38,0,2006)).SmartAutoEvidence,
+            "generic franchise plus informal first numeral is insufficient for PSP identity");
+        var bladeOriginal=G(23115,"Blade Dancer: Lineage of Light",38,0,2006);
+        var bladeLaterPort=G(269079,"Blade Dancer: Lineage of Light",38,11,2023);
+        bladeLaterPort.ParentGameId=23115;
+        bladeLaterPort.ReleaseDates=new List<CatalogRelease>(); // no dated PSP release for port
+        var blade=I("Blade Dancer Lineage Of Light PSP","Sony PlayStation Portable");
+        var bladeResult=Resolve(blade,true,bladeOriginal,bladeLaterPort);
+        Expect(bladeResult.SmartAutoEvidence && bladeResult.Game.Id==23115,
+            "original PSP title outranks an undated same-name port referencing it");
+        bladeLaterPort.ReleaseDates=new List<CatalogRelease>{
+            new CatalogRelease{PlatformId=38,Year=2023}};
+        Expect(!Resolve(blade,true,bladeOriginal,bladeLaterPort).SmartAutoEvidence,
+            "independently dated same-platform port requires identity corroboration");
+        bladeLaterPort.ReleaseDates=new List<CatalogRelease>();
+        Expect(!Resolve(I("Blade Dancer Lineage Of Light PSP","Sony PlayStation Portable",2023),
+            true,bladeOriginal,bladeLaterPort).SmartAutoEvidence,
+            "conflicting local release year cannot be ignored to choose older original");
+        bladeLaterPort.ParentGameId=null;
+        Expect(!Resolve(blade,true,bladeOriginal,bladeLaterPort).SmartAutoEvidence,
+            "a port without direct proven parent relationship remains a rival");
+        bladeLaterPort.ParentGameId=23115;
+        Expect(!Resolve(blade,false,bladeOriginal,bladeLaterPort).SmartAutoEvidence,
+            "incomplete port-rival search must not auto-approve Blade Dancer");
         var ysOne=I("Ys 1","PC (Windows)");
         Expect(Resolve(ysOne,true,G(10001,"Ys I",6,0,1987)).SmartAutoEvidence,
             "Ys 1 resolves a unique Ys I candidate on the correct platform");

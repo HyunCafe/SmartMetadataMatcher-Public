@@ -1,3 +1,7 @@
+## v0.5.15 private focused matcher
+
+This update targets two read-only identity decisions (explicit numbered compilations and undated same-name ports). It does not claim to resolve generic Final Fantasy IV PSP editions, Legend of Heroes numbering, PC same-title homonyms, ROM-only titles, or wrong-platform provider records. Run Windows regression tests, install privately, and compare export IDs before authorizing writes.
+
 ## v0.5.14 private — Distinctive subtitle and platform-port matching
 
 Read-only scan reranking can now promote a uniquely supported game whose local title omits a franchise wrapper, a PSP series ordinal or an episode wrapper. The selected IGDB ID must still match the Playnite platform, carry a supported game type, survive complete rival lookup and pass live ID preflight; no overwrites of existing metadata are enabled for assisted matches. Generic titles, conflicting editions, test clients, unknown platforms and incomplete searches remain in Review. ROM headers and store IDs are not read by this release.

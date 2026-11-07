@@ -1,3 +1,7 @@
+## Decision — v0.5.15 focused evidence rule
+
+Do not loosen global title thresholds or auto-approve name-only franchise labels. A plainly numbered I & II PSP compilation is eligible only as a verified IGDB type-3 title, after exact platform, game-type, edition, complete-rival and live preflight gates. A same-name port with a direct parent link and no date on the requested platform is an undated shadow, not independently corroborated rival evidence; conflicting local-year data blocks suppression. Other data/write policies stay unchanged.
+
 ## v0.5.14 — 60-case resolver follow-up (private)
 
 - Widen title equivalence only for distinctive fully retained subtitles, omitted franchise/publisher wrappers, and series annotations with platform-compatible, fully queried rivals.

@@ -232,6 +232,18 @@ namespace SmartMetadataMatcher
                 local[0]==official[0] && local[1]==official[1] &&
                 local[2]=="adv" && official[2]=="adventures";
         }
+        // A local library may name an explicitly numbered *pair* without the
+        // catalogue's descriptive word 'Chronicles' (Ys One And Two PSP).
+        // This is NOT general substring matching or permission to choose a
+        // standalone installment: the IGDB record must separately be a playable
+        // bundle (game type 3), with exact ordered numerals and no added edition.
+        private static bool ExplicitPairedChronicles(List<string> official,List<string> local)
+        {
+            return local.Count>=3 && official.Count==local.Count+1 &&
+                official[official.Count-1]=="chronicles" &&
+                local[local.Count-2]=="1" && local[local.Count-1]=="2" &&
+                official.Take(local.Count).SequenceEqual(local,StringComparer.Ordinal);
+        }
         private static int TitleKind(string requested,string official,IEnumerable<string> aliases)
         {
             var local=Tokens(requested);var name=Tokens(official);
@@ -239,6 +251,7 @@ namespace SmartMetadataMatcher
             // A catalog +/++ suffix can denote a distinct port or version.
             // Never infer missing '+' from an approximate or prefix match.
             if(local.Contains("plus")!=name.Contains("plus"))return 0;
+            if(ExplicitPairedChronicles(name,local))return 2;
             // An unrelated canonical name with an exact alias may be bootleg,
             // translated, or incorrectly indexed. Require shared canonical words.
             if((aliases??Enumerable.Empty<string>()).Any(x=>EqualTokens(local,Tokens(x))))
@@ -250,6 +263,7 @@ namespace SmartMetadataMatcher
             // Only the numeral ONE may be dropped; other sequels remain distinct.
             if(local.Count>=4 && local[local.Count-1]=="1" &&
                 EqualTokens(local.Take(local.Count-1).ToList(),name) &&
+                !BroadFranchises.Contains(String.Join(" ",local.Take(local.Count-1))) &&
                 !Edition.IsMatch(requested))return 1;
             // Exact token-set but different word order: e.g. Dissidia Final Fantasy.
             // Do not drop a number or edition marker to force an identity.
@@ -328,6 +342,8 @@ namespace SmartMetadataMatcher
             int kind=TitleKind(requested,game.Name,game.Aliases);
             if(kind==0 || HasConflictingQualifier(requested,game.Name,kind) ||
                 !IsPlayable(game,kind,requested))return null;
+            if(ExplicitPairedChronicles(Tokens(game.Name),Tokens(requested)) &&
+                game.GameTypeId!=3)return null;
             int points=kind==3?130:kind==2?105:92;
             int year=PlatformYear(game,platform);
             if(input.LocalReleaseYear>=1970 && year>=1970)
@@ -369,6 +385,23 @@ namespace SmartMetadataMatcher
                     (g.Aliases==null?0:g.Aliases.Count)+
                     (g.FirstReleaseYear>0?1:0)).First()).ToList();
         }
+        // When an IGDB port record repeats the original's *exact* title and
+        // points back to it, but has NO release date for the Playnite platform,
+        // do not count that undated port as an independently corroborated
+        // same-platform rival. Only the dated main-game parent can win. An
+        // independent local year suggesting a later release disallows the
+        // suppression and preserves Review rather than guessing the port.
+        private static bool PortShadowOf(Ranked port,Ranked original,long platform)
+        {
+            if(port==null || original==null || port.Game.Id==original.Game.Id ||
+                port.Game.GameTypeId!=11 || original.Game.GameTypeId!=0 ||
+                port.Game.ParentGameId.GetValueOrDefault()!=original.Game.Id ||
+                port.Game.VersionParentId.GetValueOrDefault()>0 ||
+                !String.IsNullOrWhiteSpace(port.Game.VersionTitle) ||
+                port.Kind!=3 || original.Kind!=3 || original.Year<1970 ||
+                PlatformYear(port.Game,platform)>=1970)return false;
+            return EqualTokens(Tokens(port.Game.Name),Tokens(original.Game.Name));
+        }
         internal static CatalogMatch Resolve(CatalogInput input,IEnumerable<CatalogGame> candidates,
             CatalogMatch preliminary,bool complete)
         {
@@ -378,6 +411,17 @@ namespace SmartMetadataMatcher
             long platform=CatalogCore.PlatformId(input.Platform);
             var ranked=all.Select(g=>Rank(input,g,platform)).Where(x=>x!=null)
                 .OrderByDescending(x=>x.Points).ThenBy(x=>x.Game.Id).ToList();
+            if(ranked.Count==0)return preliminary;
+            var undatedShadows=ranked.Where(port=>ranked.Any(original=>
+                PortShadowOf(port,original,platform))).ToList();
+            // Never infer a date for the port or discard a conflicting local
+            // release year merely to force a main-game identity.
+            if(undatedShadows.Count>0 && input.LocalReleaseYear>=1970 &&
+                !ranked.Where(original=>undatedShadows.Any(port=>
+                    PortShadowOf(port,original,platform)))
+                    .Any(original=>Math.Abs(original.Year-input.LocalReleaseYear)<=2))
+                return preliminary;
+            foreach(var shadow in undatedShadows)ranked.Remove(shadow);
             if(ranked.Count==0)return preliminary;
             var winner=ranked[0];
             var rival=ranked.Skip(1).FirstOrDefault();
@@ -441,6 +485,7 @@ namespace SmartMetadataMatcher
                 (winner.Kind==3?"official full title":winner.Kind==2?"related alias or near-identical full title":"unique franchise/ordinal prefix")+
                 ", lead "+margin+" ranking points (NOT probability), "+
                 (dominantCatalogConsensus?"exceptional provider popularity consensus (not independent local proof), ":"")+
+                (undatedShadows.Count>0?"related undated port shadow excluded from same-platform rivals, ":"")+
                 "bounded exact/prefix rival queries complete; only missing fields eligible; live ID preflight required";
             return resolved;
         }
@@ -452,6 +497,8 @@ namespace SmartMetadataMatcher
             var requested=CatalogCore.QueryTitle(input.Name,input.Platform);
             int kind=TitleKind(requested,candidate.Name,candidate.Aliases);
             return kind>0 && candidate.GameTypeId.HasValue &&
+                (!ExplicitPairedChronicles(Tokens(candidate.Name),Tokens(requested)) ||
+                    candidate.GameTypeId==3) &&
                 IsPlayable(candidate,kind,requested) &&
                 !HasConflictingQualifier(requested,candidate.Name,kind);
         }
