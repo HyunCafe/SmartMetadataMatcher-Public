@@ -96,6 +96,25 @@ namespace SmartMetadataMatcher
             updated[gameId]=record;
             Write(updated);
         }
+        // One atomic file replacement for an explicitly reviewed selection.
+        // Validate every record, including duplicate IDs, before any mutation.
+        internal void ConfirmMany(IEnumerable<ConfirmedIdentity> selected)
+        {
+            if(selected==null)throw new InvalidDataException("Missing reviewed identities.");
+            var incoming=selected.ToList();
+            if(incoming.Count==0 || incoming.Count>CatalogManualReviewFlow.MaxReviewedBatch)
+                throw new InvalidDataException("Reviewed identity batch must contain 1-50 games.");
+            var unique=new HashSet<Guid>();
+            foreach(var record in incoming)
+            {
+                Validate(record);
+                if(!unique.Add(record.GameId))
+                    throw new InvalidDataException("Duplicate Playnite ID in reviewed identity batch.");
+            }
+            var updated=new Dictionary<Guid,ConfirmedIdentity>(records);
+            foreach(var record in incoming)updated[record.GameId]=record;
+            Write(updated);
+        }
         internal void Forget(Guid gameId)
         {
             if(!records.ContainsKey(gameId))return;

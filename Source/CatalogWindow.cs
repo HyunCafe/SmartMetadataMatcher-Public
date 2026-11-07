@@ -77,6 +77,8 @@ namespace SmartMetadataMatcher
         public string Explanation { get; set; }
         public string RenameHandling { get; set; }
         public string CatalogId { get; set; }
+        public string PlannerCode { get; set; }
+        public string IdentityEvidence { get; set; }
         public bool Ready { get; set; }
         public bool Archived { get; set; }
         // Review decisions are stored on the underlying game, not duplicated here.
@@ -1433,6 +1435,127 @@ namespace SmartMetadataMatcher
             dialog.Content=body;dialog.ShowDialog();
         }
 
+        // Manual confirmation is NOT inferred from checkmarks or a similarity score.
+        // Review the entire proposed batch in one scrollable view, then persist
+        // an explicit decision atomically. No Playnite metadata is written here.
+        private bool ConfirmSelectedIdentities(List<PlanPreviewRow> selected,Window reviewOwner)
+        {
+            var inputs=selected.Select(x=>new CatalogManualReviewCandidate {
+                GameId=x.SourceRow==null?Guid.Empty:x.SourceRow.GameId,
+                GameName=x.Game,Platform=x.Platform,CatalogTitle=x.Catalog,
+                CatalogId=x.CatalogId,PlannerCode=x.PlannerCode,Archived=x.Archived,
+                FromSavedScan=x.SourceRow!=null&&x.SourceRow.FromSavedScan,
+                FromHistory=x.SourceRow!=null&&x.SourceRow.FromHistory,
+                PriorFailure=x.SourceRow!=null&&(x.SourceRow.Evidence??"").StartsWith(
+                    "Apply failed:",StringComparison.Ordinal)
+            }).ToList();
+            var error=CatalogManualReviewFlow.Validate(inputs);
+            if(error!=null)
+            {
+                api.Dialogs.ShowMessage(error+". No identities or metadata were changed.",
+                    "Cannot confirm selected matches");return false;
+            }
+            if(!confirmedIdentitiesAvailable)
+            {
+                api.Dialogs.ShowMessage("Saved identity decisions are currently unreadable. " +
+                    "Repair the private identity store before confirming any matches.",
+                    "Identity storage unavailable");return false;
+            }
+            var dialog=new Window {Title="Smart Metadata Matcher — Confirm reviewed identities",
+                Width=1200,Height=720,MinWidth=760,MinHeight=490,Owner=reviewOwner,
+                WindowStartupLocation=WindowStartupLocation.CenterOwner,
+                Background=Deep(),ResizeMode=ResizeMode.CanResize};
+            var body=new DockPanel {Margin=new Thickness(14)};
+            var heading=new StackPanel {Margin=new Thickness(0,0,0,12)};
+            DockPanel.SetDock(heading,Dock.Top);body.Children.Add(heading);
+            var title=Caption("Confirm "+selected.Count+" manually reviewed IGDB identities",19);
+            title.Foreground=Accent();heading.Children.Add(title);
+            var explanation=Caption("Each row is a proposed game identity, NOT an approved metadata change. " +
+                "Verify the title, platform and edition yourself. Matching text is not proof. " +
+                "This step saves your identity decisions only; a second final approval and backup " +
+                "acknowledgement are required before any Playnite update.",13);
+            explanation.TextWrapping=TextWrapping.Wrap;heading.Children.Add(explanation);
+            var caveat=Caption("Bulk confirmation is limited to 50 selected games. " +
+                "Before any write, ALL selected IGDB IDs/titles/platforms are checked live. " +
+                "A mismatch stops the batch without applying any of its games. " +
+                "A later write failure stops on that game; earlier completed games retain undo records.",12);
+            caveat.TextWrapping=TextWrapping.Wrap;caveat.Foreground=Caution();heading.Children.Add(caveat);
+            var footer=new StackPanel {Margin=new Thickness(0,12,0,0)};
+            DockPanel.SetDock(footer,Dock.Bottom);body.Children.Add(footer);
+            var acknowledge=new CheckBox {
+                Content="I personally verified EVERY listed game, platform and edition against its IGDB identity.",
+                IsChecked=false,Foreground=Muted(),FontSize=13,Margin=new Thickness(0,0,0,10)};
+            footer.Children.Add(acknowledge);
+            var actions=new StackPanel{Orientation=Orientation.Horizontal,
+                HorizontalAlignment=HorizontalAlignment.Right};footer.Children.Add(actions);
+            Button yes,no;
+            AddButton(actions,"Confirm identities and continue",()=>dialog.DialogResult=true,out yes);
+            yes.Background=Accent();yes.Foreground=Deep();yes.IsEnabled=false;
+            acknowledge.Checked+=(s,e)=>yes.IsEnabled=true;
+            acknowledge.Unchecked+=(s,e)=>yes.IsEnabled=false;
+            AddButton(actions,"Cancel — no changes",()=>dialog.DialogResult=false,out no);
+            var table=NewTable();table.IsReadOnly=true;
+            table.Columns.Add(new DataGridTextColumn{Header="Playnite game",Binding=new Binding("Game"),Width=220});
+            table.Columns.Add(new DataGridTextColumn{Header="Platform",Binding=new Binding("Platform"),Width=180});
+            table.Columns.Add(new DataGridTextColumn{Header="IGDB candidate",Binding=new Binding("Catalog"),Width=260});
+            table.Columns.Add(new DataGridTextColumn{Header="IGDB ID",Binding=new Binding("CatalogId"),Width=100});
+            table.Columns.Add(new DataGridTextColumn{Header="Scan evidence / possible mismatch",Binding=new Binding("IdentityEvidence"),
+                Width=new DataGridLength(1,DataGridLengthUnitType.Star)});
+            table.ItemsSource=selected;
+            body.Children.Add(table);dialog.Content=body;
+            if(dialog.ShowDialog()!=true)return false;
+            // Revalidate against the live Playnite database after the modal closes;
+            // never save a decision for a changed title, platform, or IGDB candidate.
+            var records=new List<ConfirmedIdentity>();
+            foreach(var row in selected)
+            {
+                var source=row.SourceRow;
+                var live=source==null?null:api.Database.Games[source.GameId];
+                var platform=live==null?"":live.Platforms==null?"":
+                    String.Join(", ",live.Platforms.Select(p=>p.Name));
+                long id;
+                if(source==null || live==null ||
+                    !String.Equals(live.Name,source.CurrentName,StringComparison.Ordinal) ||
+                    !String.Equals(platform,source.Platform,StringComparison.Ordinal) ||
+                    !String.Equals(source.Candidate,row.Catalog,StringComparison.Ordinal) ||
+                    !String.Equals(source.IgdbId,row.CatalogId,StringComparison.Ordinal) ||
+                    !Int64.TryParse(source.IgdbId,out id) || id<=0)
+                {
+                    api.Dialogs.ShowMessage("Game or IGDB identity changed while reviewing. Rescan; " +
+                        "no identities were saved.","Identity confirmation stopped");return false;
+                }
+                records.Add(new ConfirmedIdentity {
+                    GameId=source.GameId,GameName=source.CurrentName,Platform=source.Platform,
+                    IgdbId=id,CatalogTitle=source.Candidate,
+                    ConfirmedUtc=DateTime.UtcNow.ToString("o",System.Globalization.CultureInfo.InvariantCulture)
+                });
+            }
+            try {confirmedIdentities.ConfirmMany(records);}
+            catch(Exception ex)
+            {api.Dialogs.ShowErrorMessage("No identity batch was saved: "+ex.Message,
+                "Unable to save reviewed identities");return false;}
+            var library=api.Database.Games.Where(g=>g!=null).Select(g=>Tuple.Create(g.Id,
+                g.Name,g.Platforms==null?"":String.Join(", ",g.Platforms.Select(p=>p.Name)))).ToList();
+            foreach(var row in selected)
+            {
+                var source=row.SourceRow;
+                if(!source.UserConfirmed)
+                {
+                    source.PreviousStatus=source.Status;
+                    source.PreviousAutoPlanEligible=source.AutoPlanEligible;
+                }
+                source.UserConfirmed=true;source.AutoPlanEligible=false;source.Status="Confirmed";
+                source.FromSavedScan=false;
+                row.Ready=true;row.IdentityStatus="Confirmed by you";
+                row.Explanation="Manually confirmed by you; exact live ID/title/platform checks still required";
+                row.PlannerCode="UserConfirmed";
+                var wanted=useCatalogTitle.IsChecked==true?EnrichmentPlan.SuggestedUniqueDisplayTitle(
+                    source.CurrentName,source.Candidate,source.GameId,source.Platform,library):source.CurrentName;
+                row.RenameHandling=String.IsNullOrWhiteSpace(wanted)?"Keep original title":wanted;
+            }
+            return true;
+        }
+
         // The review dialog handles uncertain identities and user-selected subsets.
         // Fresh strict-ready matches can bypass this checkbox stage via AutoPlan,
         // but never bypass the live revalidation and final approval in RunBatch.
@@ -1461,7 +1584,8 @@ namespace SmartMetadataMatcher
                 var d=decisions[i];var r=results[i];
                 lines.Add(new PlanPreviewRow {
                     SourceRow=r,Game=r.CurrentName??"",Catalog=r.Candidate??"",
-                    Platform=r.Platform??"",CatalogId=r.IgdbId??"",
+                    Platform=r.Platform??"",CatalogId=r.IgdbId??"",PlannerCode=d.Code,
+                    IdentityEvidence=r.Evidence??"No independent evidence supplied",
                     IdentityStatus=r.Status=="No changes available"?"No changes":
                         d.Code=="UserConfirmed"?"Confirmed by you":d.Code=="CachedNeedsRefresh"?"Refresh required":d.ReadyForPreflight?"Ready — verify":
                         d.Code=="Completed"?"Completed":d.Code=="Ignored"?"Ignored":"Needs review",
@@ -1484,9 +1608,11 @@ namespace SmartMetadataMatcher
             var title=Caption("Review matches and proposed changes",19);
             title.FontWeight=FontWeights.SemiBold;title.Foreground=Accent();heading.Children.Add(title);
             var counts=Caption("",14);
-            Action updateCounts=()=>counts.Text=markedCount()+" selected for import  •  "+
+            Action updateCounts=()=>counts.Text=markedCount()+" selected ("+
+                lines.Count(x=>x.Marked&&!x.Ready)+" awaiting identity confirmation)  •  "+
                 lines.Count(x=>x.Ready)+" ready  •  "+
-                lines.Count(x=>!x.Ready&&!x.Archived)+" need attention  •  "+archived+" completed/no-change/ignored";
+                lines.Count(x=>!x.Ready&&!x.Archived)+" total need attention  •  "+
+                archived+" completed/no-change/ignored";
             updateCounts();
             heading.Children.Add(counts);
             var warning=Caption("Check each game's title, platform and edition before approving. " +
@@ -1548,7 +1674,9 @@ namespace SmartMetadataMatcher
                 }
                 if(previewApply!=null){
                     previewApply.IsEnabled=markedCount()>0;
-                    previewApply.Content="Review & apply ("+markedCount()+")...";
+                    previewApply.Content=lines.Any(x=>x.Marked&&!x.Ready)?
+                        "Confirm identities & review ("+markedCount()+")...":
+                        "Review & apply ("+markedCount()+")...";
                 }
                 if(markReady!=null){
                     var readyRows=lines.Where(x=>x.Ready&&!x.Archived).ToList();
@@ -1761,50 +1889,50 @@ namespace SmartMetadataMatcher
             Decorate(inspect,"\uE8A7");
             AddButton(footer,"Review & apply selected...",()=>{
                 var selected=lines.Where(x=>x.Marked).ToList();
-                if(selected.Count==0){api.Dialogs.ShowMessage("Select at least one game using the checkboxes. " +
-                    "Highlighting a row only opens its details.","Smart Metadata Matcher");return;}
+                if(selected.Count==0)
+                {
+                    api.Dialogs.ShowMessage("Select games using the checkboxes, then review the proposed " +
+                        "IGDB identities. Highlighting rows alone does not approve them.",
+                        "Smart Metadata Matcher");return;
+                }
                 var blocked=selected.Where(x=>!x.Ready).ToList();
-                // Preserve the earlier one-game manual path for a game whose IGDB
-                // identity the user has personally verified. It is NOT automated.
-                bool manualSingle=selected.Count==1 && blocked.Count==1 &&
-                    !blocked[0].Archived && !blocked[0].SourceRow.IsIgnored &&
-                    !blocked[0].SourceRow.IsCompleted &&
-                    String.Equals(blocked[0].SourceRow.Status,"Strong candidate",StringComparison.Ordinal) &&
-                    EnrichmentPlan.BatchEligible(blocked[0].SourceRow.Status,false,blocked[0].CatalogId);
-                if(blocked.Count>0 && !manualSingle)
+                if(blocked.Count>0 || (selected.Count>CatalogBatchPolicy.SupervisedLimit &&
+                    selected.Any(x=>x.UserConfirmed) && selected.Any(x=>!x.UserConfirmed)))
                 {
-                    var stale=blocked.Count(x=>x.SourceRow!=null&&x.SourceRow.FromSavedScan);
-                    var examples=String.Join("\n",blocked.Take(6).Select(x=>"• "+x.Game+" — "+
-                        (x.SourceRow!=null&&x.SourceRow.FromSavedScan?"saved match needs refresh":x.Explanation)));
-                    api.Dialogs.ShowMessage(blocked.Count+" of "+selected.Count+
-                        " selected matches need additional validation.\n"+
-                        (stale>0?"Select Refresh cached ("+stale+") in this window to recheck only those games.\n":"")+
-                        "\n"+examples+"\n\nNo metadata was changed. You can import one manually " +
-                        "verified Strong match, or refresh cached results for batch eligibility.",
-                        "Matches need attention");return;
+                    // Checked games are not automatically user-confirmed. One
+                    // full-list identity approval is required for all selections,
+                    // including any strict rows mixed into this manual batch.
+                    if(!ConfirmSelectedIdentities(selected,dialog))return;
                 }
-                // Strict-ready selections have no numeric cap; supervised ones
-                // retain the five-game safety limit. No silent truncation.
-                bool strictBatch=CatalogBatchPolicy.IsStrictBatch(blocked.Count>0,
-                    selected.Any(x=>x.UserConfirmed),manualSingle);
-                if(!CatalogBatchPolicy.WithinLimit(selected.Count,strictBatch))
+                blocked=selected.Where(x=>!x.Ready).ToList();
+                if(blocked.Count>0)
                 {
-                    api.Dialogs.ShowMessage("The supervised limit is five reviewed games per batch. " +
-                        "Deselect some games and apply the remainder separately. " +
-                        "No items are silently skipped.","Review batch size");return;
+                    api.Dialogs.ShowMessage("A selected identity still needs attention. " +
+                        "No metadata was changed.","Manual identity review");return;
                 }
-                // One final scrollable approval dialog includes the actual plan and
-                // a required backup acknowledgement. Avoid double confirmation.
-                // Leave the modal review window before the confirmation dialog,
-                // avoiding nested dialog ownership issues.
+                bool strictBatch=CatalogBatchPolicy.IsStrictBatch(false,
+                    selected.Any(x=>x.UserConfirmed),false);
+                bool reviewedBulk=!strictBatch && selected.Count>CatalogBatchPolicy.SupervisedLimit &&
+                    selected.All(x=>x.UserConfirmed && x.SourceRow!=null &&
+                        !x.SourceRow.FromSavedScan && !x.SourceRow.FromHistory);
+                if(!CatalogBatchPolicy.WithinLimit(selected.Count,strictBatch,reviewedBulk))
+                {
+                    api.Dialogs.ShowMessage(strictBatch?"No eligible games were selected.":
+                        "Manual confirmations may apply up to 50 games at once. " +
+                        "Without a complete reviewed selection, the supervised limit is five. " +
+                        "Reduce the selection; nothing is silently skipped.",
+                        "Review batch size");return;
+                }
                 var reviewedRows=selected.Select(x=>x.SourceRow).ToList();
                 var excludedCount=lines.Count-reviewedRows.Count;
                 dialog.Close();
-                window.Dispatcher.BeginInvoke(new Action(()=>RunBatch(reviewedRows,strictBatch,excludedCount)));
+                window.Dispatcher.BeginInvoke(new Action(()=>RunBatch(
+                    reviewedRows,strictBatch,excludedCount,reviewedBulk)));
             },out previewApply);
             previewApply.Background=Accent();previewApply.BorderBrush=Accent();
             previewApply.Foreground=Deep();previewApply.FontWeight=FontWeights.SemiBold;
-            previewApply.ToolTip="Review and apply checked games after backup confirmation and a final game-by-game approval.";
+            previewApply.ToolTip="Review all marked identities together; confirm uncertain matches explicitly, " +
+                "then check live IGDB identity and approve exact changes with a verified backup.";
             AddButton(footer,"Close",()=>dialog.Close(),out close);
             table.MouseDoubleClick+=(s,e)=>focus();
             body.Children.Add(table);
@@ -2959,7 +3087,7 @@ namespace SmartMetadataMatcher
             heading.Children.Add(title);
             var note=Caption("Verify each matched game, platform, edition and proposed Playnite title. " +
                 (automatic?"All identities passed strict planning; live IGDB evidence is still checked.":
-                "Supervised selection — review identities yourself; a label is not a guarantee.")+
+                "Manually confirmed identities — verify the exact title and platform; a label is not a guarantee.")+
                 " Fields shown are potential changes from the latest scan, not guaranteed imports. " +
                 "Live IGDB and Playnite preflight may skip unavailable fields. ROM files and launch paths are untouched.",13);
             note.TextWrapping=TextWrapping.Wrap;heading.Children.Add(note);
@@ -2970,7 +3098,7 @@ namespace SmartMetadataMatcher
             }
             if(items.Count>5)
             {
-                var scale=Caption("Larger strict-ready batch ("+items.Count+" games): " +
+                var scale=Caption("Larger "+(automatic?"strict-ready":"manually reviewed")+" batch ("+items.Count+" games): " +
                     "imports run sequentially, stop after the first failure, and " +
                     "retain separate undo records for completed games. " +
                     "Large batches have not been crash-tested end to end.",12);
@@ -3169,7 +3297,8 @@ namespace SmartMetadataMatcher
             }
             return false;
         }
-        private void RunBatch(List<CatalogViewRow> marked,bool automatic,int excluded)
+        private void RunBatch(List<CatalogViewRow> marked,bool automatic,int excluded,
+            bool reviewedBulk=false)
         {
             if(!JournalAllowsNewWrites()) return;
             if(busy || marked==null) return;
@@ -3179,7 +3308,7 @@ namespace SmartMetadataMatcher
                     AutoReady=x.AutoPlanEligible,FromSavedScan=x.FromSavedScan,
                     FromHistory=x.FromHistory,Ignored=x.IsIgnored,
                     Completed=x.IsCompleted,UserConfirmed=x.UserConfirmed
-                }),automatic);
+                }),automatic,reviewedBulk);
             if(selectionError!=null)
             {
                 api.Dialogs.ShowMessage(selectionError+". Refresh or review the selection again.",
@@ -3227,8 +3356,40 @@ namespace SmartMetadataMatcher
                 try
                 {
                     using(var client=new IgdbReadOnly(credentialId,credentialSecret))
-                    foreach(var item in items)
                     {
+                        var verifiedRecords=new Dictionary<long,CatalogGame>();
+                        if(reviewedBulk)
+                        {
+                            foreach(var item in items)
+                            {
+                                if(token.IsCancellationRequested){cancelled=true;break;}
+                                try
+                                {
+                                    CatalogGame cat;
+                                    if(!verifiedRecords.TryGetValue(item.IgdbId,out cat))
+                                    {
+                                        cat=client.FetchById(item.IgdbId,token);
+                                        verifiedRecords.Add(item.IgdbId,cat);
+                                    }
+                                    if(!String.Equals(cat.Name,item.Candidate,StringComparison.Ordinal) ||
+                                        !CatalogReviewActions.PlatformVerified(item.Platform,
+                                            cat.Id,cat.Name,cat.PlatformIds))
+                                        throw new InvalidOperationException("IGDB title or platform does not match the " +
+                                            "reviewed identity. Inspect this game separately.");
+                                }
+                                catch(OperationCanceledException){cancelled=true;break;}
+                                catch(Exception ex)
+                                {
+                                    failed++;stoppedOnError=true;
+                                    errors.Add("Read-only identity preflight stopped at "+item.Name+": "+ex.Message);
+                                    break;
+                                }
+                                if(token.WaitHandle.WaitOne(350)){cancelled=true;break;}
+                            }
+                        }
+                        if(!cancelled && !stoppedOnError)
+                        foreach(var item in items)
+                        {
                         if(token.IsCancellationRequested){cancelled=true;break;}
                         window.Dispatcher.BeginInvoke(new Action(()=>{
                             if(!window.IsVisible)return;
@@ -3237,7 +3398,9 @@ namespace SmartMetadataMatcher
                         }));
                         try
                         {
-                            var cat=client.FetchById(item.IgdbId,token);
+                            CatalogGame cat;
+                            if(!verifiedRecords.TryGetValue(item.IgdbId,out cat))
+                                cat=client.FetchById(item.IgdbId,token);
                             if(!String.Equals(cat.Name,item.Candidate,StringComparison.Ordinal))
                                 throw new InvalidOperationException("IGDB title changed; rescan required.");
                             if(automatic)
@@ -3327,6 +3490,7 @@ namespace SmartMetadataMatcher
                             break;
                         }
                         if(token.WaitHandle.WaitOne(350)){cancelled=true;break;}
+                        }
                     }
                 }
                 catch(Exception ex){

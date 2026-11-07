@@ -27,6 +27,7 @@
     <Compile Include="Source/CatalogEnrichmentNeeds.cs" />
     <Compile Include="Source/CatalogQueueView.cs" />
     <Compile Include="Source/CatalogStrictBatchFlow.cs" />
+    <Compile Include="Source/CatalogManualReviewFlow.cs" />
     <Compile Include="Source/CatalogCore.cs" />
     <Compile Include="Source/CatalogIgnored.cs" />
     <Compile Include="Source/CatalogScanCache.cs" />

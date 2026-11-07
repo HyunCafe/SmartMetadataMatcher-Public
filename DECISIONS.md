@@ -1,3 +1,13 @@
+## Decision — v0.5.11 manually verified batch (2026-11-06)
+
+**Accepted:** The user's already-marked game subset opens one full-list identity review with explicit manual confirmation instead of failing at `0 ready`. Up to 50 freshly scanned, explicitly confirmed identities may proceed through one final backup-gated approval, with read-only verification of **all** exact IGDB IDs/names/platforms before any writes. Preserve atomic identity-store persistence and fail-fast journaling.
+
+**Preserved:** Legacy five-game supervised limit; strict-ready automation; live game title/platform checks; no automatic selection-as-confirmation; no altered IGDB similarity thresholds.
+
+**Deferred:** Automatic approval of ambiguous/mismatched editions, new providers, and real crash testing beyond disposable fixtures.
+
+---
+
 ## v0.5.10 decision: direct strict-ready preflight (2026-11-06)
 
 - **Accepted:** streamline fresh strict-ready matches by offering a primary Apply verified matches action. Its only authorization is the existing scrollable final confirmation and backup acknowledgement.
@@ -356,3 +366,9 @@ Use the existing atomic read-only cache after every 10 completed scans; flush th
 ## Post-v0.5.8 recovery fault-matrix decision
 
 Measure and assert documented fail-closed behaviors with synthetic durable ledger events before refactoring import/undo recovery paths. Exercise actual existing journal classes against disposable files, without invoking Playnite AddFile or modifying its live database. A passing synthetic matrix does not establish atomicity between Playnite and the two journals or prove real process-crash recovery. Keep production sources and extension version 0.5.8 unchanged.
+
+### v0.5.11 manual review flow (private candidate)
+
+In **Review matches**, mark 1–50 freshly scanned game suggestions and select **Confirm identities & review**. A scrollable list displays each Playnite game, platform, IGDB title/ID and evidence. Check the explicit acknowledgement **only after personally verifying every identity**, then continue to the separate final field/backup approval. The plugin saves the identity decisions atomically; no metadata changes occur until the final approval. For the larger reviewed flow, **all** exact IGDB IDs, names and platform memberships are checked live before the first write; any failure stops the entire batch without applying it. Later write errors still stop at the first failing game and preserve individual undo records for previous successes. The existing legacy five-game supervised path is unchanged.
+
+Do not bulk confirm a candidate whose platform, edition or title you have not personally verified. Individual inspection remains available. This candidate has not yet been tested in Playnite.

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using SmartMetadataMatcher;
 
 internal static class CatalogConfirmedIdentitiesTests
@@ -30,6 +31,21 @@ internal static class CatalogConfirmedIdentitiesTests
             bool failed=false;
             try {loaded.Confirm(Guid.Empty,"x","GBA",1,"Game",DateTime.UtcNow);}catch(InvalidDataException){failed=true;}
             Check(failed,"invalid ID rejected");
+            var bulk=System.Linq.Enumerable.Range(0,46).Select(i=>new ConfirmedIdentity {
+                GameId=Guid.NewGuid(),GameName="Reviewed "+i,Platform="PC (Windows)",
+                IgdbId=100+i,CatalogTitle="IGDB "+i,
+                ConfirmedUtc=DateTime.UtcNow.ToString("o",System.Globalization.CultureInfo.InvariantCulture)
+            }).ToList();
+            loaded.ConfirmMany(bulk);loaded.Load();
+            Check(bulk.All(x=>loaded.TryMatch(x.GameId,x.GameName,x.Platform,x.IgdbId,x.CatalogTitle)),
+                "46 identity decisions persisted atomically");
+            var existingBytes=File.ReadAllBytes(Path.Combine(folder,"confirmed-igdb-identities-v1.json"));
+            var bad=bulk.Select(x=>x).ToList();bad.Add(bulk[0]);
+            bool invalidBatch=false;
+            try {loaded.ConfirmMany(bad);}catch(InvalidDataException){invalidBatch=true;}
+            Check(invalidBatch,"duplicate batch identity rejected");
+            Check(existingBytes.SequenceEqual(File.ReadAllBytes(Path.Combine(folder,"confirmed-igdb-identities-v1.json"))),
+                "failed batch preserves exact identity file bytes");
             loaded.Forget(id);loaded.Load();Check(!loaded.Has(id),"forget persists");
             var path=Path.Combine(folder,"confirmed-igdb-identities-v1.json");
             File.WriteAllText(path,"{ corrupted");

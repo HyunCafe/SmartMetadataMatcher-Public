@@ -13,7 +13,10 @@ internal static class CatalogBatchPolicyTests
 
     internal static void Run()
     {
-        Assert(CatalogBatchPolicy.SupervisedLimit==5,"manual limit unchanged");
+        Assert(CatalogBatchPolicy.SupervisedLimit==5,"legacy supervised limit unchanged");
+        Assert(CatalogBatchPolicy.ReviewedBulkLimit==50,"explicitly reviewed limit bounded");
+        Assert(CatalogBatchPolicy.WithinLimit(46,false,true),"46 explicitly confirmed games accepted");
+        Assert(!CatalogBatchPolicy.WithinLimit(51,false,true),"51 explicitly reviewed games rejected");
         Assert(CatalogBatchPolicy.IsStrictBatch(false,false,false),"fully strict reviews can batch");
         Assert(!CatalogBatchPolicy.IsStrictBatch(true,false,false),"blocked match not strict");
         Assert(!CatalogBatchPolicy.IsStrictBatch(false,true,false),"confirmed identity not strict");
@@ -68,6 +71,20 @@ internal static class CatalogBatchPolicyTests
         Assert(CatalogBatchPolicy.ValidateSelection(Enumerable.Range(0,6).Select(i=>
             new CatalogBatchSelection {GameId=Guid.NewGuid(),IgdbId="3",CatalogTitle="A",UserConfirmed=true}),false)!=null,
             "six manually confirmed games remain blocked");
+        var reviewed=Enumerable.Range(0,46).Select(i=>new CatalogBatchSelection{
+            GameId=Guid.NewGuid(),IgdbId="10",CatalogTitle="Reviewed game",
+            UserConfirmed=true}).ToList();
+        Assert(CatalogBatchPolicy.ValidateSelection(reviewed,false,true)==null,
+            "46 manually confirmed games pass explicit reviewed selection");
+        reviewed[20].UserConfirmed=false;
+        Assert(CatalogBatchPolicy.ValidateSelection(reviewed,false,true)!=null,
+            "single unchecked/unconfirmed identity blocks entire reviewed batch");
+        reviewed[20].UserConfirmed=true;reviewed[20].FromSavedScan=true;
+        Assert(CatalogBatchPolicy.ValidateSelection(reviewed,false,true)!=null,
+            "cached identity blocks reviewed batch");
+        reviewed[20].FromSavedScan=false;
+        Assert(CatalogBatchPolicy.ValidateSelection(reviewed,true,true)!=null,
+            "strict and manually reviewed batch modes cannot combine");
         Console.WriteLine("PASS: "+checks+" graduated batch-cap and fail-fast policy checks.");
     }
 }

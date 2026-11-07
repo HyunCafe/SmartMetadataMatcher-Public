@@ -103,10 +103,11 @@ if len(preview_class) != 2 or "public bool UserConfirmed" not in preview_class[1
 
 # Batch-size and fail-fast policy must be used in both review and writer paths.
 policy=(root / "Source/CatalogBatchPolicy.cs").read_text(encoding="utf-8-sig")
-if "StrictLimit" in policy or "SupervisedLimit = 5" not in policy or \
-   "strictBatch || selected <= SupervisedLimit" not in policy:
-    problems.append("Unrestricted strict/five supervised batch policy changed without review")
-if "CatalogBatchPolicy.WithinLimit(selected.Count,strictBatch)" not in review_source or \
+if "StrictLimit" in policy or not all(x in policy for x in (
+    "SupervisedLimit = 5", "ReviewedBulkLimit = CatalogManualReviewFlow.MaxReviewedBatch",
+    "if(strictBatch && reviewedBulk)", "!row.UserConfirmed || row.FromSavedScan || row.FromHistory")):
+    problems.append("Strict/five-supervised/fifty-reviewed batch policy does not preserve safety gates")
+if "CatalogBatchPolicy.WithinLimit(selected.Count,strictBatch,reviewedBulk)" not in review_source or \
    "CatalogBatchPolicy.ValidateSelection(marked.Select" not in review_source:
     problems.append("Review and writer batch-size gates must agree")
 if review_source.count("CatalogBatchPolicy.AvailableSelectionSlots(")<2:
@@ -191,6 +192,19 @@ if 'CatalogStrictBatchFlowTests.Run();' not in program or \
     'Link="CatalogStrictBatchFlow.cs"' not in (root/'Tests/NameRulesTests.csproj').read_text(encoding='utf-8-sig'):
     problems.append('Verified-batch routing tests not linked into offline runner')
 
+# v0.5.11: explicit user-review path is bounded, atomic and gated before writes.
+if not all(x in view for x in (
+    'ConfirmSelectedIdentities(selected,dialog)', 'confirmedIdentities.ConfirmMany(records);',
+    'CatalogManualReviewFlow.Validate(inputs)',
+    'I personally verified EVERY listed game, platform and edition',
+    'var verifiedRecords=new Dictionary<long,CatalogGame>();',
+    'CatalogReviewActions.PlatformVerified(item.Platform,',
+    'if(!cancelled && !stoppedOnError)',
+    'RunBatch(', 'reviewedRows,strictBatch,excludedCount,reviewedBulk')):
+    problems.append('Manual identity confirmation or upfront platform preflight missing')
+if not all(x in program for x in ('CatalogManualReviewFlowTests.Run();',
+    'CatalogConfirmedIdentitiesTests.Run();', 'CatalogBatchPolicyTests.Run();')):
+    problems.append('Reviewed identity / batch policy offline tests not linked')
 if problems:
     for problem in problems:
         print("STOP:", problem)

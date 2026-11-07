@@ -17,15 +17,17 @@ namespace SmartMetadataMatcher
     internal static class CatalogBatchPolicy
     {
         internal const int SupervisedLimit = 5;
+        internal const int ReviewedBulkLimit = CatalogManualReviewFlow.MaxReviewedBatch;
 
         internal static bool IsStrictBatch(bool anyBlocked, bool anyUserConfirmed, bool manualSingle)
         {
             return !anyBlocked && !anyUserConfirmed && !manualSingle;
         }
 
-        internal static bool WithinLimit(int selected, bool strictBatch)
+        internal static bool WithinLimit(int selected, bool strictBatch, bool reviewedBulk=false)
         {
-            return selected > 0 && (strictBatch || selected <= SupervisedLimit);
+            return selected>0 && (strictBatch || selected <=
+                (reviewedBulk?ReviewedBulkLimit:SupervisedLimit));
         }
 
         // Strict selection can include every remaining independently verified
@@ -43,12 +45,16 @@ namespace SmartMetadataMatcher
         // trusting a stale checkmark or a changed review window. IGDB IDs can
         // legitimately repeat across DIFFERENT Playnite records. Only repeated
         // Playnite GameIds are rejected. No files or Playnite data are touched.
-        internal static string ValidateSelection(IEnumerable<CatalogBatchSelection> rows,bool strictBatch)
+        internal static string ValidateSelection(IEnumerable<CatalogBatchSelection> rows,bool strictBatch,
+            bool reviewedBulk=false)
         {
             if(rows==null)return "Missing reviewed selection";
             var items=rows.ToList();
-            if(!WithinLimit(items.Count,strictBatch))
+            if(strictBatch && reviewedBulk)
+                return "The strict and manually reviewed batch modes cannot be combined";
+            if(!WithinLimit(items.Count,strictBatch,reviewedBulk))
                 return strictBatch ? "Reviewed strict selection is empty" :
+                    reviewedBulk ? "Manually confirmed batch exceeds 50 games or is empty" :
                     "Reviewed supervised selection exceeds five games or is empty";
             var seen=new HashSet<Guid>();
             foreach(var row in items)
@@ -64,6 +70,8 @@ namespace SmartMetadataMatcher
                 if(strictBatch && (!row.AutoReady || row.FromSavedScan ||
                    row.FromHistory || row.UserConfirmed))
                     return "Strict batch contains an unverified, cached or user-confirmed identity";
+                if(reviewedBulk && (!row.UserConfirmed || row.FromSavedScan || row.FromHistory))
+                    return "Manually reviewed batch contains an unconfirmed, cached or historical identity";
             }
             return null;
         }

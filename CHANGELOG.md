@@ -1,3 +1,11 @@
+## v0.5.11 private — Manual review confirmation in one workflow
+- Checkbox selections no longer dead-end at zero ready: show a full, scrollable per-game identity confirmation and explicit acknowledgement before saving confirmed IDs.
+- Save up to 50 explicitly verified identities in one atomic private JSON update; a failed check preserves existing decisions.
+- Permit a bounded batch of 1–50 explicitly user-confirmed, freshly scanned games through the existing final backup approval, sequential writer and undo journal. Existing five-game legacy supervised cap is retained.
+- Fetch and independently check **all** IGDB IDs, titles and platforms for the reviewed batch **before the first metadata write**; any mismatch halts the whole batch without a write.
+- Keep strict automation separate; no title-score thresholds, journal formats, unattended writes or ROM file paths changed.
+- Add targeted offline regression tests and revised Review matches counts/labels. Windows compilation and Playnite acceptance remain required.
+
 ## v0.5.10 — Private verified-batch workflow (2026-11-06)
 
 - Expose **Apply verified matches...** as the main dashboard action, using the existing strict planner and live revalidation without requiring intermediate checkbox selection.

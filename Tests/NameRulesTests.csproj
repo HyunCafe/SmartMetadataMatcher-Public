@@ -19,6 +19,8 @@
     <Compile Include="../Source/CatalogEnrichmentNeeds.cs" Link="CatalogEnrichmentNeeds.cs" />
     <Compile Include="../Source/CatalogQueueView.cs" Link="CatalogQueueView.cs" />
     <Compile Include="../Source/CatalogStrictBatchFlow.cs" Link="CatalogStrictBatchFlow.cs" />
+    <Compile Include="../Source/CatalogManualReviewFlow.cs" Link="CatalogManualReviewFlow.cs" />
+    <Compile Include="CatalogManualReviewFlowTests.cs" />
     <Compile Include="CatalogStrictBatchFlowTests.cs" />
     <Compile Include="CatalogQueueViewTests.cs" />
     <Compile Include="CatalogEnrichmentNeedsTests.cs" />
