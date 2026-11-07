@@ -43,6 +43,7 @@ namespace SmartMetadataMatcher
         public bool Marked { get; set; }
         // Set only from a fresh full resolver result; never inferred from score text.
         public bool AutoPlanEligible { get; set; }
+        public bool SmartAutoEvidence { get; set; }
         public int MissingCount { get; set; }
         public int MissingMask { get; set; }
         public bool FromSavedScan { get; set; }
@@ -125,64 +126,75 @@ namespace SmartMetadataMatcher
         private static CatalogInput ScanInput(Game g)
         {
             var mask=MissingMask(g);
+            int localYear=0;
+            if(g.ReleaseDate.HasValue)
+            {
+                var stored=g.ReleaseDate.Value.Serialize();
+                var year=System.Text.RegularExpressions.Regex.Match(stored??"",@"\b(?:19|20)\d{2}\b");
+                if(year.Success)Int32.TryParse(year.Value,out localYear);
+            }
             return new CatalogInput{Id=g.Id,Name=g.Name,
                 Platform=g.Platforms==null?"":String.Join(", ",g.Platforms.Select(p=>p.Name)),
-                MissingMask=mask,MissingCount=CatalogEnrichmentNeeds.Count(mask)};
+                MissingMask=mask,MissingCount=CatalogEnrichmentNeeds.Count(mask),
+                LocalReleaseYear=localYear};
         }
-        // Optional exact-name discovery must not turn a transient provider error
-        // into loss of an otherwise completed read-only scan batch. Cancellation
-        // still propagates. No confidence or auto-approval bypass is permitted.
+        // Rerank the *whole* bounded provider set, not merely the initial top ID.
+        // Optional IGDB calls cannot turn provider failure into an import approval.
         private static CatalogMatch ResolveWithExactFallback(CatalogInput input,
             List<CatalogGame> found,IgdbReadOnly client,CancellationToken token)
         {
-            var match=CatalogCore.Choose(input,found);
-            if(match.MatchStatus=="Review")
-            {
-                // Extra catalog evidence is diagnostic ONLY. Never change the
-                // selected ID, match status, or automatic-plan eligibility.
-                // A probe error cannot invalidate an otherwise completed scan.
-                try
-                {
-                    // One capped exact-title follow-up exposes rival IDs that a
-                    // fuzzy/capped search might have missed. Neither the chosen
-                    // game nor MatchStatus is changed by this investigation.
-                    var evidencePool=(found??new List<CatalogGame>()).ToList();
-                    var exactTitle=CatalogCore.QueryTitle(input.Name,input.Platform);
-                    if(exactTitle.Length>=3 && exactTitle.Length<=100)
-                    {
-                        var rivals=client.SearchExactTitle(exactTitle,token);
-                        evidencePool.AddRange(rivals);
-                    }
-                    var ids=CatalogCandidateEvidence.SelectIds(input,evidencePool,
-                        match.Game==null?0:match.Game.Id);
-                    if(ids.Count>0)
-                    {
-                        var details=client.InspectCandidateIds(ids,token);
-                        match.Reason+="; "+CatalogCandidateEvidence.Describe(input,evidencePool,ids,details);
-                    }
-                }
-                catch(OperationCanceledException){throw;}
-                catch(Exception ex)
-                {
-                    match.Reason+="; optional read-only rival probe unavailable ("+
-                        ex.GetType().Name+"); no identity approval granted";
-                }
-                return match;
-            }
-            if(match.MatchStatus!="Unmatched")return match;
+            var original=CatalogCore.Choose(input,found);
+            // Preserve the fast path for established unique strict identities.
+            // Spend extra IGDB requests only on Review / Unmatched cases.
+            if(original.MatchStatus=="Strong candidate")return original;
+            var all=(found??new List<CatalogGame>()).ToList();
+            bool exactComplete=false,prefixComplete=false;
             try
             {
                 var title=CatalogCore.QueryTitle(input.Name,input.Platform);
+                bool exactQueried=!String.IsNullOrEmpty(CatalogCore.BuildExactNameQueryBody(title));
+                bool prefixQueried=!String.IsNullOrEmpty(CatalogSmartResolver.BuildPrefixQuery(
+                    title,input.Platform));
                 var exact=client.SearchExactTitle(title,token);
-                if(exact.Count>0)match=CatalogCore.Choose(input,found.Concat(exact));
+                all.AddRange(exact);
+                exactComplete=exactQueried && exact.Count<CatalogSmartResolver.MaxLookupResults;
+                // Prefix discovery is critical for shortened ROM titles, but a
+                // truncated result set cannot authorize an automatic identity.
+                var prefix=client.SearchTitlePrefix(title,input.Platform,token);
+                all.AddRange(prefix);
+                prefixComplete=prefixQueried && prefix.Count<CatalogSmartResolver.MaxLookupResults;
             }
             catch(OperationCanceledException){throw;}
             catch(Exception ex)
             {
-                match.Reason+="; optional exact-name lookup unavailable ("+
-                    ex.GetType().Name+"); result remains Unmatched. Retry selected match later.";
+                var fallback=CatalogCore.Choose(input,all);
+                fallback.Reason+="; expanded read-only matching unavailable ("+
+                    ex.GetType().Name+"); no smart auto-approval";
+                return fallback;
             }
-            return match;
+            // Preserve the most informative representation of each IGDB ID.
+            // Initial fuzzy-search entries may lack fields supplied by the
+            // later exact/prefix lookups; first-record-wins loses that evidence.
+            var merged=CatalogSmartResolver.MergeCandidates(all);
+            var rescored=CatalogCore.Choose(input,merged);
+            if(rescored.MatchStatus=="Strong candidate")return rescored;
+            var ranked=CatalogSmartResolver.Resolve(input,merged,rescored,
+                exactComplete && prefixComplete);
+            if(ranked.MatchStatus!="Review")return ranked;
+            // Retain Stage A explanations for unresolved identities; a failed
+            // optional diagnostic never promotes or alters candidate selection.
+            try
+            {
+                var ids=CatalogCandidateEvidence.SelectIds(input,merged,
+                    ranked.Game==null?0:ranked.Game.Id);
+                if(ids.Count>0)
+                    ranked.Reason+="; "+CatalogCandidateEvidence.Describe(input,merged,ids,
+                        client.InspectCandidateIds(ids,token));
+            }
+            catch(OperationCanceledException){throw;}
+            catch(Exception ex)
+            {ranked.Reason+="; optional rival details unavailable ("+ex.GetType().Name+")";}
+            return ranked;
         }
 
         private readonly string pluginDataPath;
@@ -2826,6 +2838,7 @@ namespace SmartMetadataMatcher
                             GameId=item.Id,CurrentName=item.Name,Platform=item.Platform,
                             MissingCount=item.MissingCount,MissingMask=item.MissingMask,FromSavedScan=false,
                             AutoPlanEligible=CatalogCore.CanAutoPlan(match),
+                            SmartAutoEvidence=match.SmartAutoEvidence,
                             Candidate=game==null?"(none)":game.Name,
                             Status=match.MatchStatus,
                             MatchScore=match.Score.ToString("0.000",System.Globalization.CultureInfo.InvariantCulture),
@@ -2969,6 +2982,7 @@ namespace SmartMetadataMatcher
                                 GameId=item.Id, CurrentName=item.Name, Platform=item.Platform,
                                 MissingCount=item.MissingCount,MissingMask=item.MissingMask,
                                 AutoPlanEligible=CatalogCore.CanAutoPlan(match),
+                            SmartAutoEvidence=match.SmartAutoEvidence,
                                 Candidate=game == null ? "(none)" : game.Name,
                                 Status=match.MatchStatus, MatchScore=match.Score.ToString("0.000",System.Globalization.CultureInfo.InvariantCulture),
                                 IgdbId=game == null ? "" : game.Id.ToString(),
@@ -3368,6 +3382,13 @@ namespace SmartMetadataMatcher
                     Extra=GameExtrasSnapshot.Capture(game),Candidate=row.Candidate});
             }
             bool rename=useCatalogTitle.IsChecked==true;
+            if(automatic && rename && marked.Any(x=>x.SmartAutoEvidence))
+            {
+                api.Dialogs.ShowMessage("Assisted automatic matches only fill missing fields. " +
+                    "Uncheck Use catalog title to continue, or confirm the identities manually first.",
+                    "Assisted matching: preserve existing titles");
+                return;
+            }
             var planningError=PlanBatchTitles(items,rename);
             if(planningError!=null)
             {api.Dialogs.ShowMessage(planningError+". Edit the draft before importing.","Invalid proposed title");return;}
@@ -3440,10 +3461,21 @@ namespace SmartMetadataMatcher
                             {
                                 // Verify independent title/platform evidence again from
                                 // exact catalog ID, before downloading images or writing.
-                                var rechecked=CatalogCore.Choose(new CatalogInput {
-                                    Name=item.Name,Platform=item.Platform},new[]{cat});
-                                if(!CatalogCore.CanAutoPlan(rechecked))
-                                    throw new InvalidOperationException("Strict identity evidence failed the live IGDB recheck; manual review required.");
+                                if(item.Row.SmartAutoEvidence && item.Row.AutoPlanEligible &&
+                                    !item.Row.FromSavedScan && !item.Row.FromHistory)
+                                {
+                                    if(!CatalogSmartResolver.LiveIdentityCompatible(
+                                        new CatalogInput{Name=item.Name,Platform=item.Platform},cat))
+                                        throw new InvalidOperationException(
+                                            "The promoted IGDB identity changed or conflicts with this platform or edition. Rescan required.");
+                                }
+                                else
+                                {
+                                    var rechecked=CatalogCore.Choose(new CatalogInput {
+                                        Name=item.Name,Platform=item.Platform},new[]{cat});
+                                    if(!CatalogCore.CanAutoPlan(rechecked))
+                                        throw new InvalidOperationException("Strict identity evidence failed the live IGDB recheck; manual review required.");
+                                }
                             }
                             byte[] cover=null,icon=null,background=null;
                             if((item.Draft==null || item.Draft.Cover)&&MetadataPlan.Missing(item.Cover)&&MetadataPlan.SafeImageId(cat.CoverImageId))

@@ -14,6 +14,8 @@ namespace SmartMetadataMatcher
         public string Platform { get; set; }
         public int MissingCount { get; set; }
         public int MissingMask { get; set; }
+        // Independently stored Playnite date, never inferred from proposed IGDB match.
+        public int LocalReleaseYear { get; set; }
     }
 
     internal sealed class CatalogGame
@@ -37,6 +39,7 @@ namespace SmartMetadataMatcher
         public long? VersionParentId { get; set; }
         public long? ParentGameId { get; set; }
         public string VersionTitle { get; set; }
+        public int RatingCount { get; set; }
     }
 
     internal sealed class CatalogRelease
@@ -79,6 +82,8 @@ namespace SmartMetadataMatcher
         // An official-title remaster/edition differs from the Playnite title.
         // Even an exact IGDB alias does not make that edition interchangeable.
         public bool EditionConflict { get; set; }
+        // In-memory decision from complete bounded rival comparison; never saved as a scan approval.
+        public bool SmartAutoEvidence { get; set; }
     }
 
     // Read-only identity resolution. Neither score nor a 'Strong candidate' label is a
@@ -342,7 +347,8 @@ namespace SmartMetadataMatcher
             var clean=Spaces.Replace(safe.ToString()," ").Trim();
             if (clean.Length < 3) return "";
             return "fields id,name,summary,platforms.id,platforms.name,alternative_names.name," +
-                "cover.image_id,screenshots.image_id,first_release_date; search \"" + clean + "\"; limit 40;";
+                "cover.image_id,screenshots.image_id,first_release_date,game_type,version_parent," +
+                "parent_game,version_title,total_rating_count,release_dates.date,release_dates.platform.id; search \"" + clean + "\"; limit 40;";
         }
 
         // Exact-name fallback is only used for read-only discovery when the
@@ -354,11 +360,13 @@ namespace SmartMetadataMatcher
             // Reject rather than rewrite names: this is an exact provider-name
             // filter and must never silently broaden the requested identity.
             if(phrase.Any(c=>!(Char.IsLetterOrDigit(c) || c==' ' || c=='-' || c==':' ||
-                c=='&' || c=='/' || c=='\'' || c=='.'))) return "";
+                c=='&' || c=='/' || c=='\'' || c=='.' || c=='+' || c=='!' ||
+                c=='?' || c==',' || c=='(' || c==')'))) return "";
             var value=Spaces.Replace(phrase.Trim()," ");
             if(value.Length<3)return "";
             return "fields id,name,summary,platforms.id,platforms.name,alternative_names.name,"+
-                "cover.image_id,screenshots.image_id,first_release_date; where name ~ \""+value+"\"; limit 10;";
+                "cover.image_id,screenshots.image_id,first_release_date,game_type,version_parent,"+
+                "parent_game,version_title,total_rating_count,release_dates.date,release_dates.platform.id; where name ~ \""+value+"\"; limit "+CatalogSmartResolver.MaxLookupResults+";";
         }
 
         // Narrow automatic-batch gate. It is deliberately stricter than the
@@ -367,6 +375,13 @@ namespace SmartMetadataMatcher
         // with a dated catalog record, can enter a one-confirmation auto plan.
         internal static bool CanAutoPlan(CatalogMatch match)
         {
+            // Smart resolutions use independently checked rival ranking. The live
+            // writer has a separate exact-ID recheck for these fresh-only decisions.
+            if(match!=null && match.SmartAutoEvidence && match.Input!=null &&
+                match.Game!=null && match.MatchStatus=="Strong candidate" &&
+                match.StructuredPlatformEvidence && match.PlatformMatches &&
+                !match.AliasOnlyUnrelatedTitle && !match.EditionConflict &&
+                !match.GenericTitleAmbiguity && match.Game.Id>0) return true;
             if(match==null || match.Input==null || match.Game==null ||
                match.MatchStatus!="Strong candidate" || !match.PlatformMatches ||
                match.Game.Id<=0 ||

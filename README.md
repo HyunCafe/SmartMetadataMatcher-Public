@@ -1,3 +1,6 @@
+
+## v0.5.13 private — Smart candidate selection
+Fresh scans compare IGDB's platform-specific exact-title and prefix results instead of trusting the first fuzzy result. A distinct best candidate can enter the existing verified-matches batch, with an auditable reason and heuristic lead (not a true probability). Prefix automation requires a numbered multiword game, a verified base-game type and a nontruncated query. Different editions, DLC, identical-title games with no independent distinguishing date, and unresolved rivals remain in Review. Saved scan results never regain automatic eligibility without refresh. Automatic assisted imports fill only missing metadata; leave **Use catalog title** unchecked. Final live ID checks, backup acknowledgement, per-game journals and undo remain mandatory.
 # Smart Metadata Matcher — v0.5.11 Private Candidate
 
 ## v0.5.12 private — read-only candidate evidence
@@ -428,3 +431,7 @@ Run `pwsh -NoProfile -File Tools/Test-Recovery-Faults.ps1` from the project chec
 In **Review matches**, mark 1–50 freshly scanned game suggestions and select **Confirm identities & review**. A scrollable list displays each Playnite game, platform, IGDB title/ID and evidence. Check the explicit acknowledgement **only after personally verifying every identity**, then continue to the separate final field/backup approval. The plugin saves the identity decisions atomically; no metadata changes occur until the final approval. For the larger reviewed flow, **all** exact IGDB IDs, names and platform memberships are checked live before the first write; any failure stops the entire batch without applying it. Later write errors still stop at the first failing game and preserve individual undo records for previous successes. The existing legacy five-game supervised path is unchanged.
 
 Do not bulk confirm a candidate whose platform, edition or title you have not personally verified. Individual inspection remains available. This candidate has not yet been tested in Playnite.
+
+### Private v0.5.13 optimized smart candidate ranking
+The fresh read-only scan re-ranks complete IGDB same-platform rivals, handles safe numbered-title variants (including `I`/`1`), and retains richer duplicate-ID evidence. A promoted match still needs live identity validation, final approval and journaling. If evidence is incomplete or candidates remain genuinely ambiguous, the game stays in Review.
+The matching key retains plus-marked edition suffixes, and incomplete names never select a Premium Edition by omission.

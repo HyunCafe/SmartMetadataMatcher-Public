@@ -1,3 +1,10 @@
+
+## v0.5.13 — Candidate reranking + assisted automatic matching (private)
+- Search matching-platform exact-title and title-prefix IGDB rivals (bounded; 101st row flags truncation).
+- Re-rank across returned identities; preserve ordinals, official editions, record types, and local stored release-year evidence.
+- Promote dominant exact-title, corroborated alias, and unique numbered-franchise candidates into existing guarded missing-fields batch workflow.
+- Block unresolved same-title homonyms, uncertain editions, cross-platform identities, truncated lookups, and missing live game-type evidence.
+- Maintain fresh-only promotion state, live selected-ID verification, backup/undo, and no automatic existing-title overwrite.
 ## v0.5.11 private — Manual review confirmation in one workflow
 
 ## v0.5.12 — Read-only rival evidence (private Stage A)
@@ -456,3 +463,10 @@
 - Tests fail-closed handling of orphan handoffs, mismatched owners/media IDs, truncated records, unknown markers and out-of-sequence events.
 - Replays each state with fresh journal instances and verifies inspections never rewrite the underlying ledger bytes.
 - Test-only: no extension source changes, new `.pext`, journal migrations, crash injection into Playnite, or changes to real user data.
+
+### v0.5.13 private optimized matching (pre-install)
+- Re-rank complete same-platform IGDB rival sets; preserve richer duplicate-ID evidence.
+- Normalize numbered titles (`Ys 1` / `Ys I`, `Final Fantasy 4` / `IV`) without conflating sequels or `Mega Man X` with `10`.
+- Allow exact named playable episodes/standalone expansions; block unknown game types.
+- Retain fresh-only eligibility, live ID/platform checks, missing-field-only imports, backup approval and undo.
+- Protect plus-suffixed releases and premium editions from abbreviated-title conflation.

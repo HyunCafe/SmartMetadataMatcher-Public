@@ -70,6 +70,7 @@ namespace SmartMetadataMatcher
         [DataMember(Name="version_parent")] public long? VersionParentId { get; set; }
         [DataMember(Name="parent_game")] public long? ParentGameId { get; set; }
         [DataMember(Name="version_title")] public string VersionTitle { get; set; }
+        [DataMember(Name="total_rating_count")] public int? TotalRatingCount { get; set; }
     }
     [DataContract]
     internal sealed class CatalogCredentialData
@@ -305,10 +306,15 @@ namespace SmartMetadataMatcher
                                 if(combined.ContainsKey(x.Id)) continue;
                                 combined.Add(x.Id,new CatalogGame {
                                     Id=x.Id,Name=x.Name,Summary=x.Summary,
+                                    GameTypeId=x.GameTypeId,VersionParentId=x.VersionParentId,
+                                    ParentGameId=x.ParentGameId,VersionTitle=x.VersionTitle,
+                                    RatingCount=x.TotalRatingCount.GetValueOrDefault(),
                                     FirstReleaseYear=ReleaseYear(x.FirstReleaseDate),
                                     Platforms=(x.Platforms ?? new List<IgdbPlatform>()).Where(p=>p!=null).Select(p=>p.Name).ToList(),
                                     PlatformIds=(x.Platforms ?? new List<IgdbPlatform>()).Where(p=>p!=null).Select(p=>p.Id).ToList(),
                                     Aliases=(x.Aliases ?? new List<IgdbAlias>()).Where(a=>a!=null).Select(a=>a.Name).ToList(),
+                                    ReleaseDates=(x.ReleaseDates??new List<IgdbRelease>()).Where(r=>r!=null)
+                                        .Select(r=>new CatalogRelease{PlatformId=r.Platform==null?0:r.Platform.Id,Year=ReleaseYear(r.Date)}).ToList(),
                                     CoverImageId=x.Cover==null?"":x.Cover.ImageId,
                                     ScreenshotImageId=x.Screenshots==null || x.Screenshots.Count==0 || x.Screenshots[0]==null
                                         ? "":x.Screenshots[0].ImageId
@@ -368,7 +374,7 @@ namespace SmartMetadataMatcher
                             .GroupBy(x=>x.Id).Select(g=>g.First()).Select(x=>new CatalogGame {
                                 Id=x.Id,Name=x.Name,GameTypeId=x.GameTypeId,
                                 VersionParentId=x.VersionParentId,ParentGameId=x.ParentGameId,
-                                VersionTitle=x.VersionTitle,
+                                VersionTitle=x.VersionTitle,RatingCount=x.TotalRatingCount.GetValueOrDefault(),
                                 PlatformIds=(x.Platforms??new List<IgdbPlatform>()).Where(p=>p!=null).Select(p=>p.Id).ToList(),
                                 Platforms=(x.Platforms??new List<IgdbPlatform>()).Where(p=>p!=null).Select(p=>p.Name).ToList(),
                                 ReleaseDates=(x.ReleaseDates??new List<IgdbRelease>()).Where(r=>r!=null)
@@ -427,6 +433,8 @@ namespace SmartMetadataMatcher
                                 Platforms=(x.Platforms??new List<IgdbPlatform>()).Where(a=>a!=null).Select(a=>a.Name).ToList(),
                                 PlatformIds=(x.Platforms??new List<IgdbPlatform>()).Where(a=>a!=null).Select(a=>a.Id).ToList(),
                                 Aliases=(x.Aliases??new List<IgdbAlias>()).Where(a=>a!=null).Select(a=>a.Name).ToList(),
+                                ReleaseDates=(x.ReleaseDates??new List<IgdbRelease>()).Where(r=>r!=null)
+                                    .Select(r=>new CatalogRelease{PlatformId=r.Platform==null?0:r.Platform.Id,Year=ReleaseYear(r.Date)}).ToList(),
                                 CoverImageId=x.Cover==null?"":x.Cover.ImageId,
                                 ScreenshotImageId=x.Screenshots==null || x.Screenshots.Count==0 || x.Screenshots[0]==null
                                     ? "":x.Screenshots[0].ImageId
@@ -437,6 +445,62 @@ namespace SmartMetadataMatcher
                 }
             }
             throw new InvalidOperationException("IGDB exact-title lookup failed without a response.");
+        }
+
+        // One additional bounded, platform-specific read-only query for shortened
+        // titles. Result length equal to the cap is treated as incomplete.
+        internal List<CatalogGame> SearchTitlePrefix(string title,string platform,CancellationToken ct)
+        {
+            var query=CatalogSmartResolver.BuildPrefixQuery(title,platform);
+            if(String.IsNullOrEmpty(query))return new List<CatalogGame>();
+            var key="smart-prefix:"+query;
+            List<CatalogGame> cached;
+            if(cache.TryGetValue(key,out cached))return cached;
+            Authenticate(ct);
+            for(int attempt=0;attempt<3;attempt++)
+            {
+                ct.ThrowIfCancellationRequested();
+                using(var message=new HttpRequestMessage(HttpMethod.Post,"https://api.igdb.com/v4/games"))
+                {
+                    message.Headers.Add("Client-ID",clientId);
+                    message.Headers.Authorization=new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",token);
+                    message.Content=new StringContent(query,Encoding.UTF8,"text/plain");
+                    using(var response=http.SendAsync(message,ct).GetAwaiter().GetResult())
+                    {
+                        int status=(int)response.StatusCode;
+                        if((status==429 || status==502 || status==503 || status==504) && attempt<2)
+                        {
+                            if(ct.WaitHandle.WaitOne(800*(attempt+1)))ct.ThrowIfCancellationRequested();
+                            continue;
+                        }
+                        if(!response.IsSuccessStatusCode)
+                            throw new InvalidOperationException("IGDB prefix investigation failed (HTTP "+status+").");
+                        var found=Parse<List<IgdbRecord>>(response.Content.ReadAsStringAsync()
+                            .GetAwaiter().GetResult())??new List<IgdbRecord>();
+                        var result=found.Where(x=>x!=null && x.Id>0)
+                            .GroupBy(x=>x.Id).Select(g=>g.First()).Select(x=>new CatalogGame {
+                                Id=x.Id,Name=x.Name,Summary=x.Summary,
+                                FirstReleaseYear=ReleaseYear(x.FirstReleaseDate),
+                                GameTypeId=x.GameTypeId,VersionParentId=x.VersionParentId,
+                                ParentGameId=x.ParentGameId,VersionTitle=x.VersionTitle,
+                                RatingCount=x.TotalRatingCount.GetValueOrDefault(),
+                                PlatformIds=(x.Platforms??new List<IgdbPlatform>()).Where(p=>p!=null).Select(p=>p.Id).ToList(),
+                                Platforms=(x.Platforms??new List<IgdbPlatform>()).Where(p=>p!=null).Select(p=>p.Name).ToList(),
+                                Aliases=(x.Aliases??new List<IgdbAlias>()).Where(a=>a!=null).Select(a=>a.Name).ToList(),
+                                ReleaseDates=(x.ReleaseDates??new List<IgdbRelease>()).Where(r=>r!=null)
+                                    .Select(r=>new CatalogRelease{PlatformId=r.Platform==null?0:r.Platform.Id,
+                                        Year=ReleaseYear(r.Date)}).ToList(),
+                                CoverImageId=x.Cover==null?"":x.Cover.ImageId,
+                                ScreenshotImageId=x.Screenshots==null||x.Screenshots.Count==0||x.Screenshots[0]==null
+                                    ?"":x.Screenshots[0].ImageId
+                            }).ToList();
+                        cache[key]=result;
+                        if(ct.WaitHandle.WaitOne(310))ct.ThrowIfCancellationRequested();
+                        return result;
+                    }
+                }
+            }
+            throw new InvalidOperationException("IGDB prefix investigation failed.");
         }
 
         private static List<string> ReadNames(IEnumerable<IgdbNamed> values)
@@ -452,6 +516,7 @@ namespace SmartMetadataMatcher
             Authenticate(ct);
             var query = "fields id,name,summary,platforms.id,platforms.name,alternative_names.name," +
                 "cover.image_id,screenshots.image_id,first_release_date," +
+                "game_type,version_parent,parent_game,version_title,total_rating_count," +
                 "genres.name,involved_companies.company.name,involved_companies.developer," +
                 "involved_companies.publisher,collections.name,release_dates.date,release_dates.platform.id; where id = " +
                 igdbId.ToString(System.Globalization.CultureInfo.InvariantCulture) + "; limit 1;";
@@ -471,6 +536,9 @@ namespace SmartMetadataMatcher
                     if (x == null) throw new InvalidOperationException("The selected IGDB ID no longer exists.");
                     return new CatalogGame {
                         Id=x.Id, Name=x.Name, Summary=x.Summary,
+                        GameTypeId=x.GameTypeId,VersionParentId=x.VersionParentId,
+                        ParentGameId=x.ParentGameId,VersionTitle=x.VersionTitle,
+                        RatingCount=x.TotalRatingCount.GetValueOrDefault(),
                         FirstReleaseYear=ReleaseYear(x.FirstReleaseDate),
                         Platforms=(x.Platforms ?? new List<IgdbPlatform>()).Where(a=>a!=null).Select(a=>a.Name).ToList(),
                         PlatformIds=(x.Platforms ?? new List<IgdbPlatform>()).Where(a=>a!=null).Select(a=>a.Id).ToList(),

@@ -82,6 +82,7 @@ internal static class Program
         Expect(pspConflict.Single().Reason.Contains("collision"), "PSP collision flagged");
         CatalogCoreTests.Run();
         CatalogCandidateEvidenceTests.Run();
+        CatalogSmartResolverTests.Run();
         IgdbConnectionTests.Run();
         CatalogReviewActionsTests.Run();
         CatalogImportDraftTests.Run();

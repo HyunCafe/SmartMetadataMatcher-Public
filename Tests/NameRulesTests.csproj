@@ -26,7 +26,9 @@
     <Compile Include="CatalogEnrichmentNeedsTests.cs" />
     <Compile Include="../Source/CatalogCore.cs" Link="CatalogCore.cs" />
     <Compile Include="../Source/CatalogCandidateEvidence.cs" Link="CatalogCandidateEvidence.cs" />
+    <Compile Include="../Source/CatalogSmartResolver.cs" Link="CatalogSmartResolver.cs" />
     <Compile Include="CatalogCandidateEvidenceTests.cs" />
+    <Compile Include="CatalogSmartResolverTests.cs" />
     <Compile Include="../Source/IgdbReadOnly.cs" Link="IgdbReadOnly.cs" />
     <Compile Include="IgdbConnectionTests.cs" />
     <Compile Include="CatalogCoreTests.cs" />

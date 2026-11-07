@@ -243,9 +243,15 @@ internal static class CatalogCoreTests
         Assert(CatalogCore.BuildSingleQueryBody("Final Fantasy X/X-2 HD Remaster")
             .Contains("search \"Final Fantasy X/X-2 HD Remaster\""),
             "slash survives safe IGDB query serialization");
-        Assert(CatalogCore.BuildExactNameQueryBody("THE FINALS")
-            .Contains("where name ~ \"THE FINALS\"; limit 10;"),
-            "bounded case-insensitive exact-name fallback prepared");
+        // The smart resolver retrieves up to 100 rivals plus one truncation
+        // sentinel. This is a deliberately bounded read-only query, not the
+        // earlier 10-result fallback; keep the limit and evidence fields tested.
+        var exactNameQuery = CatalogCore.BuildExactNameQueryBody("THE FINALS");
+        Assert(CatalogSmartResolver.MaxLookupResults == 101 &&
+            exactNameQuery.Contains("where name ~ \"THE FINALS\"; limit 101;") &&
+            exactNameQuery.Contains("game_type") &&
+            exactNameQuery.Contains("release_dates.platform.id"),
+            "bounded 100+sentinel exact-name fallback includes identity evidence");
         Assert(CatalogCore.BuildExactNameQueryBody("THE FINALS\"; where id = 1;")=="",
             "exact-name fallback refuses injected APICalypse punctuation");
         Assert(CatalogCore.BuildExactNameQueryBody("Hi")=="",

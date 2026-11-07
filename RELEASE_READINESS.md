@@ -1,3 +1,6 @@
+
+## v0.5.13 private smart resolver — acceptance checkpoint
+Read-only candidate enrichment now directly changes classification for a bounded set of high-evidence matches. Offline synthetic regressions exercise ordinal-prefix, original/sequel, bundle, same-name homonyms, alias and edition exclusions. Real authenticated IGDB replay across the 100 review cases and Playnite runtime import behavior remain **unverified** until Windows build and targeted fresh scan. Avoid claiming an 80% empirical correctness probability; compare actual promotions and wrong-ID counterexamples first. Existing source backups, last verified stable tag, fully reversible journal, and independent undo remain protected.
 ## v0.5.11 private manual identity review — PENDING WINDOWS AND PLAYNITE ACCEPTANCE
 
 ## v0.5.12 private Stage A evidence gate
@@ -224,3 +227,10 @@ A read-only synthetic benchmark for the existing journal replay and durable stag
 In **Review matches**, mark 1–50 freshly scanned game suggestions and select **Confirm identities & review**. A scrollable list displays each Playnite game, platform, IGDB title/ID and evidence. Check the explicit acknowledgement **only after personally verifying every identity**, then continue to the separate final field/backup approval. The plugin saves the identity decisions atomically; no metadata changes occur until the final approval. For the larger reviewed flow, **all** exact IGDB IDs, names and platform memberships are checked live before the first write; any failure stops the entire batch without applying it. Later write errors still stop at the first failing game and preserve individual undo records for previous successes. The existing legacy five-game supervised path is unchanged.
 
 Do not bulk confirm a candidate whose platform, edition or title you have not personally verified. Individual inspection remains available. This candidate has not yet been tested in Playnite.
+
+### v0.5.13 optimized pre-install limits
+- Pending: Windows .NET 4.6.2 compilation and offline C# regression execution.
+- Pending: live IGDB response replay, 100-case review-count delta, and correctness spot-check of promoted IDs.
+- Do not bulk-write before inspecting first real read-only promotion CSV.
+- Original v0.5.12 commit remains the required clean baseline, with guarded backup and rollback.
+- Negative fixtures include Mega Man X vs 10, English pronoun I, plus-suffixed variants, and premium-edition ambiguity.

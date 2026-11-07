@@ -1,3 +1,11 @@
+
+## v0.5.13 — Fresh-only intelligent disambiguation
+- Relative matching points are not calibrated probabilities. Complete bounded exact/prefix requests are a practical coverage test, not a global IGDB guarantee.
+- An existing Playnite release year may disambiguate same-title releases, but an IGDB-derived year is not an independent signal.
+- Bundles, ports and remasters can be legitimate playable identities when their **full official title** matches; never treat parent_game as interchangeability proof.
+- Source titles with explicit testing/edition qualifiers are never collapsed to a generic base game automatically.
+- Do not persist SmartAutoEvidence in scan caches; identity selection can be revoked on fresh rescans.
+- Assisted matches are blocked from auto-renaming, and write preflight checks the exact selected IGDB ID/type/platform/title.
 ## Decision — v0.5.11 manually verified batch (2026-11-06)
 
 ## v0.5.12 — Research first, no inferred auto approval
@@ -377,3 +385,11 @@ Measure and assert documented fail-closed behaviors with synthetic durable ledge
 In **Review matches**, mark 1–50 freshly scanned game suggestions and select **Confirm identities & review**. A scrollable list displays each Playnite game, platform, IGDB title/ID and evidence. Check the explicit acknowledgement **only after personally verifying every identity**, then continue to the separate final field/backup approval. The plugin saves the identity decisions atomically; no metadata changes occur until the final approval. For the larger reviewed flow, **all** exact IGDB IDs, names and platform memberships are checked live before the first write; any failure stops the entire batch without applying it. Later write errors still stop at the first failing game and preserve individual undo records for previous successes. The existing legacy five-game supervised path is unchanged.
 
 Do not bulk confirm a candidate whose platform, edition or title you have not personally verified. Individual inspection remains available. This candidate has not yet been tested in Playnite.
+
+### v0.5.13 optimized evidence and numerals
+- Only title ordinals convert Roman/word-number forms; ordinary pronouns, crossover X, and distinct franchises do not.
+- Duplicate IGDB ID search records retain their fullest fields before ranking.
+- Unknown provider game type stays Review; explicit playable episode and standalone expansion names may rank.
+- Rating-count dominance is a catalog heuristic, not an 80% calibrated probability or independent local identity.
+- Synthetic fixtures are not a substitute for authenticated replay against the 100 real Review cases.
+- Plus/++ and premium qualifiers may represent distinct releases: preserve them when comparing provider identities.
