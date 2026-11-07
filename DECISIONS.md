@@ -1,3 +1,10 @@
+## v0.5.14 — 60-case resolver follow-up (private)
+
+- Widen title equivalence only for distinctive fully retained subtitles, omitted franchise/publisher wrappers, and series annotations with platform-compatible, fully queried rivals.
+- Allow supported port/remake and named-episode records with `parent_game`; never treat DLC, expansions, version-parent or unknown game types as interchangeable with base releases.
+- Preserve existing writer, undo journal, provider credential handling, API bounds, private repository and preflight.
+- Remain conservative for generic `Sudoku`, `Bubble Blaster`, inconsistent platform records, PC homonyms and beta/launcher entries until trusted local identifiers are available.
+
 
 ## v0.5.13 — Fresh-only intelligent disambiguation
 - Relative matching points are not calibrated probabilities. Complete bounded exact/prefix requests are a practical coverage test, not a global IGDB guarantee.

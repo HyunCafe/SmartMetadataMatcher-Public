@@ -16,10 +16,10 @@ if not commit or len(commit)>40 or not all(c in '0123456789abcdef' for c in comm
 root=Path(__file__).resolve().parent.parent
 with ZipFile(package) as z:
     if z.testzip() or sorted(z.namelist())!=['SmartMetadataMatcher.dll','extension.yaml'] or \
-        b'Version: 0.5.13' not in z.read('extension.yaml'):
+        b'Version: 0.5.14' not in z.read('extension.yaml'):
         sys.exit('Candidate package verification failed')
 report={
-  'product':'Smart Metadata Matcher', 'release':'0.5.13 private multi-candidate intelligent resolver',
+  'product':'Smart Metadata Matcher', 'release':'0.5.14 private multi-candidate intelligent resolver',
   'created_utc':datetime.now(timezone.utc).isoformat(),
   'package_filename':package.name,
   'sha256':sha256(package.read_bytes()).hexdigest().upper(),
@@ -35,12 +35,12 @@ report={
     'injected crash/interrupted artwork operation in disposable Playnite data',
     'v0.5.6 abrupt scan interruption/resume still needs focused Playnite acceptance; offline checkpoints are simulated',
     'v0.5.7 status/search controls need focused Playnite visual acceptance',
-    'v0.5.13 smart ranked decisions require an authenticated IGDB replay and visual Playnite validation before batch import',
+    'v0.5.14 smart ranked decisions require an authenticated IGDB replay and visual Playnite validation before batch import',
     'dependencies and compiled binary have not received independent security certification'],
   'publication':'private only; no GitHub remote action authorized'
 }
 # Deliberately record no absolute file paths, library inventories, or user identifiers.
-output=package.parent/'PrivateReports'/('SMM-0.5.13-SMART-'+commit[:8]+'.json')
+output=package.parent/'PrivateReports'/('SMM-0.5.14-SMART-'+commit[:8]+'.json')
 output.parent.mkdir(parents=True,exist_ok=True)
 output.write_text(json.dumps(report,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
 print('PRIVATE RC REPORT:',output)

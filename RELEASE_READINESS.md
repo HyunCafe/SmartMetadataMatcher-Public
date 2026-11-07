@@ -1,3 +1,10 @@
+## v0.5.14 private — 60-case title and port resolver acceptance
+
+- Baseline: exact clean private v0.5.13 commit `a631a71258aec87788a321af9683c750c65f82fb` and its verified `.pext`.
+- Offline/source: guarded version/privacy/build checks, 60-case-related positive/negative fixtures, package verification and installer rollback rehearsal.
+- Windows/live pending: compile WPF extension, execute full C# suites, install private package, refresh only Review matches, export read-only CSV and inspect all newly selected IGDB identities.
+- Remaining limitations: source-ID/ROM identity unavailable, IGDB candidate search not always exhaustive, no independently calibrated match probability, no approval of metadata writes before reviewing promotions.
+
 
 ## v0.5.13 private smart resolver — acceptance checkpoint
 Read-only candidate enrichment now directly changes classification for a bounded set of high-evidence matches. Offline synthetic regressions exercise ordinal-prefix, original/sequel, bundle, same-name homonyms, alias and edition exclusions. Real authenticated IGDB replay across the 100 review cases and Playnite runtime import behavior remain **unverified** until Windows build and targeted fresh scan. Avoid claiming an 80% empirical correctness probability; compare actual promotions and wrong-ID counterexamples first. Existing source backups, last verified stable tag, fully reversible journal, and independent undo remain protected.

@@ -1,3 +1,10 @@
+## v0.5.14 — 60-case title and port resolver follow-up (private)
+
+- Extend smart reranking for distinctive omitted franchise prefixes, named episodes, PSP/GBA ports and annotated series ordinals.
+- Add targeted positive/negative replay fixtures for SpongeBob, Winnie the Pooh, Wallace & Gromit, Untold Legends, Ys, Sudoku and wrong-platform Bubble Blaster.
+- Retain exact-platform checks, complete rival evidence, special-edition exclusions, live ID preflight and missing-field-only writes; no journal or ROM mutations.
+- Real-game identity correctness and ROM/store-ID corroboration remain pending live validation; see `SMM_v0.5.13_60_Case_Individual_Research_Audit.md` outside the repository.
+
 
 ## v0.5.13 — Candidate reranking + assisted automatic matching (private)
 - Search matching-platform exact-title and title-prefix IGDB rivals (bounded; 101st row flags truncation).

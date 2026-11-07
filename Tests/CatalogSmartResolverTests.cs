@@ -218,6 +218,59 @@ internal static class CatalogSmartResolverTests
             "semicolon query injection fails closed");
         Expect(CatalogSmartResolver.BuildPrefixQuery("Crash Bandicoot 2","Unknown Platform")=="",
             "unknown platform cannot perform misleading query");
+        // 60-case replay: distinctive franchise/suffix, GBA ports and PSP titles.
+        var spongebob=G(210724,"SpongeBob SquarePants: Lights, Camera, Pants!",24,11,2005);
+        spongebob.ParentGameId=2768;
+        Expect(Resolve(I("44 Lights, Camera, Pants!"),true,spongebob).SmartAutoEvidence,
+            "unique GBA SpongeBob port with exact suffix can resolve");
+        Expect(!Resolve(I("44 Lights, Camera, Pants!"),true,
+            G(210725,"Lights, Camera, Pants!: Special Edition",24,0,2005)).SmartAutoEvidence,
+            "a named special edition cannot replace an unspecified base release");
+        var pooh=G(243185,"Disney's Winnie the Pooh's Rumbly Tumbly Adventure",24,11,2005);
+        pooh.ParentGameId=4234;
+        Expect(Resolve(I("Winnie the Pooh's Rumbly Tumbly Adventure"),true,pooh).SmartAutoEvidence,
+            "distinctive publisher prefix omission resolves the GBA port");
+        var bumble=G(115575,"Wallace & Gromit's Grand Adventures: Episode 1 - Fright of the Bumblebees",6,6,2009);
+        bumble.ParentGameId=11307;
+        Expect(Resolve(I("Wallace & Gromit: Fright of the Bumblebees","PC (Windows)"),true,bumble).SmartAutoEvidence,
+            "unique named episode subtitle can resolve without wrapper");
+        var wrongEpisode=G(115576,"Wallace & Gromit's Grand Adventures: Episode 2 - Fright of the Bumblebees",6,6,2009);
+        Expect(!CatalogSmartResolver.LiveIdentityCompatible(
+            I("Wallace & Gromit: Episode 1 - Fright of the Bumblebees","PC (Windows)"),wrongEpisode),
+            "an explicit different episode number is never discarded");
+        var untold1=G(22508,"Untold Legends: Brotherhood of the Blade",38,0,2005);
+        var untold2=G(23006,"Untold Legends: The Warrior's Code",38,0,2006);
+        Expect(Resolve(I("Untold Legends 1 - Brotherhood Of The Blade","Sony PlayStation Portable"),true,
+            untold1).SmartAutoEvidence,"informal first Untold Legends number preserves unique subtitle");
+        Expect(Resolve(I("Untold Legends 2 - The Warriors Code","Sony PlayStation Portable"),true,
+            untold2).SmartAutoEvidence,"informal second Untold Legends number preserves unique subtitle");
+        Expect(!Resolve(I("Untold Legends 2 - The Warriors Code","Sony PlayStation Portable"),true,
+            untold1).SmartAutoEvidence,"different Untold Legends subtitles cannot cross-match");
+        var ysPort=G(200897,"Ys VI: The Ark of Napishtim",38,11,2006);
+        ysPort.ParentGameId=15454;
+        Expect(Resolve(I("Ys The Ark Of Napishtim PSP","Sony PlayStation Portable"),true,
+            ysPort).SmartAutoEvidence,"unique Ys VI PSP title can omit ordinal when subtitle is intact");
+        var wrongOrdinal=G(200898,"Ys IV: The Ark of Napishtim",38,11,2006);
+        wrongOrdinal.ParentGameId=15455;
+        Expect(!Resolve(I("Ys The Ark Of Napishtim PSP","Sony PlayStation Portable"),true,
+            ysPort,wrongOrdinal).SmartAutoEvidence,
+            "omitted ordinal cannot resolve when two numbered Ys entries share the subtitle");
+        Expect(!Resolve(I("Ys II The Ark Of Napishtim PSP","Sony PlayStation Portable"),true,
+            ysPort).SmartAutoEvidence,
+            "an explicitly different Ys numeral cannot be overridden by a subtitle match");
+        Expect(!Resolve(I("Ys The Red Cave PSP","Sony PlayStation Portable"),true,
+            G(200899,"Ys VI: The Red Cave",38,11,2006)).SmartAutoEvidence,
+            "generic short subtitle cannot authorize an omitted series ordinal");
+        var onlyDlc=G(399154,"Jotunnslayer: Hordes of Hel - Conan",6,1,2026);
+        onlyDlc.ParentGameId=296290;
+        Expect(!Resolve(I("Jotunnslayer: Hordes of Hel","PC (Windows)"),true,
+            onlyDlc).SmartAutoEvidence,"DLC cannot become parent game simply due to title prefix");
+        Expect(!Resolve(I("66 Sudoku"),true,G(49233,"Sudoku Fever",24,0,2006),
+            G(195493,"Sudoku Micro",24,0,2006)).SmartAutoEvidence,
+            "generic Sudoku without ROM code cannot choose between GBA editions");
+        Expect(!Resolve(I("69 Bubble Blaster"),true,
+            G(257703,"Bubble Blasters",6,0,2023)).SmartAutoEvidence,
+            "a non-GBA homonym cannot be auto-matched");
         Console.WriteLine("PASS: "+checks+" smart rival-ranking / truncated / identity-preflight checks.");
     }
 }

@@ -1,3 +1,7 @@
+## v0.5.14 private — Distinctive subtitle and platform-port matching
+
+Read-only scan reranking can now promote a uniquely supported game whose local title omits a franchise wrapper, a PSP series ordinal or an episode wrapper. The selected IGDB ID must still match the Playnite platform, carry a supported game type, survive complete rival lookup and pass live ID preflight; no overwrites of existing metadata are enabled for assisted matches. Generic titles, conflicting editions, test clients, unknown platforms and incomplete searches remain in Review. ROM headers and store IDs are not read by this release.
+
 
 ## v0.5.13 private — Smart candidate selection
 Fresh scans compare IGDB's platform-specific exact-title and prefix results instead of trusting the first fuzzy result. A distinct best candidate can enter the existing verified-matches batch, with an auditable reason and heuristic lead (not a true probability). Prefix automation requires a numbered multiword game, a verified base-game type and a nontruncated query. Different editions, DLC, identical-title games with no independent distinguishing date, and unresolved rivals remain in Review. Saved scan results never regain automatic eligibility without refresh. Automatic assisted imports fill only missing metadata; leave **Use catalog title** unchecked. Final live ID checks, backup acknowledgement, per-game journals and undo remain mandatory.

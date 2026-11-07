@@ -159,6 +159,79 @@ namespace SmartMetadataMatcher
             return NumericIdentityCompatible(b,a.Take(b.Count).ToList()) &&
                 StartsWith(a,b);
         }
+        // Distinctive trailing subtitles often omit a publisher/franchise prefix
+        // in imported ROM names. Require at least three meaningful title words,
+        // not a generic one-word match; exact platform and rival checks follow.
+        private static bool DistinctiveSuffix(List<string> official,List<string> local)
+        {
+            if(local.Count<3 || official.Count<=local.Count)return false;
+            if(local.Count(x=>x.Length>=5)<2)return false;
+            var suffix=official.Skip(official.Count-local.Count).ToList();
+            // A source-specified number must be present in the candidate;
+            // an omitted catalog ordinal is acceptable only if the subtitle
+            // is distinctive and one platform-compatible game wins ranking.
+            var localNums=local.Where(x=>x.All(Char.IsDigit)).ToList();
+            var officialNums=official.Where(x=>x.All(Char.IsDigit)).ToList();
+            return EqualTokens(suffix,local) &&
+                (localNums.Count==0 || localNums.SequenceEqual(officialNums,StringComparer.Ordinal));
+        }
+        // A named episode can be imported without its series/episode wrapper:
+        // Wallace & Gromit: Fright of the Bumblebees, for example. The title
+        // MUST share its starting series identity and its distinctive suffix.
+        private static bool WrappedSubtitle(List<string> official,List<string> local)
+        {
+            if(local.Count<5 || official.Count<=local.Count+1)return false;
+            if(!official.Take(2).SequenceEqual(local.Take(2),StringComparer.Ordinal))return false;
+            var suffix=local.Skip(2).ToList();
+            if(suffix.Count<3 || suffix.Count(x=>x.Length>=5)<2)return false;
+            var localNums=local.Where(x=>x.All(Char.IsDigit)).ToList();
+            var officialNums=official.Where(x=>x.All(Char.IsDigit)).ToList();
+            return EqualTokens(official.Skip(official.Count-suffix.Count).ToList(),suffix) &&
+                (localNums.Count==0 || localNums.SequenceEqual(officialNums,StringComparer.Ordinal));
+        }
+        // Local library numbering can annotate an otherwise unnumbered official
+        // subtitle (Untold Legends 1/2). Require exact remaining title identity;
+        // the dropped numeral never substitutes for an *existing* IGDB ordinal.
+        private static bool LocalSeriesAnnotation(List<string> official,List<string> local)
+        {
+            if(local.Count<6 || official.Count<5 || local.Count!=official.Count+1)
+            {
+                // Allow harmless possessive-splitting only, never arbitrary words.
+                if(local.Count<6 || official.Count<5 || Math.Abs(local.Count-official.Count-1)>1)return false;
+            }
+            if(!local.Take(2).SequenceEqual(official.Take(2),StringComparer.Ordinal))return false;
+            if(local[2]!="1" && local[2]!="2")return false;
+            if(official.Any(x=>x.All(Char.IsDigit)))return false;
+            var without=local.Take(2).Concat(local.Skip(3));
+            return String.Equals(String.Concat(without),String.Concat(official),StringComparison.Ordinal);
+        }
+        // A distinctive title can omit an internal series ordinal entirely,
+        // e.g. Ys: The Ark of Napishtim vs Ys VI: The Ark of Napishtim.
+        // Do not manufacture an ordinal when the local title supplies one.
+        private static bool OmittedSeriesOrdinal(List<string> official,List<string> local)
+        {
+            if(local.Count<4 || official.Count!=local.Count+1 ||
+                official[0]!=local[0] || official[1].Length>2 ||
+                !official[1].All(Char.IsDigit))return false;
+            if(local.Any(x=>x.All(Char.IsDigit)))return false;
+            // The Ark of Napishtim has one rare long word plus a shorter
+            // identifying noun (Ark). Requiring two 5+ letter words rejected
+            // this distinctive real PSP release. Generic short subtitles
+            // remain in review; rival and platform checks still apply.
+            var subtitle=local.Skip(1).ToList();
+            bool distinctive=subtitle.Count(x=>x.Length>=5)>=2 ||
+                (subtitle.Count>=4 && subtitle.Any(x=>x.Length>=8) &&
+                 subtitle.Count(x=>x.Length>=3 && x!="the" && x!="and" &&
+                     x!="for" && x!="of")>=2);
+            return distinctive &&
+                EqualTokens(official.Take(1).Concat(official.Skip(2)).ToList(),local);
+        }
+        private static bool TruncatedAdventure(List<string> official,List<string> local)
+        {
+            return local.Count==3 && official.Count>=5 &&
+                local[0]==official[0] && local[1]==official[1] &&
+                local[2]=="adv" && official[2]=="adventures";
+        }
         private static int TitleKind(string requested,string official,IEnumerable<string> aliases)
         {
             var local=Tokens(requested);var name=Tokens(official);
@@ -194,6 +267,9 @@ namespace SmartMetadataMatcher
                   official.IndexOf(':')>=0 && local.Any(x=>x.Length>=5))))return 1;
             if(FlexibleNumberedPrefix(name,local) &&
                 !Edition.IsMatch(requested) && !Edition.IsMatch(official))return 1;
+            if(DistinctiveSuffix(name,local) || WrappedSubtitle(name,local) ||
+                LocalSeriesAnnotation(name,local) || OmittedSeriesOrdinal(name,local))return 2;
+            if(TruncatedAdventure(name,local))return 1;
             if(NearSameFullTitle(local,name))return 2;
             return 0;
         }
@@ -224,12 +300,18 @@ namespace SmartMetadataMatcher
             var type=game.GameTypeId;
             if(type!=0 && type!=3 && type!=4 && type!=6 && type!=8 && type!=9 &&
                type!=10 && type!=11)return false;
-            // Standalone expansions / named episodes require a complete title.
-            if((type==4 || type==6) && titleKind!=3)return false;
-            bool isVariant=game.ParentGameId.GetValueOrDefault()>0 ||
-                game.VersionParentId.GetValueOrDefault()>0 ||
+            // Explicitly identifiable episodes can omit their series wrapper,
+            // but a base title cannot silently become an episode or expansion.
+            if(type==4 && titleKind!=3)return false;
+            if(type==6 && titleKind<2)return false;
+            // A port's parent_game is lineage, NOT an edition/version parent.
+            // Allow a same-platform, distinctive title on a port/episode/remake;
+            // genuine alternate editions still require an exact title.
+            bool editionVariant=game.VersionParentId.GetValueOrDefault()>0 ||
                 !String.IsNullOrWhiteSpace(game.VersionTitle) || type==10;
-            if(isVariant && titleKind!=3)return false;
+            if(editionVariant && titleKind!=3)return false;
+            bool isRelatedRelease=game.ParentGameId.GetValueOrDefault()>0;
+            if(isRelatedRelease && type!=11 && type!=8 && type!=6 && titleKind!=3)return false;
             if(!String.IsNullOrWhiteSpace(game.VersionTitle))
             {
                 var edition=Tokens(game.VersionTitle);
