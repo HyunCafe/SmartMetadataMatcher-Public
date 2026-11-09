@@ -1,36 +1,87 @@
-# Smart Metadata Matcher for Playnite
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Docs/readme/hero-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="Docs/readme/hero-light.svg">
+    <img src="Docs/readme/hero-light.svg" width="1120" alt="Match messy game titles automatically in Playnite.">
+  </picture>
+</p>
 
-> **Experimental public beta — not approved for the Playnite add-on database.**
+<h1 align="center">Smart Metadata Matcher</h1>
 
-Smart Metadata Matcher is a Playnite 10 Desktop extension by **HyunCafe**. It searches the Internet Game Database (IGDB) for possible matches to games already in a Playnite library, presents the evidence and potential field changes for review, and imports only user-approved supported missing metadata. It does **not** download games, rename ROM files or alter launcher paths.
+<p align="center">
+  Automatically identify games in messy PC and emulator libraries, then fill in missing Playnite metadata with one batch approval.
+</p>
 
-## Features
+<p align="center">
+  <a href="https://github.com/HyunCafe/SmartMetadataMatcher-Public/releases/tag/v0.5.17-beta.1"><img src="Docs/readme/download-beta.svg" width="190" alt="Download the public beta"></a>
+</p>
 
-- **Reviewable matching:** candidate results, title/platform/edition information, alternative matches and reasons for review. Similar names alone are not proof of a game identity.
-- **Missing-field enrichment:** preview possible additions to names, descriptions and image fields, with optional title changes that the user can review. Existing populated fields are preserved by default.
-- **Explicit approval:** scan/search is read-only; imports require the final change preview and an acknowledgement that a restorable backup exists.
-- **Batch processing:** all freshly strict-ready candidates may be selected; manually confirmed batches support up to 1000 in one approval. The weaker supervised track remains limited to five games. Manual bulk imports validate *every* selected identity live before writing the first game.
-- **Progress and recovery:** sequential per-game updates with stop-on-error behavior, individual undo records for supported operations, and guarded recovery state for interrupted media and metadata writes. Progress is displayed in groups of 50, but these are **not** separate all-or-nothing transactions.
-- **Offline history:** review import history, selected undo operations, and locally persisted scan results. Saved scan results require live verification before strict import.
+<p align="center">
+  <a href="#quick-start"><strong>Quick start</strong></a> ·
+  <a href="#how-matching-works"><strong>Matching engine</strong></a> ·
+  <a href="#example-crash-bandicoot-2-on-gba"><strong>Worked example</strong></a> ·
+  <a href="https://github.com/HyunCafe/SmartMetadataMatcher-Public/issues"><strong>Issues</strong></a>
+</p>
 
-## Requirements
+<p align="center"><strong>Playnite 10 Desktop on Windows · Twitch developer credentials required · MIT License</strong></p>
 
-- Playnite **10 Desktop** on Windows. Playnite 11 compatibility has not been established.
-- A Twitch Developer application with an **IGDB-enabled Client ID and Client Secret**. Credentials are supplied by the user; this project does not distribute shared keys.
-- Working access to `id.twitch.tv`, `api.igdb.com` and `images.igdb.com` for authentication, catalog lookups and artwork.
+> [!NOTE]
+> **Experimental public beta.** Distributed through GitHub Releases for Playnite 10 Desktop. Playnite 11 compatibility remains unverified.
 
-## Installation (experimental beta)
+## How matching works
 
-1. Obtain the versioned `.pext` and `SHA256SUMS.txt` from the official [HyunCafe GitHub releases](https://github.com/HyunCafe/SmartMetadataMatcher-Public/releases).
-2. Verify the downloaded `.pext` SHA-256 and install it into Playnite Desktop. Restart Playnite.
-3. Open **Main menu → Extensions → Smart Metadata Matcher**, then configure and test IGDB credentials.
-4. Back up your **Playnite library and extension user data** before approving imports. Scan, review candidate identity and proposed fields, and approve only matching games/platforms/editions.
+Imported titles often carry list numbers, abbreviated subtitles, or inconsistent naming. Smart Metadata Matcher uses the existing Playnite title and platform to find the corresponding record in the **Internet Game Database (IGDB)**.
 
-The GitHub prerelease includes an experimental `.pext`. No official Playnite add-on database listing is claimed.
+1. **Clean up the search title.** On supported systems, the matcher can remove a list index, expand a known alias, or recognize a redundant acronym. It preserves sequel numbers and meaningful edition markers.
+2. **Look beyond the first search result.** Clear matches take a fast path. When the initial result is weak, the engine can run exact-title and platform-filtered prefix lookups, then combine the results by IGDB ID.
+3. **Compare evidence and competing releases.** The expanded resolver checks the IGDB platform ID, title or alias, sequel and edition markers, playable release type, and platform-specific dates when available. It weighs the best candidate against its closest rival. If the expanded search hits its result cap, it cannot promote a match through that resolver.
+4. **Gather eligible matches automatically.** The strict batch action selects fresh results that pass its evidence rules. Ambiguous, unmatched, and stale results stay outside that selection. You can approve the eligible batch together.
 
-## Build from source (Windows)
+[Title and platform logic](Source/CatalogCore.cs) · [Expanded resolver](Source/CatalogSmartResolver.cs) · [Strict batch selection](Source/CatalogStrictBatchFlow.cs)
 
-The project targets .NET Framework `net462` and uses pinned NuGet references for `PlayniteSDK` `6.18.0` and .NET Framework reference assemblies `1.0.3`.
+## Example: Crash Bandicoot 2 on GBA
+
+![Resolver test case for 03 Crash Bandicoot 2 on Game Boy Advance. The engine removes the list index 03 and keeps sequel number 2. It selects the standalone N-Tranced record over the compilation.](Docs/readme/match-example.svg)
+
+The [resolver fixture](Tests/CatalogSmartResolverTests.cs#L115) starts with `03 Crash Bandicoot 2` and two plausible GBA records. The engine drops the list index `03`, keeps the sequel number `2`, and qualifies *Crash Bandicoot 2: N-Tranced* when the competing record is a compilation. If the compilation is the only result or the expanded lookup is incomplete, the shortened title stays outside automatic selection.
+
+The fixture illustrates the matching rules. It uses synthetic catalog records and measures no live IGDB or Playnite comparison.
+
+## How it compares with Playnite’s metadata download
+
+Playnite can fetch metadata automatically during import, run a bulk download, or let you search manually. Its official IGDB provider sends the title, release year, library ID, and game ID for background lookups. Smart Metadata Matcher adds a separate workflow for libraries with imperfect local titles: it can recover a candidate through targeted searches, check whether competing records make that identity ambiguous, and gather qualifying games for a single approval. [Playnite metadata workflow][playnite] · [Official IGDB provider source][provider]
+
+## Quick start
+
+1. **Download the package.** From the [beta release][beta], download `SmartMetadataMatcher-0.5.17-beta.1.pext` and `SHA256SUMS.txt` under **Assets**.
+2. **Verify the checksum.** In PowerShell, from your download folder, run the command below. Compare the result with the entry for the `.pext` in `SHA256SUMS.txt`.
+
+   ```powershell
+   Get-FileHash -Algorithm SHA256 -LiteralPath '.\SmartMetadataMatcher-0.5.17-beta.1.pext'
+   ```
+
+3. **Install and connect.** Open the `.pext` with Playnite and restart. Go to **Main menu → Extensions → Smart Metadata Matcher → Open Smart Metadata Matcher…**. Under **IGDB settings**, enter your own Twitch developer Client ID and Client Secret, run **Test Connection**, and save. See the [IGDB account setup guide][igdb].
+4. **Start with a few games.** Back up your Playnite library and extension data. Scan a small batch. Use **Apply verified matches** to gather qualifying results, then preview and approve the changes. Use **Review matches** for uncertain entries.
+
+## Batch imports and recovery
+
+| Route | What happens before changes |
+| --- | --- |
+| **Apply verified matches** | Matcher gathers eligible fresh matches and shows the proposed changes for approval. It rechecks each chosen IGDB identity before writing that game. |
+| **Fully reviewed bulk import** | After you confirm the selected identities, Matcher checks the entire reviewed selection against IGDB before the first write. |
+
+Imports can fill missing descriptions, covers, backgrounds, and icons. Existing values stay in place by default. Display-title changes are optional and previewed. ROM contents and launch paths stay intact.
+
+Cancellation stops between games. Completed changes remain applied, and supported changes can be undone per game when the recovery record and current fields allow it. Large-batch UI and interruption testing are still tracked in the [release criteria](Docs/RELEASE_GATE.md).
+
+## Development
+
+[Resolver fixtures](Tests/CatalogSmartResolverTests.cs) cover cases such as abbreviated sequels, competing compilations, and same-title games. [Recovery fixtures](Tests/CatalogRecoveryConsistencyTests.cs) cover consistency checks for interrupted operations.
+
+<details>
+<summary><strong>Build and test on Windows</strong></summary>
+
+The extension targets .NET Framework 4.6.2 and references Playnite SDK 6.18.0. Use the .NET SDK and PowerShell 7.
 
 ```powershell
 dotnet restore .\SmartMetadataMatcher.csproj --source https://api.nuget.org/v3/index.json
@@ -40,18 +91,31 @@ dotnet run --project .\Tests\NameRulesTests.csproj -c Release --no-restore
 pwsh -NoLogo -NoProfile -File .\Tools\Package-Release.ps1
 ```
 
-The package script refuses a missing DLL or version mismatch and writes only the DLL and extension manifest to a local `.pext`; publishing and signing are separate operations. Locally built DLL/ZIP bytes are not guaranteed to equal another build's artifact. Dependency provenance and published binary verification must be established before an actual release.
+The packaging script creates a local `.pext`. See the [release criteria](Docs/RELEASE_GATE.md) for dependency and binary verification.
 
-## Safety and limitations
+</details>
 
-- This is a **generic plugin**, not a built-in Playnite metadata provider; it has a separate review window and user-confirmed import workflow.
-- Title matches may be ambiguous (sequels, homonyms, remasters, prototypes, DLC and test clients). Weak matches require manual confirmation; no confidence score is an actual probability of correctness.
-- Batch cancellation stops between games; updates already completed are **not** automatically rolled back as a group. Per-game undo is conditional on journal health and whether values were edited afterward.
-- Large-batch host UI and actual abrupt-process interruption tests have not yet been completed for this release candidate. The 1000-game reviewed approval limit is a resource bound, **not** a claim that 1000-game batch recovery is proven.
-- Playnite extensions run with the permissions of Playnite and are **not sandboxed**. Review the source and provenance, and avoid running Playnite as Administrator for this purpose.
+<details>
+<summary><strong>Credentials, data and uninstalling</strong></summary>
 
-See [PRIVACY.md](PRIVACY.md), [SECURITY.md](SECURITY.md), [CHANGELOG.md](CHANGELOG.md) and [Docs/RELEASE_GATE.md](Docs/RELEASE_GATE.md).
+IGDB lookups use your Twitch credentials and send game lookup terms to IGDB. Credentials are stored locally with Windows account encryption. See [Privacy](PRIVACY.md) for the network endpoints, local data and what diagnostic exports can contain.
 
-## Publisher and license
+To disable or uninstall the extension, open **Main menu → Add-ons → Installed**, then select **Smart Metadata Matcher**. Keep your extension data and backup if you may need the recovery history.
 
-Publisher: **HyunCafe**. Licensed under MIT (see [LICENSE](LICENSE)). Not affiliated with Playnite, Twitch or IGDB. Official Playnite add-on database submissions are currently paused; this project will prepare its manifest for future submission without asserting prior acceptance.
+</details>
+
+## Support and project status
+
+- **Report a bug.** Include your Playnite version, extension version and steps to reproduce. Redact credentials, local paths and private library details. [Open an issue][issues]
+- **See what changed.** Read the [beta release notes][beta] and the [source changelog](CHANGELOG.md).
+- **Follow Playnite distribution.** The [add-on](Manifests/addon-database.yaml) and [installer](Manifests/installer.yaml) manifests are drafts for future submission. See the [official add-on database](https://github.com/JosefNemec/PlayniteAddonDatabase) for intake status.
+
+[Privacy](PRIVACY.md) · [Security](SECURITY.md) · [MIT License](LICENSE)
+
+Maintained by **HyunCafe**.
+
+[beta]: https://github.com/HyunCafe/SmartMetadataMatcher-Public/releases/tag/v0.5.17-beta.1
+[issues]: https://github.com/HyunCafe/SmartMetadataMatcher-Public/issues
+[igdb]: https://api-docs.igdb.com/#account-creation
+[playnite]: https://api.playnite.link/docs/manual/library/games/metadata.html
+[provider]: https://github.com/JosefNemec/PlayniteExtensions/blob/master/source/Metadata/IGDBMetadata/IgdbLazyMetadataProvider.cs#L1839

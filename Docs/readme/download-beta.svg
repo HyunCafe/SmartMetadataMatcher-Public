@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="380" height="96" viewBox="0 0 380 96" role="img">
+  <title>Download the public beta</title>
+  <rect width="380" height="96" rx="24" fill="#51318e"/>
+  <path d="M40 32v23m-9-9 9 9 9-9M29 61v7h22v-7" fill="none" stroke="#e7dcff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="68" y="57" fill="#fff" font-family="system-ui,Segoe UI,Arial,sans-serif" font-size="27" font-weight="700">Download the public beta</text>
+</svg>
