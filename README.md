@@ -1,24 +1,27 @@
 # Smart Metadata Matcher
 
-**Find the right IGDB entry for hard-to-match PC and emulated games.** Review the proposed changes, then fill in missing Playnite metadata in one batch.
+**Match hard-to-identify PC and emulated games in Playnite.**
 
-**[Download the public beta][beta]** · [Quick start](#quick-start) · [Matching engine](#how-matching-works) · [Report an issue][issues]
+Compare IGDB candidates by title, platform, and edition. Review the matches and fill in missing artwork and descriptions in one batch.
 
-Playnite 10 Desktop on Windows · Twitch developer credentials required
+**[Download the public beta][beta]** · [Quick start](#quick-start) · [Matching engine](#how-matching-works) · [Support](#support-and-project-status)
 
-## See it match
+`Playnite 10 Desktop` · `Windows` · `Twitch developer credentials required`
 
-**Library entry:** `03 Crash Bandicoot 2` · Game Boy Advance
+![Smart Metadata Matcher 0.5.17 showing the candidate queue, proposed artwork and metadata, and update history.](Docs/readme/review-queue.png)
 
-Matcher removes the list index `03` and keeps the sequel number `2`. Here is what it does with the catalog results:
+*The v0.5.17 review queue shows candidate matches, proposed metadata, and update history. The selected entry was manually confirmed for review and still shows a platform warning.*
 
-| Catalog results | Matcher’s decision |
+## What the matcher checks
+
+| Case | What the code demonstrates |
 | --- | --- |
-| Standalone *N-Tranced* and a related compilation | Selects the standalone release |
-| Related compilation only | Leaves the game for review |
-| Incomplete lookup | Keeps the game out of automatic selection |
+| **Numbered sequels** | `Ys 1` can resolve to *Ys I* with a unique candidate on the correct platform. `Final Fantasy 4` and *Final Fantasy IV* normalize to the same title. *Mega Man X* stays distinct from *Mega Man 10*. |
+| **Same-title ports** | *Blade Dancer: Lineage of Light* has same-name catalog entries. The resolver can favor the dated PSP original when the competing record is a linked port without its own dated PSP release. A conflicting local year or a port with its own PSP date leaves the case for review. |
+| **Compilations and editions** | `Ys One And Two PSP` can resolve to the standard *Ys I & II Chronicles* bundle. If the lookup returns only the *Premium Edition*, the matcher withholds automatic selection. |
+| **Ambiguous names** | `66 Sudoku` can refer to multiple GBA releases, including *Sudoku Fever* and *Sudoku Micro*. The automatic resolver leaves the entry for review. |
 
-*Based on a [resolver test fixture](Tests/CatalogSmartResolverTests.cs#L115) with synthetic IGDB records.*
+[Resolver tests](Tests/CatalogSmartResolverTests.cs) · [Matching logic](Source/CatalogSmartResolver.cs)
 
 ## Quick start
 
