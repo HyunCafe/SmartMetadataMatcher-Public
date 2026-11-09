@@ -1,3 +1,5 @@
+> Historical development record, preserved for continuity. For current status, see [release readiness](../../RELEASE_READINESS.md). Relative links and commands below describe the original checkout and may no longer apply.
+
 ## v0.5.17 — private public-readiness candidate (NOT YET RELEASED)
 - Remove the 50-game manual identity approval ceiling; support up to 1000 explicitly reviewed identities, with source and persistence validation, full-list preflight and per-game undo journals.
 - Show 50-game groups in live IGDB preflight progress; this is presentation grouping, not a transaction boundary.

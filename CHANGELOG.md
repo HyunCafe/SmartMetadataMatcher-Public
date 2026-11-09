@@ -1,6 +1,15 @@
 # Changelog
 
-## 0.5.17 — public-readiness candidate (not released)
+## Unreleased
+
+- Replace game-specific matching overrides with shared title, platform, ordinal, edition and rival-evidence rules; preserve meaningful numbers and `+` markers.
+- Expand discovery hints without allowing stripped prefixes or platform tags to establish identity automatically; add generalization and negative fixtures.
+- Consolidate private and public histories into the existing public repository, retaining original commits and development records.
+- Add Windows build/test/candidate-package automation, contribution guidance and issue forms; reconcile current release status and order design decisions oldest first.
+
+These source changes are not included in the existing beta package.
+
+## 0.5.17-beta.1 — experimental public beta
 
 - Expand manually reviewed identity-confirmation batch from 50 to 1000 games, retaining explicit whole-selection confirmation and live preflight before any writes.
 - Allow all strict-ready candidates to be marked even when previously confirmed selections exist; no silent truncation to five.
@@ -17,7 +26,7 @@
 
 - Improve PSP paired-compilation and original/port matching distinctions.
 
-Historical development commits and private test reports are retained in the private development repository, not bundled into a clean public-source snapshot.
+The reviewed Git histories and historical development records are now retained in this repository. Historical entries describe their original checkpoints, not current release approval.
 
 ## Earlier development
 

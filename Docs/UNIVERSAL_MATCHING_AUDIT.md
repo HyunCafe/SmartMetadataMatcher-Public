@@ -2,6 +2,8 @@
 
 Source candidate, November 9, 2026. This is not a released `.pext` or a claim of universally correct game identification.
 
+> Historical audit snapshot. Both matching-fix branches were subsequently built and tested on Windows by the maintainer, then consolidated into public `main`. The access and execution limits below describe the original audit environment. See [current readiness](../RELEASE_READINESS.md) for release status.
+
 ## Scope and evidence
 
 The public baseline is commit `3825bfc63ee4019d1a03507f84d9110572e79e01`. The audit inventories all 34 production C# files, examines matching and its discovery, UI, preflight, display-title and recovery callers, and searches production code for named-game branches, fixed game IDs and personal paths. The archived v0.5.17 source snapshot has the same 64 source, test and tooling files as this baseline after newline normalization. The current private repository could not be accessed; its live state has **not** been verified or changed.

@@ -14,7 +14,7 @@ Smart Metadata Matcher is a Playnite .NET `GenericPlugin` executed in the Playni
 
 ## Known limits of verification
 
-Offline C# tests and source checks are **not** a guarantee against all malicious code, faulty dependencies or runtime failures. The proposed public release still requires a trusted Windows build, actual Playnite 10 host tests, network request inspection where appropriate, published DLL/`.pext` inventory and hash comparison, and actual interrupted-write recovery tests in disposable data.
+Offline C# tests and source checks are **not** a guarantee against all malicious code, faulty dependencies or runtime failures. Each new package requires a trusted Windows build, actual Playnite 10 host tests, package inventory/hash comparison and appropriate network/dependency review. Real interrupted-write recovery in disposable data remains a separate acceptance requirement. See [release readiness](RELEASE_READINESS.md).
 
 The project references `PlayniteSDK` 6.18.0 and `Microsoft.NETFramework.ReferenceAssemblies.net462` 1.0.3. Version pinning alone does not authenticate all downloaded NuGet bytes; dependency provenance must be reviewed before public release.
 
@@ -24,4 +24,4 @@ Do **not** paste Twitch secrets, exported game inventories, filesystem paths, lo
 
 ## Supported versions
 
-Until an initial public version is published, only the current private development candidate is under active review. No SLA or security certification is offered.
+The published `v0.5.17-beta.1` and current `main` are the active reporting targets. Earlier private milestones are historical and receive no promised backports. Current source may contain changes not yet available in the beta; include the installed version or source commit in reports. No SLA or security certification is offered.

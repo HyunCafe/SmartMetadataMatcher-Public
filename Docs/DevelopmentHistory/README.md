@@ -1,3 +1,5 @@
+> Historical development record, preserved for continuity. For current status, see [release readiness](../../RELEASE_READINESS.md). Relative links and commands below describe the original checkout and may no longer apply.
+
 ## v0.5.17 private candidate — manual batch usability / public preparation
 - The previous 50-game manual identity-review limit is raised to a bounded 1000-game resource ceiling to enable selecting the current eligible library in one explicit review.
 - Mixed strict/confirmed selections can mark all rows, but must pass full manual confirmation, live IGDB preflight, verified backup acknowledgement and sequential per-game journaled imports.

@@ -45,8 +45,14 @@ def package(path):
         names=z.namelist()
         if len(names)!=2 or set(names)!={'SmartMetadataMatcher.dll','extension.yaml'}:
             issues.append('Unexpected packaged members')
-        elif z.read('extension.yaml')!=(ROOT/'extension.yaml').read_bytes():
-            issues.append('Packaged YAML differs from source')
+        else:
+            if z.read('extension.yaml')!=(ROOT/'extension.yaml').read_bytes():
+                issues.append('Packaged YAML differs from source')
+            dll=ROOT/'bin/Release/net462/SmartMetadataMatcher.dll'
+            if not dll.is_file():
+                issues.append('Release DLL missing for byte comparison')
+            elif z.read('SmartMetadataMatcher.dll')!=dll.read_bytes():
+                issues.append('Packaged DLL differs from built Release DLL')
     return issues
 if __name__=='__main__':
     errs=check()

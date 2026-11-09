@@ -1,5 +1,5 @@
 # BETA DRAFT ONLY — external Playnite submission manifest validation still pending.
-# Public pre-release URL becomes live only after GitHub release publishing.
+# Describes the published v0.5.17-beta.1 package, not unreleased main.
 AddonId: '11D77564-F56F-5BF3-9CBB-7BB0CB427537'
 Packages:
   - Version: 0.5.17

@@ -1,23 +1,33 @@
-# Public-release acceptance gates — Smart Metadata Matcher 0.5.17 candidate
+# Release gates
 
-**Status: EXPERIMENTAL PUBLIC BETA ONLY; NOT approved for a stable release or the Playnite add-on database.**
+The existing public beta remains experimental. These gates apply to each new package; a green build is not host-runtime acceptance. [Current status](../RELEASE_READINESS.md) separates available releases from source-only work.
 
-## Must pass before releasing a `.pext`
+## Build and provenance
 
-1. **Baseline:** verify actual local v0.5.16 commit, its `.pext` and source hashes; all changes introduced only on a new branch/clean source snapshot, without changing the private rollback tag or recovery journals.
-2. **Build:** exact pinned NuGet dependency versions; Windows `net462` Release DLL; all offline C# tests including >50 manually confirmed records; fail-closed negative fixtures; deterministic source inventory.
-3. **Batch UI:** in real Playnite Desktop test selecting/unmarking 52 and 431 entries; mixed strict/confirmed selection; close/reopen; cancel; refresh cached; identity edits; verify no accidental dialogs/automatic marking.
-4. **Long-running read-only preflight:** check 51+ and 431-game preflight with live IGDB or a controlled test server, every-ID verification before first write, cancellation and first-error-stop; honor provider rate limits without silent retries that weaken identity checks.
-5. **Recoverable imports:** use a disposable Playnite database and extension-data folder. Verify 1, 5, 50, 51 and a larger supervised operation; simulate unexpected process interruption mid-write and mid-artwork stage, restart, inspect journal, recover/undo, and ensure no duplicate writes or unrecoverable media loss.
-6. **Security:** inspect actual compiled DLL, release `.pext` members, NuGet package provenance and transitive dependencies, secret/path scans of source and commit history, no credentials or private inventories; publish independent SHA-256 of actual release asset.
-7. **Source history:** avoid converting the existing private repository to public without reviewing or rewriting the ENTIRE reachable Git history. Preferred path: create fresh public repository from this sanitized source snapshot after author approval. Never publish private local backup archives.
-8. **Playnite publication:** verify stable `extension.yaml` GUID, name and assembly versions, valid `Manifests/installer.yaml` and `Manifests/addon-database.yaml`, actual release URLs, matching `AddonId`, API version, icon and screenshots with no personal library details. Validate with Playnite Toolbox when available. Do not submit while the official new-plugin intake is paused unless Playnite explicitly permits it.
-9. **User-facing:** clear README, MIT license, SECURITY and PRIVACY notices, changelog, known limitations, install/uninstall, backup and recovery instructions; public `.pext` and `SHA256SUMS.txt` generated only after the passing build.
-10. **Approval:** explicit user decision to publish/publicize and select MIT license/public repo name, followed by GitHub release and post-release installation sanity check.
+- Build from an identified clean commit on Windows; run the complete offline test executable and source checks. Record the commit and CI run URL.
+- Keep NuGet dependency versions pinned; inspect resolved dependencies and known advisories. Review package provenance separately from successful restore.
+- Match `extension.yaml`, assembly and file versions. Preserve the stable extension GUID. A new shipped implementation needs a new version, not a replacement of old release assets.
+- Inspect package members, compare the packaged DLL and manifest byte-for-byte with the build, and calculate SHA-256 of the actual `.pext`.
+- Screen source, history changes, package content and build metadata for secrets and personal paths. Never include caches, credentials, inventories or recovery journals.
 
-## Current evidence
+## Playnite acceptance
 
-- Reconstructed v0.5.16 source from 0.5.0 baseline plus versioned development bundles; v0.5.16 update hashes verified.
-- Pure Python source/RC/privacy checks passed for reconstructed 0.5.16 and candidate 0.5.17; Linux working environment has no Windows .NET/Playnite host and cannot compile or validate actual WPF behavior.
-- Earlier offline suites and a 330-applied-game user history are recorded, but those are **not** a substitute for v0.5.17 large-batch interruption tests.
-- Outstanding private supply-chain audit concerns may require NuGet package verification before public release.
+Use a disposable Playnite 10 library and extension-data folder, backed up together.
+
+- Verify first installation and update from the previous beta; settings and recovery history remain usable. Test opening the UI, connection failure and cancellation.
+- Scan a small mixed library; inspect strict, review and unmatched results. Include wrong-platform, edition-conflict and ambiguous-title cases, not only successful matches.
+- Preview and approve a small import, verify missing-field behavior and optional display titles, and exercise supported undo after reopening. Confirm game files and launch paths are unchanged.
+- Exercise strict and explicitly reviewed batches across the relevant selection boundaries. Confirm reviewed-bulk live identity preflight completes before its first write, and errors stop processing.
+- Before claims about large-batch robustness, test cancellation and process interruption during writes/artwork staging, restart, inspect recovery state and verify no duplicate writes. Unknown media state must remain blocked for backup-backed recovery.
+- Record observed outcomes, exact versions, package hash and outstanding cases. Do not convert earlier user observations into a current-package pass.
+
+## Distribution
+
+- Validate extension/add-on/installer manifests with the official Playnite Toolbox. Verify ID, API/version fields and published URLs; draft submission manifests are not proof of acceptance.
+- Recheck the [official submission status](https://github.com/JosefNemec/PlayniteAddonDatabase) before submitting. Playnite 11 compatibility needs its own testing.
+- Update release notes, README release status and support policy. Publish the package and checksums from the verified commit, retaining the old tags and assets.
+- Perform a post-download checksum and installation sanity check. GitHub Releases is the distribution channel; no NuGet or container package is needed.
+
+## Historical context
+
+The [consolidation record](CONSOLIDATION.md) documents the targeted history review and retained commits. Earlier source-only and private-release checks remain historical evidence, not security certification or current runtime approval.

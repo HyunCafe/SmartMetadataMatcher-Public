@@ -1,3 +1,5 @@
+> Historical source audit. The private/public staging descriptions below refer to the original checkpoint. See [current readiness](../RELEASE_READINESS.md) for the published beta, consolidated history and remaining release requirements.
+
 # Safety, testing and limit audit — 0.5.16 baseline to 0.5.17 candidate
 
 **Scope:** Reconstructed `net462` Playnite 10 `GenericPlugin` source. This audit distinguishes **source evidence** from **offline test evidence** and **real Playnite verification**. **Not a public-release approval.**

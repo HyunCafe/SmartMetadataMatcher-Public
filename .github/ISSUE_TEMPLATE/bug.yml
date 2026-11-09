@@ -1,0 +1,27 @@
+name: Bug report
+description: Report installation, UI, import or recovery behavior.
+body:
+  - type: markdown
+    attributes:
+      value: "Do not upload credentials, full library exports, databases, recovery journals or private paths. Report security issues through SECURITY.md."
+  - type: textarea
+    id: versions
+    attributes:
+      label: Versions
+      description: Windows, Playnite, extension version or source commit.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction
+      description: Steps, expected behavior and observed behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Impact and state
+      description: Did metadata change? Was the operation canceled? Include relevant error text after redaction.
+    validations:
+      required: true

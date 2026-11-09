@@ -8,6 +8,8 @@ Compare IGDB candidates by title, platform, and edition. Review the matches and 
 
 `Playnite 10 Desktop` · `Windows` · `Twitch developer credentials required`
 
+> **Release status:** the downloadable **v0.5.17-beta.1** predates the universal matching revision shown below. Those improvements are on `main`; a new package is pending validation. [Current readiness](RELEASE_READINESS.md) · [Build and test runs](https://github.com/HyunCafe/SmartMetadataMatcher-Public/actions/workflows/windows-ci.yml)
+
 ![Smart Metadata Matcher 0.5.17 showing the candidate queue, proposed artwork and metadata, and update history.](Docs/readme/review-queue.png)
 
 *The v0.5.17 review queue shows candidate matches, proposed metadata, and update history. The selected entry was manually confirmed for review and still shows a platform warning.*
@@ -67,6 +69,15 @@ Imports can fill missing descriptions, covers, backgrounds, and icons. Existing 
 
 Cancellation stops between games. Completed changes remain applied, and supported changes can be undone per game when the recovery record and current fields allow it. Large-batch UI and interruption testing are still tracked in the [release criteria](Docs/RELEASE_GATE.md).
 
+## Engineering and validation
+
+- **Identity before enrichment:** compare candidate titles, platforms, editions and rivals before collecting eligible matches for approval.
+- **General rules, explicit counterexamples:** [generalization fixtures](Tests/UniversalMatchingTests.cs) exercise invariance across synthetic titles and platforms alongside cases that must remain in review. Assertion counts are not counts of independently verified games.
+- **Recovery evidence:** [journal fault fixtures](Tests/JournalFaultMatrixTests.cs) and [consistency checks](Tests/CatalogRecoveryConsistencyTests.cs) test failure handling with disposable files. They do not prove real Playnite process-crash recovery.
+- **Reproducible checks:** [Windows CI](https://github.com/HyunCafe/SmartMetadataMatcher-Public/actions/workflows/windows-ci.yml) builds the plugin, runs offline tests and verifies a candidate package. Check the result for the exact commit; CI artifacts are not approved releases.
+
+No controlled accuracy comparison against Playnite's provider has been published. See the [evaluation plan](Docs/EVALUATION.md) for how correctness and review coverage will be measured.
+
 ## Development
 
 [Resolver fixtures](Tests/CatalogSmartResolverTests.cs) cover cases such as abbreviated sequels, competing compilations, and same-title games. [Recovery fixtures](Tests/CatalogRecoveryConsistencyTests.cs) cover consistency checks for interrupted operations.
@@ -74,17 +85,13 @@ Cancellation stops between games. Completed changes remain applied, and supporte
 <details>
 <summary><strong>Build and test on Windows</strong></summary>
 
-The extension targets .NET Framework 4.6.2 and references Playnite SDK 6.18.0. Use the .NET SDK and PowerShell 7.
+The extension targets .NET Framework 4.6.2 and references Playnite SDK 6.18.0. Use the .NET 10 SDK, PowerShell 7 and Python 3 on Windows.
 
 ```powershell
-dotnet restore .\SmartMetadataMatcher.csproj --source https://api.nuget.org/v3/index.json
-dotnet build .\SmartMetadataMatcher.csproj -c Release --no-restore
-dotnet restore .\Tests\NameRulesTests.csproj --source https://api.nuget.org/v3/index.json
-dotnet run --project .\Tests\NameRulesTests.csproj -c Release --no-restore
-pwsh -NoLogo -NoProfile -File .\Tools\Package-Release.ps1
+pwsh -NoLogo -NoProfile -File .\Tools\Build-Candidate.ps1
 ```
 
-The packaging script creates a local `.pext`. See the [release criteria](Docs/RELEASE_GATE.md) for dependency and binary verification.
+The script builds and tests before producing a local candidate `.pext`, checksums and source-commit record. See [contribution guidance](CONTRIBUTING.md) and the [release criteria](Docs/RELEASE_GATE.md). Historical private tools remain available for reproducibility; this is the current build entry point.
 
 </details>
 
@@ -97,6 +104,12 @@ To disable or uninstall the extension, open **Main menu → Add-ons → Installe
 
 </details>
 
+## Roadmap
+
+1. Validate and publish a beta containing the title-independent matching revision.
+2. Evaluate a broader, independently reviewed set of library titles, including false positives and deferred matches.
+3. Complete host recovery/update checks and prepare Playnite submission when intake is available; test Playnite 11 separately.
+
 ## Support and project status
 
 - **Report a bug.** Include your Playnite version, extension version and steps to reproduce. Redact credentials, local paths and private library details. [Open an issue][issues]
@@ -105,7 +118,7 @@ To disable or uninstall the extension, open **Main menu → Add-ons → Installe
 
 [Privacy](PRIVACY.md) · [Security](SECURITY.md) · [MIT License](LICENSE)
 
-Maintained by **HyunCafe**.
+Maintained by **HyunCafe**, with AI assistance in development. The maintainer directs requirements, evaluates behavior and is responsible for reviewing and releasing changes.
 
 [beta]: https://github.com/HyunCafe/SmartMetadataMatcher-Public/releases/tag/v0.5.17-beta.1
 [issues]: https://github.com/HyunCafe/SmartMetadataMatcher-Public/issues
