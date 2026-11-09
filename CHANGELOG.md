@@ -18,3 +18,7 @@
 - Improve PSP paired-compilation and original/port matching distinctions.
 
 Historical development commits and private test reports are retained in the private development repository, not bundled into a clean public-source snapshot.
+
+## Earlier development
+
+The [complete development changelog](Docs/DevelopmentHistory/CHANGELOG.md) preserves the private-development entries.
