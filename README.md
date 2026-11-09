@@ -1,60 +1,43 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="Docs/readme/hero-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="Docs/readme/hero-light.svg">
-    <img src="Docs/readme/hero-light.svg" width="1120" alt="Match messy game titles automatically in Playnite.">
-  </picture>
-</p>
-
 <h1 align="center">Smart Metadata Matcher</h1>
 
 <p align="center">
-  Automatically identify games in messy PC and emulator libraries, then fill in missing Playnite metadata with one batch approval.
+  <strong>Identify hard-to-match PC and emulated games automatically.</strong><br>
+  Fill in missing Playnite metadata with one batch approval.
 </p>
 
 <p align="center">
   <a href="https://github.com/HyunCafe/SmartMetadataMatcher-Public/releases/tag/v0.5.17-beta.1"><img src="Docs/readme/download-beta.svg" width="190" alt="Download the public beta"></a>
 </p>
 
+<p align="center">Experimental beta · Playnite 10 Desktop on Windows · Twitch developer credentials required</p>
+
 <p align="center">
-  <a href="#quick-start"><strong>Quick start</strong></a> ·
-  <a href="#how-matching-works"><strong>Matching engine</strong></a> ·
-  <a href="#example-crash-bandicoot-2-on-gba"><strong>Worked example</strong></a> ·
-  <a href="https://github.com/HyunCafe/SmartMetadataMatcher-Public/issues"><strong>Issues</strong></a>
+  <a href="#see-it-match">See it match</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#how-matching-works">Matching engine</a> ·
+  <a href="#support-and-project-status">Support</a>
 </p>
 
-<p align="center"><strong>Playnite 10 Desktop on Windows · Twitch developer credentials required · MIT License</strong></p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="Docs/readme/hero-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="Docs/readme/hero-light.svg">
+  <img src="Docs/readme/hero-light.svg" width="1120" alt="Three steps: scan your library, compare candidate games, and approve eligible updates together.">
+</picture>
 
-> [!NOTE]
-> **Experimental public beta.** Distributed through GitHub Releases for Playnite 10 Desktop. Playnite 11 compatibility remains unverified.
+## See it match
 
-## How matching works
+**Library entry:** `03 Crash Bandicoot 2` on Game Boy Advance. Matcher drops the list index, keeps the sequel number, and qualifies the standalone *N-Tranced* release over the related compilation. If only the compilation comes back, it leaves the match for review.
 
-Imported titles often carry list numbers, abbreviated subtitles, or inconsistent naming. Smart Metadata Matcher uses the existing Playnite title and platform to find the corresponding record in the **Internet Game Database (IGDB)**.
+![Crash Bandicoot 2 GBA matching example, comparing the standalone release with a compilation and showing when automatic selection is withheld.](Docs/readme/match-example.svg)
 
-1. **Clean up the search title.** On supported systems, the matcher can remove a list index, expand a known alias, or recognize a redundant acronym. It preserves sequel numbers and meaningful edition markers.
-2. **Look beyond the first search result.** Clear matches take a fast path. When the initial result is weak, the engine can run exact-title and platform-filtered prefix lookups, then combine the results by IGDB ID.
-3. **Compare evidence and competing releases.** The expanded resolver checks the IGDB platform ID, title or alias, sequel and edition markers, playable release type, and platform-specific dates when available. It weighs the best candidate against its closest rival. If the expanded search hits its result cap, it cannot promote a match through that resolver.
-4. **Gather eligible matches automatically.** The strict batch action selects fresh results that pass its evidence rules. Ambiguous, unmatched, and stale results stay outside that selection. You can approve the eligible batch together.
-
-[Title and platform logic](Source/CatalogCore.cs) · [Expanded resolver](Source/CatalogSmartResolver.cs) · [Strict batch selection](Source/CatalogStrictBatchFlow.cs)
-
-## Example: Crash Bandicoot 2 on GBA
-
-![Resolver test case for 03 Crash Bandicoot 2 on Game Boy Advance. The engine removes the list index 03 and keeps sequel number 2. It selects the standalone N-Tranced record over the compilation.](Docs/readme/match-example.svg)
-
-The [resolver fixture](Tests/CatalogSmartResolverTests.cs#L115) starts with `03 Crash Bandicoot 2` and two plausible GBA records. The engine drops the list index `03`, keeps the sequel number `2`, and qualifies *Crash Bandicoot 2: N-Tranced* when the competing record is a compilation. If the compilation is the only result or the expanded lookup is incomplete, the shortened title stays outside automatic selection.
-
-The fixture illustrates the matching rules. It uses synthetic catalog records and measures no live IGDB or Playnite comparison.
-
-## How it compares with Playnite’s metadata download
-
-Playnite can fetch metadata automatically during import, run a bulk download, or let you search manually. Its official IGDB provider sends the title, release year, library ID, and game ID for background lookups. Smart Metadata Matcher adds a separate workflow for libraries with imperfect local titles: it can recover a candidate through targeted searches, check whether competing records make that identity ambiguous, and gather qualifying games for a single approval. [Playnite metadata workflow][playnite] · [Official IGDB provider source][provider]
+*Illustration of a [resolver test fixture](Tests/CatalogSmartResolverTests.cs#L115) using synthetic IGDB records.*
 
 ## Quick start
 
-1. **Download the package.** From the [beta release][beta], download `SmartMetadataMatcher-0.5.17-beta.1.pext` and `SHA256SUMS.txt` under **Assets**.
-2. **Verify the checksum.** In PowerShell, from your download folder, run the command below. Compare the result with the entry for the `.pext` in `SHA256SUMS.txt`.
+The beta is distributed through GitHub Releases. Playnite 11 compatibility remains unverified.
+
+1. **Download the beta.** Get the `.pext` and `SHA256SUMS.txt` from the [release assets][beta].
+2. **Verify the checksum.** Run this in PowerShell from your download folder and compare the result with `SHA256SUMS.txt`.
 
    ```powershell
    Get-FileHash -Algorithm SHA256 -LiteralPath '.\SmartMetadataMatcher-0.5.17-beta.1.pext'
@@ -63,7 +46,24 @@ Playnite can fetch metadata automatically during import, run a bulk download, or
 3. **Install and connect.** Open the `.pext` with Playnite and restart. Go to **Main menu → Extensions → Smart Metadata Matcher → Open Smart Metadata Matcher…**. Under **IGDB settings**, enter your own Twitch developer Client ID and Client Secret, run **Test Connection**, and save. See the [IGDB account setup guide][igdb].
 4. **Start with a few games.** Back up your Playnite library and extension data. Scan a small batch. Use **Apply verified matches** to gather qualifying results, then preview and approve the changes. Use **Review matches** for uncertain entries.
 
-## Batch imports and recovery
+## How matching works
+
+1. **Clean up the title.** Remove supported list prefixes and recognize known aliases while keeping sequel numbers and edition markers.
+2. **Find and compare candidates.** If the initial match is weak, try exact-title and platform-filtered prefix lookups. Compare IGDB platform IDs, edition markers, release types, available dates, and competing records.
+3. **Select the batch.** Gather fresh matches that meet the evidence rules. Leave ambiguous results for review and keep stale or unmatched entries out of automatic selection.
+
+[Title and platform logic](Source/CatalogCore.cs) · [Expanded resolver](Source/CatalogSmartResolver.cs) · [Strict batch selection](Source/CatalogStrictBatchFlow.cs)
+
+<details>
+<summary><strong>How this differs from Playnite’s built-in metadata download</strong></summary>
+
+Playnite supports automatic, bulk, and manual metadata downloads. Matcher adds a separate workflow for imperfect library titles. It runs targeted searches for weak matches, compares competing identities, and automatically gathers eligible games for batch approval. If the expanded lookup reaches its result cap, that resolver cannot promote the match.
+
+[Playnite metadata workflow][playnite] · [Official IGDB provider source][provider]
+
+</details>
+
+## What changes in your library
 
 | Route | What happens before changes |
 | --- | --- |
