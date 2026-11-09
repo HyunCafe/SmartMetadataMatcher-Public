@@ -14,9 +14,9 @@ The public beta **v0.5.17-beta.1** is available from [GitHub Releases](https://g
 
 ## Next beta
 
-1. Run Windows CI against the intended source commit and inspect its logs and candidate artifact.
-2. Test that exact package in a disposable Playnite 10 profile: install/update, scan, review, cancel, approved import and supported undo. Record observed results and any untested cases.
-3. Complete the relevant [release gates](Docs/RELEASE_GATE.md), including package/dependency review. Resolve failures; do not infer runtime acceptance from compilation.
-4. Increment the extension and assembly version together, rebuild and verify the final package, then create an immutable release tag at its source commit. Publish the `.pext`, SHA-256 checksums and evidence with accurate beta limitations. Keep old releases unchanged.
+1. Choose the next beta version **before** building the release candidate. Update `extension.yaml`, assembly/file versions and any version-bound validation rules together; commit the intended source, then run Windows CI for that exact commit.
+2. Download the candidate artifact from that CI run. Verify its source commit, version, package inventory and SHA-256, then test **that same `.pext` file** in a disposable Playnite 10 profile: install/update, scan, review, cancel, approved import and supported undo. Record observed results and untested cases.
+3. Complete the relevant [release gates](Docs/RELEASE_GATE.md), including dependency and package review. Fixes, version changes or rebuilds create a **new candidate** requiring the relevant checks again. Passing CI does not prove host-runtime acceptance.
+4. After acceptance, tag the **tested source commit** and publish the **same verified `.pext` bytes**, checksums and evidence with accurate beta limitations. Do not silently rebuild or replace the approved artifact. Keep earlier releases unchanged.
 
 [Historical readiness notes](Docs/DevelopmentHistory/RELEASE_READINESS.md) preserve earlier development checkpoints. They are not the current release checklist.

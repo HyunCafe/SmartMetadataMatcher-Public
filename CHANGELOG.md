@@ -5,7 +5,7 @@
 - Replace game-specific matching overrides with shared title, platform, ordinal, edition and rival-evidence rules; preserve meaningful numbers and `+` markers.
 - Expand discovery hints without allowing stripped prefixes or platform tags to establish identity automatically; add generalization and negative fixtures.
 - Consolidate private and public histories into the existing public repository, retaining original commits and development records.
-- Add Windows build/test/candidate-package automation, contribution guidance and issue forms; reconcile current release status and order design decisions oldest first.
+- Add Windows build/test/candidate-package automation, contribution guidance and issue forms; reconcile current release status and maintain the versioned design-decision history.
 
 These source changes are not included in the existing beta package.
 
