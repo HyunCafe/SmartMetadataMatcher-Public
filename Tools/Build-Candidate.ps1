@@ -18,6 +18,7 @@ try {
     Invoke-Checked 'python' @('Tools/Public-Release-Check.py')
     Invoke-Checked 'python' @('Tools/Verify-Source.py')
     Invoke-Checked 'python' @('Tools/Test-Public-Package.py')
+    Invoke-Checked 'python' @('Tools/Test-Package-Integrity.py')
     Invoke-Checked 'dotnet' @('restore','SmartMetadataMatcher.csproj','--source','https://api.nuget.org/v3/index.json')
     Invoke-Checked 'dotnet' @('build','SmartMetadataMatcher.csproj','-c','Release','--no-restore')
     Invoke-Checked 'dotnet' @('restore','Tests/NameRulesTests.csproj','--source','https://api.nuget.org/v3/index.json')

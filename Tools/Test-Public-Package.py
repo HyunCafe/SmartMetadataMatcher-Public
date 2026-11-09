@@ -8,6 +8,14 @@ from zipfile import ZipFile
 spec = importlib.util.spec_from_file_location("public_check", Path(__file__).with_name("Public-Release-Check.py"))
 check = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(check)
+
+# The public source gate must accept future patch/minor versions and reject
+# missing, malformed and duplicate manifest version entries.
+for version in ("0.5.17", "0.5.18", "1.0.0"):
+    assert check.valid_manifest_version("Version: " + version + "\n"), version
+for invalid in ("", "Version: pending\n", "Version: 0.5.17-beta.1\n",
+                "Version: 0.5.17.0\n", "Version: 0.5.17\nVersion: 0.5.18\n"):
+    assert not check.valid_manifest_version(invalid), repr(invalid)
 with tempfile.TemporaryDirectory() as directory:
     root = Path(directory)
     check.ROOT = root

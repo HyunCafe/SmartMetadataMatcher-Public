@@ -27,6 +27,9 @@ try {
     Move-Item -LiteralPath $zip -Destination $out
     & python (Join-Path $root 'Tools/Public-Release-Check.py') --package $out
     if ($LASTEXITCODE -ne 0) { throw 'Package validation failed; do not publish' }
+    # Reuse the stricter existing checks: ZIP policy, PE marker, and private-data screening.
+    & python (Join-Path $root 'Tools/Verify-Package.py') $out
+    if ($LASTEXITCODE -ne 0) { throw 'Strict package verification failed; do not publish' }
     Write-Host 'CANDIDATE ONLY. Windows and Playnite runtime release gates still apply.'
     Write-Host "PACKAGE: $out"
     Write-Host "SHA256: $((Get-FileHash -Algorithm SHA256 -LiteralPath $out).Hash)"

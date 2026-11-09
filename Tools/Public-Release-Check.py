@@ -10,6 +10,14 @@ ID="11D77564-F56F-5BF3-9CBB-7BB0CB427537"
 EXCLUDED={"bin","obj",".git",".vs","__pycache__"}
 PII=[re.compile(r"(?i)[a-z]:\\Users\\[^\\\s]+"),re.compile(r"(?i)/home/[^/\s]+/"),
 re.compile(r"(?i)(?:gh[pousr]_[a-z0-9]{30,}|sk-[a-z0-9]{24,}|AKIA[A-Z0-9]{16})")]
+def valid_manifest_version(manifest):
+    """Exactly one top-level numeric X.Y.Z version; no hard-coded release number."""
+    versions = re.findall(r"(?m)^Version:[ \t]*([^\r\n]*)", manifest)
+    return len(versions) == 1 and re.fullmatch(
+        r"[0-9]+\.[0-9]+\.[0-9]+", versions[0].strip()
+    ) is not None
+
+
 def check():
     issues=[]
     for name in REQUIRED:
@@ -18,8 +26,8 @@ def check():
     manifest=(ROOT/'extension.yaml').read_text()
     db=(ROOT/'Manifests/addon-database.yaml').read_text()
     installer=(ROOT/'Manifests/installer.yaml').read_text()
-    versions=re.findall(r"(?m)^Version:\s*([0-9]+\.[0-9]+\.[0-9]+)\s*$",manifest)
-    if versions!=["0.5.17"]:issues.append("Manifest release-candidate version mismatch")
+    if not valid_manifest_version(manifest):
+        issues.append("Manifest must declare exactly one X.Y.Z version")
     for name,body,expr in (("extension",manifest,r"(?m)^Id:\s*['\"]?([^\s'\"]+)"),
                            ("installer",installer,r"(?m)^AddonId:\s*['\"]?([^\s'\"]+)"),
                            ("database",db,r"(?m)^AddonId:\s*['\"]?([^\s'\"]+)")):
