@@ -110,31 +110,14 @@ namespace SmartMetadataMatcher
         }
         private static readonly Regex Index = new Regex(@"^(?:0[1-9]|[1-9][0-9])[\s._-]+(?=\p{L})", RegexOptions.Compiled);
         private static readonly Regex Spaces = new Regex(@"\s+", RegexOptions.Compiled);
-        private static readonly Dictionary<string, string> KnownNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            { "Cladun This Is An RPG", "ClaDun: This is an RPG" },
-            { "Cladun X 2", "ClaDun x2" },
-            { "Final Fantasy VII Crisis Core", "Crisis Core: Final Fantasy VII" },
-            { "Dragon Ball-Ad Adv", "Dragon Ball: Advanced Adventure" },
-            { "Kirby Nightmare In Dreamland", "Kirby: Nightmare in Dream Land" },
-            { "The king of fighter EX2", "The King of Fighters EX2" }
-        };
-
         internal static string QueryTitle(string name, string platform)
         {
             var title = Spaces.Replace((name ?? "").Trim(), " ");
-            var kind = PlatformKey(platform);
-            if (kind == "gba" || kind == "gbc" || kind == "gb" || kind == "psp" || kind == "nds")
-                title = Index.Replace(title, "");
-            if (kind == "psp" && title.EndsWith(" PSP", StringComparison.OrdinalIgnoreCase))
-                title = title.Substring(0, title.Length - 4).Trim();
+            // A number or platform suffix can belong to the official title.
+            // Discovery may try removing it, but identity checks retain it.
             var article = Regex.Match(title, @"^(.*?),\s*(The|An|A)\s*([-:].*)?$", RegexOptions.IgnoreCase);
             if (article.Success)
                 title = article.Groups[2].Value + " " + article.Groups[1].Value + article.Groups[3].Value;
-            // Audited catalog alias: exact GBA launch title, not a generic 'Adv'
-            // expansion. Other titles ending in Adv remain search-only discovery.
-            if (kind == "gba" && Flat(title) == "supermarioadv")
-                return "Super Mario Advance";
             // Remove a leading acronym only when the full next words independently
             // spell it (WDL - World Destruction League - Thunder Tanks).
             var prefixed = Regex.Match(title, @"^(?<abbr>[A-Za-z]{2,5})\s*[-:]\s*(?<full>.+)$",
@@ -147,8 +130,7 @@ namespace SmartMetadataMatcher
                 if (String.Equals(String.Concat(words), acronym, StringComparison.Ordinal))
                     title = prefixed.Groups["full"].Value;
             }
-            string alias;
-            return KnownNames.TryGetValue(title, out alias) ? alias : title;
+            return title;
         }
 
         private static string Flat(string value)
@@ -170,25 +152,43 @@ namespace SmartMetadataMatcher
             // A conjunction written as '&' versus 'and' is not a different game.
             // Keep this for matching only: never rewrite the user's display title.
             var conjunction = Regex.Replace(name ?? "", @"(?<=\p{L})\s*&\s*(?=\p{L})", " and ");
-            var key = Flat(conjunction);
+            var key = Flat(conjunction.Replace("+", " plus "));
             return key.EndsWith("version", StringComparison.Ordinal) && key.Length > 12
                 ? key.Substring(0, key.Length - "version".Length) : key;
         }
 
         internal static string PlatformKey(string platform)
         {
+            // Exact aliases only. Substring matching conflates multi-platform
+            // records and custom names with a single console.
             var x = Flat(platform);
-            if (x.Contains("gameboyadvance") || x == "gba") return "gba";
-            if (x.Contains("gameboycolor") || x == "gbc") return "gbc";
-            if (x.Contains("gameboy") || x == "gb") return "gb";
-            if (x.Contains("playstationportable") || x == "psp") return "psp";
-            if (x.Contains("nintendods") || x == "nds") return "nds";
-            if (x.Contains("nintendo3ds") || x == "3ds") return "3ds";
-            if (x.Contains("pcwindows") || x.Contains("pcmicrosoftwindows") || x == "windows") return "pc";
-            if (x == "playstation2") return "ps2";
-            if (x == "playstation") return "ps1";
-            if (x == "nintendoswitch") return "switch";
-            return x;
+            switch(x)
+            {
+                case "nintendogameboyadvance": case "gameboyadvance": case "gba": return "gba";
+                case "nintendogameboycolor": case "gameboycolor": case "gbc": return "gbc";
+                case "nintendogameboy": case "gameboy": case "gb": return "gb";
+                case "sonyplaystationportable": case "playstationportable": case "psp": return "psp";
+                case "nintendods": case "nds": case "ds": return "nds";
+                case "nintendo3ds": case "3ds": return "3ds";
+                case "pcwindows": case "pcmicrosoftwindows": case "windows": case "pc": return "pc";
+                case "sonyplaystation2": case "playstation2": case "ps2": return "ps2";
+                case "sonyplaystation": case "playstation": case "ps1": return "ps1";
+                case "nintendoswitch": case "switch": return "switch";
+                default: return x;
+            }
+        }
+
+        // Search leads are deliberately separate from trusted title evidence.
+        // These transformations work on any platform, including unmapped ones.
+        internal static string DiscoveryTitle(string name, string platform)
+        {
+            var title=QueryTitle(name,platform);
+            title=Index.Replace(title, "");
+            var suffix=Regex.Match(title,@"^(?<name>.+?)\s+(?<tag>[A-Za-z0-9]+)$");
+            long platformId=PlatformId(platform);
+            if(suffix.Success && platformId>0 && PlatformId(suffix.Groups["tag"].Value)==platformId)
+                title=suffix.Groups["name"].Value.Trim();
+            return title;
         }
 
         // A few stable platform IDs, used only for corroboration. No forced platform
@@ -224,25 +224,17 @@ namespace SmartMetadataMatcher
             // alternatives; comparisons later canonicalize punctuation independently.
             Action<string,bool> add=(value,trusted)=> {
                 value=Spaces.Replace((value??"").Trim()," ");
-                if(value.Length<3 || value.Length>100 || variants.Count>=4) return;
+                if(value.Length<1 || value.Length>100 || variants.Count>=4) return;
                 if(variants.Any(v=>String.Equals(v.Text,value,StringComparison.OrdinalIgnoreCase))) return;
                 variants.Add(new CatalogQuery { Text=value, StrongEvidence=trusted });
             };
             add(primary,true);
-            var kind=PlatformKey(platform);
-            var compact=Flat(primary);
-            // Preserve the original version of a recognized alias for search only.
-            var raw=Spaces.Replace((name??"").Trim()," ");
-            if(primary!=raw) {
-                var original=Index.Replace(raw,"");
-                if(kind=="psp" && original.EndsWith(" PSP",StringComparison.OrdinalIgnoreCase))
-                    original=original.Substring(0,original.Length-4).Trim();
-                add(original,true);
-            }
+            var discovery=DiscoveryTitle(name,platform);
+            add(discovery,false);
             // Punctuation and conjunction substitutions frequently repair provider search.
             var punctuation=CleanPunctuation(primary);
             if(!String.Equals(primary,punctuation,StringComparison.OrdinalIgnoreCase))
-                add(punctuation,true);
+                add(punctuation,primary.IndexOf('+')<0);
             var ampersand=Regex.Replace(primary,@"\band\b","&",RegexOptions.IgnoreCase);
             if(!String.Equals(primary,ampersand,StringComparison.OrdinalIgnoreCase))
                 add(ampersand,true);
@@ -250,58 +242,25 @@ namespace SmartMetadataMatcher
             // their own exact-title and platform checks before import.
             var withoutArticle=Regex.Match(primary,@"^(?:The)\s+(?<rest>\p{L}{5,}(?:\s+.*)?)$",RegexOptions.IgnoreCase);
             if(withoutArticle.Success) add(withoutArticle.Groups["rest"].Value,false);
-            var ffCollection=Regex.Replace(primary,@"(?i)\bX\s*[-/]\s*X\s*[-/]?\s*2\b","X/X-2");
-            if(!String.Equals(ffCollection,primary,StringComparison.OrdinalIgnoreCase))
-            {
-                add(ffCollection,false);
-                // The combined storefront title often omits the separator before HD.
-                // Search-only; even a result with this spelling needs identity evidence.
-                add(Regex.Replace(ffCollection,@"(?i)\s*[-:]\s*(HD\s+Remaster(?:ed)?)$"," $1"),false);
-            }
             var starring=Regex.Match(primary,@"^(?<base>.+?\bRemaster(?:ed)?)\s+Starring\s+.+$",RegexOptions.IgnoreCase);
             if(starring.Success) add(starring.Groups["base"].Value,false);
 
-            if(kind=="gba") {
-                if(compact=="pokemonfirered") add("Pokemon FireRed Version",true);
-                if(compact=="pokemonleafgreen") add("Pokemon LeafGreen Version",true);
-                if(compact=="thekingoffightersex1" || compact=="thekingoffightersex")
-                    add("The King of Fighters EX: Neo Blood",false);
-                if(compact=="thekingoffightersex2" || compact=="thekingofthefighterex2")
-                    add("The King of Fighters EX2: Howling Blood",false);
-                // A game identified only as Mario Kart might be Super Circuit, but
-                // the source name does not justify automatically selecting that edition.
-                if(compact=="mariokart") add("Mario Kart: Super Circuit",false);
-                if(Regex.IsMatch(primary,@"\bAdv$",RegexOptions.IgnoreCase))
-                    add(Regex.Replace(primary,@"\bAdv$","Advance",RegexOptions.IgnoreCase),false);
-            }
             // Limited discovery fallbacks for incomplete ROM-list titles. These
             // variants are NEVER identity evidence for unattended writes.
-            if(kind=="gba" || kind=="gb" || kind=="gbc" || kind=="nds" || kind=="psp") {
-                if(Regex.IsMatch(primary,@"\bAdv$",RegexOptions.IgnoreCase)) {
-                    add(Regex.Replace(primary,@"\bAdv$","Adventure",RegexOptions.IgnoreCase),false);
-                    add(Regex.Replace(primary,@"\bAdv$","Adventures",RegexOptions.IgnoreCase),false);
-                }
-                if(Regex.IsMatch(primary,@"\s+1$",RegexOptions.IgnoreCase))
-                    add(Regex.Replace(primary,@"\s+1$",""),false);
-                var sequence=Regex.Match(primary,@"^(?<series>.+?)\s+[12]\s*[-:]\s*(?<subtitle>.+)$");
-                if(sequence.Success)
-                    add(sequence.Groups["series"].Value+": "+sequence.Groups["subtitle"].Value,false);
+            if(Regex.IsMatch(discovery,@"\bAdv$",RegexOptions.IgnoreCase)) {
+                add(Regex.Replace(discovery,@"\bAdv$","Advance",RegexOptions.IgnoreCase),false);
+                add(Regex.Replace(discovery,@"\bAdv$","Adventure",RegexOptions.IgnoreCase),false);
+                add(Regex.Replace(discovery,@"\bAdv$","Adventures",RegexOptions.IgnoreCase),false);
             }
-            if(kind=="gb" || kind=="gbc") {
-                if(compact=="pokemonyellowversion" || compact=="pokemonyellow") {
-                    add("Pokemon Yellow Version",true);
-                    add("Pokemon Yellow Version: Special Pikachu Edition",false);
-                    add("Pokemon Yellow",false);
-                }
-            }
-            // In some combined titles the subtitle is the provider's main title.
-            // A subtitle-only search is discovery evidence, never identity proof.
-            var suffix=Regex.Match(primary,@"^(.*?)[\s:-]+(Super Mario Advance\s+[0-9]+)$",RegexOptions.IgnoreCase);
-            if(suffix.Success) add(suffix.Groups[2].Value,false);
+            // A supplied installment is binding unless the catalog itself
+            // supplies the complete local title as an alias. Discovery alone
+            // cannot establish that a local ordinal is merely an annotation.
+            var sequence=Regex.Match(discovery,@"^(?<series>.+?)\s+[0-9]+\s*[-:]\s*(?<subtitle>.+)$");
+            if(sequence.Success)
+                add(sequence.Groups["series"].Value+": "+sequence.Groups["subtitle"].Value,false);
             var rev=Regex.Match(primary,@"^(.+?)\s*\((?:USA|Europe|Japan|Rev\s*[0-9]+)\)$",RegexOptions.IgnoreCase);
             if(rev.Success) add(rev.Groups[1].Value,false);
-            // Read-only discovery for install/client/beta labels in the 318-game
-            // audit. The base game is NEVER proven to be this exact edition.
+            // A base-title search for install/client/beta labels is discovery only.
             var extra=Regex.Match(primary,
                 @"^(?<base>.+?)(?:\s*[-:]\s*|\s+)(?:(?:DS\s+)?Beta(?:\s+Test)?|Playtest|Starter\s+Access|Test|Launcher|Mod\s+SDK)$",
                 RegexOptions.IgnoreCase);
@@ -322,9 +281,6 @@ namespace SmartMetadataMatcher
                 add(bareLegacy.Groups["base"].Value,false);
             var dlc=Regex.Match(primary,@"^(?<base>.+?)\s*\+\s*.+?\s+DLC$",RegexOptions.IgnoreCase);
             if(dlc.Success) add(dlc.Groups["base"].Value,false);
-            // A one-off known PSP packaging title. Search-only, since the
-            // original name lacks the exact edition.
-            if(kind=="psp" && compact=="ysoneandtwo") add("Ys I & II Chronicles",false);
             return variants;
         }
 
@@ -341,11 +297,11 @@ namespace SmartMetadataMatcher
                 // Never preserve paired slashes or comment-like fragments.
                 var titleSlash=c=='/' && i>0 && i+1<raw.Length &&
                     Char.IsLetterOrDigit(raw[i-1]) && Char.IsLetterOrDigit(raw[i+1]);
-                if (Char.IsLetterOrDigit(c) || c==' ' || c=='\'' || c=='-' || c==':' || c=='&' || titleSlash)
+                if (Char.IsLetterOrDigit(c) || c==' ' || c=='\'' || c=='-' || c==':' || c=='&' || c=='+' || titleSlash)
                     safe.Append(c);
             }
             var clean=Spaces.Replace(safe.ToString()," ").Trim();
-            if (clean.Length < 3) return "";
+            if (clean.Length < 1) return "";
             return "fields id,name,summary,platforms.id,platforms.name,alternative_names.name," +
                 "cover.image_id,screenshots.image_id,first_release_date,game_type,version_parent," +
                 "parent_game,version_title,total_rating_count,release_dates.date,release_dates.platform.id; search \"" + clean + "\"; limit 40;";
@@ -363,7 +319,7 @@ namespace SmartMetadataMatcher
                 c=='&' || c=='/' || c=='\'' || c=='.' || c=='+' || c=='!' ||
                 c=='?' || c==',' || c=='(' || c==')'))) return "";
             var value=Spaces.Replace(phrase.Trim()," ");
-            if(value.Length<3)return "";
+            if(value.Length<1)return "";
             return "fields id,name,summary,platforms.id,platforms.name,alternative_names.name,"+
                 "cover.image_id,screenshots.image_id,first_release_date,game_type,version_parent,"+
                 "parent_game,version_title,total_rating_count,release_dates.date,release_dates.platform.id; where name ~ \""+value+"\"; limit "+CatalogSmartResolver.MaxLookupResults+";";
@@ -377,6 +333,7 @@ namespace SmartMetadataMatcher
         {
             // Smart resolutions use independently checked rival ranking. The live
             // writer has a separate exact-ID recheck for these fresh-only decisions.
+            if(match==null || !CatalogSmartResolver.LiveIdentityCompatible(match.Input,match.Game))return false;
             if(match!=null && match.SmartAutoEvidence && match.Input!=null &&
                 match.Game!=null && match.MatchStatus=="Strong candidate" &&
                 match.StructuredPlatformEvidence && match.PlatformMatches &&
@@ -407,7 +364,8 @@ namespace SmartMetadataMatcher
                 foreach (var ch in normalized)
                 {
                     if (CharUnicodeInfo.GetUnicodeCategory(ch) == UnicodeCategory.NonSpacingMark) continue;
-                    plain.Append(Char.IsLetterOrDigit(ch) ? ch : ' ');
+                    if(ch=='+')plain.Append(" plus ");
+                    else plain.Append(Char.IsLetterOrDigit(ch) ? ch : ' ');
                 }
                 return Regex.Matches(plain.ToString(), @"[\p{L}\p{N}]+")
                     .Cast<Match>().Select(m => m.Value).OrderBy(t => t, StringComparer.Ordinal).ToList();
@@ -452,10 +410,14 @@ namespace SmartMetadataMatcher
 
         private static bool HasMaterialEditionDifference(string requested,string official)
         {
-            if(TitleKey(requested)==TitleKey(official)) return false;
+            var source=TitleKey(requested);
+            var target=TitleKey(official);
+            if(source==target) return false;
+            // A local title that adds an unexplained suffix may be an alternate release.
+            if(target.Length>=4 && source.StartsWith(target,StringComparison.Ordinal))return true;
             // A matching platform and an exact alias are not enough to collapse
             // a remaster, edition or client build into the base game's identity.
-            const string marker=@"(?:^|[^\p{L}\p{N}])(?:remaster(?:ed)?|exalt|redux|definitive|deluxe|ultimate|anniversary|director'?s\s+cut|warrior\s+edition)(?:$|[^\p{L}\p{N}])";
+            const string marker=@"(?:^|[^\p{L}\p{N}])(?:remaster(?:ed)?|redux|definitive|deluxe|ultimate|anniversary|director'?s\s+cut|edition)(?:$|[^\p{L}\p{N}])";
             bool inputHas=Regex.IsMatch(requested??"",marker,RegexOptions.IgnoreCase);
             bool officialHas=Regex.IsMatch(official??"",marker,RegexOptions.IgnoreCase);
             return inputHas!=officialHas;
@@ -563,7 +525,8 @@ namespace SmartMetadataMatcher
                 var review=ordered.FirstOrDefault(x=>expectedPlatformId>0 &&
                     x.Item1.Game.PlatformIds!=null &&
                     x.Item1.Game.PlatformIds.Contains(expectedPlatformId) &&
-                    PlausibleManualReviewAnchor(requested,x.Item1.Game.Name));
+                    (PlausibleManualReviewAnchor(requested,x.Item1.Game.Name) ||
+                     PlausibleManualReviewAnchor(DiscoveryTitle(input.Name,input.Platform),x.Item1.Game.Name)));
                 if(review==null)
                     return new CatalogMatch { Input=input,MatchStatus="Unmatched",
                         Reason="IGDB returned candidates, but none has sufficient title relevance; best similarity "+
@@ -585,17 +548,14 @@ namespace SmartMetadataMatcher
             bool uniqueExact=exactPlatform.Count==1 && exactPlatform[0].Item1.Game.Id==top.Game.Id;
             // An unknown release date is absence of evidence, not a conflicting
             // platform. Undated short titles need additional catalog context.
-            // Keep explicitly ambiguous series such as Mario Kart in review.
             bool catalogPlatformId=expectedPlatformId>0 && top.Game.PlatformIds!=null &&
                 top.Game.PlatformIds.Contains(expectedPlatformId);
             bool undatedContext=top.Game.FirstReleaseYear<1970 && catalogPlatformId &&
                 uniqueExact && first.Item3 && first.Item2>=0.99999 &&
-                !String.Equals(TitleKey(normalized),"mariokart",StringComparison.Ordinal) &&
                 !String.IsNullOrWhiteSpace(top.Game.Summary) &&
                 top.Game.Summary.Trim().Length>=40;
-            var generic=TitleKey(normalized)=="mariokart" ||
-                (normalized.Length<12 && CleanPunctuation(normalized).Split(' ').Length<=2 &&
-                 top.Game.FirstReleaseYear<1970 && !undatedContext);
+            var generic=normalized.Length<12 && CleanPunctuation(normalized).Split(' ').Length<=2 &&
+                top.Game.FirstReleaseYear<1970 && !undatedContext;
             bool unrelatedAlias=first.Item3 &&
                 !PlausiblyRelatedCanonicalTitle(normalized,top.Game.Name);
             bool nonBaseLabel=HasNonBaseEditionQualifier(normalized);

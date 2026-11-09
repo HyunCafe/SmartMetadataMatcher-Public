@@ -78,7 +78,8 @@ namespace SmartMetadataMatcher
             foreach(char c in decomposed)
             {
                 if(CharUnicodeInfo.GetUnicodeCategory(c)==UnicodeCategory.NonSpacingMark) continue;
-                if(Char.IsLetterOrDigit(c)) b.Append(Char.ToLowerInvariant(c));
+                if(c=='+') b.Append("plus");
+                else if(Char.IsLetterOrDigit(c)) b.Append(Char.ToLowerInvariant(c));
             }
             return b.ToString();
         }
@@ -140,7 +141,7 @@ namespace SmartMetadataMatcher
         }
         internal static bool IsSafeTitle(string value)
         {
-            return !String.IsNullOrWhiteSpace(value) && value.Trim().Length>=3 && value.Trim().Length<=160 &&
+            return !String.IsNullOrWhiteSpace(value) && value.Trim().Length>=1 && value.Trim().Length<=160 &&
                 value.IndexOfAny(new[]{'\r','\n','\0'})<0;
         }
         internal static bool HasCollision(string proposed, Guid gameId, string platform,

@@ -18,14 +18,16 @@ Compare IGDB candidates by title, platform, and edition. Review the matches and 
 | --- | --- |
 | **Numbered sequels** | `Ys 1` can resolve to *Ys I* with a unique candidate on the correct platform. `Final Fantasy 4` and *Final Fantasy IV* normalize to the same title. *Mega Man X* stays distinct from *Mega Man 10*. |
 | **Same-title ports** | *Blade Dancer: Lineage of Light* has same-name catalog entries. The resolver can favor the dated PSP original when the competing record is a linked port without its own dated PSP release. A conflicting local year or a port with its own PSP date leaves the case for review. |
-| **Compilations and editions** | `Ys One And Two PSP` can resolve to the standard *Ys I & II Chronicles* bundle. If the lookup returns only the *Premium Edition*, the matcher withholds automatic selection. |
+| **Compilations and editions** | The full title *Ys I & II Chronicles* can match the standard PSP bundle even with a Premium Edition candidate present. An abbreviated bundle title stays out of automatic selection unless there is enough catalog evidence. |
 | **Ambiguous names** | `66 Sudoku` can refer to multiple GBA releases, including *Sudoku Fever* and *Sudoku Micro*. The automatic resolver leaves the entry for review. |
 
-[Resolver tests](Tests/CatalogSmartResolverTests.cs) · [Matching logic](Source/CatalogSmartResolver.cs)
+[Resolver tests](Tests/CatalogSmartResolverTests.cs) · [Generalization tests](Tests/UniversalMatchingTests.cs) · [Matching logic](Source/CatalogSmartResolver.cs)
+
+The source uses shared rules rather than game-specific overrides. [Audit and limits](Docs/UNIVERSAL_MATCHING_AUDIT.md) explain the changes, supported platforms, and cases that still require review.
 
 ## Quick start
 
-The beta is distributed through GitHub Releases. Playnite 11 compatibility remains unverified.
+The downloadable beta is an earlier build. The matching changes described here are in source and have not been released. Playnite 11 compatibility remains unverified.
 
 1. **Download the beta.** Get the `.pext` and `SHA256SUMS.txt` from the [release assets][beta].
 2. **Verify the checksum.** Run this in PowerShell from your download folder and compare the result with `SHA256SUMS.txt`.
@@ -39,7 +41,7 @@ The beta is distributed through GitHub Releases. Playnite 11 compatibility remai
 
 ## How matching works
 
-1. **Clean up the title.** Remove supported list prefixes and recognize known aliases while keeping sequel numbers and edition markers.
+1. **Search without erasing identity.** Keep title numbers and edition markers. Potential list prefixes and platform tags produce search suggestions, not automatic match approval.
 2. **Find and compare candidates.** If the initial match is weak, try exact-title and platform-filtered prefix lookups. Compare IGDB platform IDs, edition markers, release types, available dates, and competing records.
 3. **Select the batch.** Gather fresh matches that meet the evidence rules. Leave ambiguous results for review and keep stale or unmatched entries out of automatic selection.
 

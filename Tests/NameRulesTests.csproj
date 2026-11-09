@@ -29,6 +29,7 @@
     <Compile Include="../Source/CatalogSmartResolver.cs" Link="CatalogSmartResolver.cs" />
     <Compile Include="CatalogCandidateEvidenceTests.cs" />
     <Compile Include="CatalogSmartResolverTests.cs" />
+    <Compile Include="UniversalMatchingTests.cs" />
     <Compile Include="../Source/IgdbReadOnly.cs" Link="IgdbReadOnly.cs" />
     <Compile Include="IgdbConnectionTests.cs" />
     <Compile Include="CatalogCoreTests.cs" />

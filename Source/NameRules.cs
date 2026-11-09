@@ -35,17 +35,6 @@ namespace SmartMetadataMatcher
             @"^(?<name>.+?),\s*(?<article>The|An|A)(?<suffix>\s*[-:]\s*.+)?$",
             RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
         private static readonly Regex Spaces = new Regex(@"\s{2,}", RegexOptions.Compiled);
-        private static readonly Regex PspSuffix = new Regex(@"^(?<name>.+?)\s+PSP$",
-            RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        // Curated search-title candidates only. An alias is NEVER sufficient proof of identity.
-        private static readonly Dictionary<string, string> CandidateAliases =
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                { "Cladun This Is An RPG", "ClaDun: This is an RPG" },
-                { "Cladun X 2", "ClaDun x2" },
-                { "Final Fantasy VII Crisis Core", "Crisis Core: Final Fantasy VII" }
-            };
-
         private static string Safe(string s) { return s ?? ""; }
         private static string GroupKey(GameDescriptor game)
         {
@@ -88,11 +77,12 @@ namespace SmartMetadataMatcher
                 {
                     proposed = index.Groups["name"].Value.Trim();
                     reasons.Add("Two-digit prefix: " + index.Groups["number"].Value);
-                    if (!sequences[GroupKey(game)])
-                    {
-                        needsReview = true;
-                        reasons.Add("No confirmed sequential collection on this platform/source");
-                    }
+                    // Consecutive library numbers are a useful suggestion, not
+                    // proof: a real numbered title may coexist with a ROM list.
+                    needsReview = true;
+                    reasons.Add(sequences[GroupKey(game)]
+                        ? "Sequential collection detected; confirm this number is not part of the title"
+                        : "No sequential collection on this platform/source");
                 }
 
                 var article = TrailingArticle.Match(proposed);
@@ -104,25 +94,16 @@ namespace SmartMetadataMatcher
                     reasons.Add("Trailing article moved to front");
                     needsReview = true; // Editorial rewrite; no catalog verification.
                 }
-                // PSP is a platform tag only when the platform actually identifies a PSP game.
-                // Other platforms and genuinely meaningful in-title "Portable" remain unchanged.
-                var psp = PspSuffix.Match(proposed);
-                if (psp.Success && (String.Equals(game.Platform, "Sony PlayStation Portable",
-                    StringComparison.OrdinalIgnoreCase) ||
-                    String.Equals(game.Platform, "PSP", StringComparison.OrdinalIgnoreCase)))
+                // A matching platform tag is a reviewable search/display hint
+                // on every mapped platform, never a title-specific rewrite.
+                var withoutTag=CatalogCore.DiscoveryTitle(proposed,game.Platform);
+                if (!String.Equals(withoutTag,proposed,StringComparison.Ordinal))
                 {
-                    proposed = psp.Groups["name"].Value.Trim();
-                    reasons.Add("PSP suffix removed (platform corroborated; confirm title)");
-                    needsReview = true;
+                    proposed=withoutTag;
+                    reasons.Add("Possible list prefix or platform tag removed; confirm title");
+                    needsReview=true;
                 }
 
-                string candidate;
-                if (CandidateAliases.TryGetValue(proposed, out candidate))
-                {
-                    proposed = candidate;
-                    reasons.Add("Known catalog-title candidate; identity not independently verified");
-                    needsReview = true;
-                }
                 if (String.Equals(proposed, original, StringComparison.Ordinal)) continue;
 
                 output.Add(new RenameProposal
