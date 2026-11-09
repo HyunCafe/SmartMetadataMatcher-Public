@@ -1,36 +1,24 @@
-<h1 align="center">Smart Metadata Matcher</h1>
+# Smart Metadata Matcher
 
-<p align="center">
-  <strong>Identify hard-to-match PC and emulated games automatically.</strong><br>
-  Fill in missing Playnite metadata with one batch approval.
-</p>
+**Find the right IGDB entry for hard-to-match PC and emulated games.** Review the proposed changes, then fill in missing Playnite metadata in one batch.
 
-<p align="center">
-  <a href="https://github.com/HyunCafe/SmartMetadataMatcher-Public/releases/tag/v0.5.17-beta.1"><img src="Docs/readme/download-beta.svg" width="190" alt="Download the public beta"></a>
-</p>
+**[Download the public beta][beta]** · [Quick start](#quick-start) · [Matching engine](#how-matching-works) · [Report an issue][issues]
 
-<p align="center">Experimental beta · Playnite 10 Desktop on Windows · Twitch developer credentials required</p>
-
-<p align="center">
-  <a href="#see-it-match">See it match</a> ·
-  <a href="#quick-start">Quick start</a> ·
-  <a href="#how-matching-works">Matching engine</a> ·
-  <a href="#support-and-project-status">Support</a>
-</p>
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="Docs/readme/hero-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="Docs/readme/hero-light.svg">
-  <img src="Docs/readme/hero-light.svg" width="1120" alt="Three steps: scan your library, compare candidate games, and approve eligible updates together.">
-</picture>
+Playnite 10 Desktop on Windows · Twitch developer credentials required
 
 ## See it match
 
-**Library entry:** `03 Crash Bandicoot 2` on Game Boy Advance. Matcher drops the list index, keeps the sequel number, and qualifies the standalone *N-Tranced* release over the related compilation. If only the compilation comes back, it leaves the match for review.
+**Library entry:** `03 Crash Bandicoot 2` · Game Boy Advance
 
-![Crash Bandicoot 2 GBA matching example, comparing the standalone release with a compilation and showing when automatic selection is withheld.](Docs/readme/match-example.svg)
+Matcher removes the list index `03` and keeps the sequel number `2`. Here is what it does with the catalog results:
 
-*Illustration of a [resolver test fixture](Tests/CatalogSmartResolverTests.cs#L115) using synthetic IGDB records.*
+| Catalog results | Matcher’s decision |
+| --- | --- |
+| Standalone *N-Tranced* and a related compilation | Selects the standalone release |
+| Related compilation only | Leaves the game for review |
+| Incomplete lookup | Keeps the game out of automatic selection |
+
+*Based on a [resolver test fixture](Tests/CatalogSmartResolverTests.cs#L115) with synthetic IGDB records.*
 
 ## Quick start
 
