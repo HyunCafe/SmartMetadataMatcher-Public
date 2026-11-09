@@ -22,7 +22,7 @@ namespace SmartMetadataMatcher
         }
         private static readonly Regex Words = new Regex(@"[\p{L}\p{N}]+",RegexOptions.Compiled);
         private static readonly Regex Edition = new Regex(
-            @"\b(beta|playtest|test|demo|trial|launcher|sdk|legacy|remaster(?:ed)?|remake|definitive|complete|deluxe|gold|ultimate|anniversary|collection|compilation|premium|collector(?:s)?|enhanced|special|hd|goty|dlc|expansion)\b",
+            @"\b(beta|playtest|test|demo|trial|launcher|sdk|legacy|remaster(?:ed)?|remake|definitive|complete|deluxe|gold|ultimate|anniversary|collection|compilation|premium|collector(?:s)?|enhanced|special|hd|goty|dlc|expansion|redux|edition|version|director(?:s)?)\b",
             RegexOptions.IgnoreCase|RegexOptions.Compiled);
         // Only normalize numerals as *game ordinals*. An English pronoun I,
         // Mega Man X (a separate franchise), and generic words such as One
@@ -38,23 +38,12 @@ namespace SmartMetadataMatcher
             {"five","5"},{"six","6"},{"seven","7"},{"eight","8"},
             {"nine","9"},{"ten","10"}
         };
-        private static readonly HashSet<string> OrdinalHeadings = new HashSet<string>(StringComparer.Ordinal) {
-            "ys", "final fantasy", "dragon quest", "mortal kombat", "resident evil",
-            "the elder scrolls", "elder scrolls", "the legend of heroes", "legend of heroes",
-            "persona", "suikoden", "diablo", "kingdom hearts", "mass effect",
-            "the witcher", "witcher", "quake", "doom", "fire emblem", "trails",
-            "super mario advance", "megaman", "baldur s gate"
-        };
         private static readonly HashSet<string> OrdinalLabels = new HashSet<string>(StringComparer.Ordinal) {
             "chapter", "episode", "part", "book", "volume", "vol", "season", "act"
         };
         private static bool OrdinalContext(List<string> tokens,int index)
         {
-            if(index<=0)return false;
-            var before=String.Join(" ",tokens.Take(index));
-            if(OrdinalHeadings.Contains(before) || OrdinalLabels.Contains(tokens[index-1]))return true;
-            // Franchise with preceding article or region tag.
-            return OrdinalHeadings.Any(s=>before.EndsWith(" "+s,StringComparison.Ordinal));
+            return index>0 && OrdinalLabels.Contains(tokens[index-1]);
         }
         private static bool IsSingleRomanOrdinal(List<string> tokens,int index)
         {
@@ -68,11 +57,6 @@ namespace SmartMetadataMatcher
         }
         private static bool IsNumberToken(string token)
         {return token.Length>0 && token.All(Char.IsDigit);}
-        private static readonly HashSet<string> BroadFranchises = new HashSet<string>(StringComparer.Ordinal) {
-            "mario kart", "final fantasy", "mission impossible", "need for speed",
-            "dragon ball", "pokemon", "legend of heroes", "the legend of heroes",
-            "naruto", "crash bandicoot", "monster hunter", "sonic the hedgehog"
-        };
         internal static List<string> Tokens(string title)
         {
             var b=new StringBuilder();
@@ -82,6 +66,7 @@ namespace SmartMetadataMatcher
                 // Plus is part of some official edition identities (Ys I & II
                 // Chronicles+, N++), not interchangeable punctuation.
                 if(c=='+'){b.Append(" plus ");continue;}
+                if(c=='&'){b.Append(" and ");continue;}
                 b.Append(Char.IsLetterOrDigit(c)?Char.ToLowerInvariant(c):' ');
             }
             var values=Words.Matches(b.ToString()).Cast<Match>()
@@ -96,8 +81,6 @@ namespace SmartMetadataMatcher
                 {
                     // I / V / X are ordinary letters and franchise labels too.
                     if(original[i].Length==1 && !IsSingleRomanOrdinal(original,i))continue;
-                    if(original[i]=="x" && (String.Join(" ",original.Take(i))=="mega man" ||
-                        String.Join(" ",original.Take(i))=="megaman"))continue;
                     values[i]=converted;
                 }
                 else if(NumberWords.TryGetValue(original[i],out converted) &&
@@ -106,7 +89,7 @@ namespace SmartMetadataMatcher
                       NumberWords.ContainsKey(original[i-2]) &&
                       OrdinalContext(original,i-2))))values[i]=converted;
             }
-            // 'Ys One and Two' / 'Ys I & II' must have the same identity key.
+            // Explicit numbered pairs may use either 'and' or '&'.
             // Keep 'and' elsewhere; it can be part of a game's official title.
             for(int i=values.Count-2;i>=1;i--)
                 if(values[i]=="and" && IsNumberToken(values[i-1]) &&
@@ -170,79 +153,47 @@ namespace SmartMetadataMatcher
             // A source-specified number must be present in the candidate;
             // an omitted catalog ordinal is acceptable only if the subtitle
             // is distinctive and one platform-compatible game wins ranking.
-            var localNums=local.Where(x=>x.All(Char.IsDigit)).ToList();
-            var officialNums=official.Where(x=>x.All(Char.IsDigit)).ToList();
+            var localNums=local.Where(x=>x.Any(Char.IsDigit)).ToList();
+            var officialNums=official.Where(x=>x.Any(Char.IsDigit)).ToList();
             return EqualTokens(suffix,local) &&
                 (localNums.Count==0 || localNums.SequenceEqual(officialNums,StringComparer.Ordinal));
         }
-        // A named episode can be imported without its series/episode wrapper:
-        // Wallace & Gromit: Fright of the Bumblebees, for example. The title
-        // MUST share its starting series identity and its distinctive suffix.
+        private static bool DistinctiveSubtitle(List<string> words)
+        {
+            var stop=new HashSet<string>(new[]{"the","a","an","of","and","in","on","to","for"},
+                StringComparer.Ordinal);
+            var content=words.Where(x=>!stop.Contains(x) && x.Length>=3 && !IsNumberToken(x)).ToList();
+            return words.Count>=3 && content.Count>=2 && content.Any(x=>x.Length>=5);
+        }
+        // Compare a shared series prefix and exact distinctive subtitle at any
+        // boundary. The intervening official wrapper must explicitly identify
+        // an episode/part; arbitrary missing title words are not a wrapper.
         private static bool WrappedSubtitle(List<string> official,List<string> local)
         {
-            if(local.Count<5 || official.Count<=local.Count+1)return false;
-            if(!official.Take(2).SequenceEqual(local.Take(2),StringComparer.Ordinal))return false;
-            var suffix=local.Skip(2).ToList();
-            if(suffix.Count<3 || suffix.Count(x=>x.Length>=5)<2)return false;
-            var localNums=local.Where(x=>x.All(Char.IsDigit)).ToList();
-            var officialNums=official.Where(x=>x.All(Char.IsDigit)).ToList();
-            return EqualTokens(official.Skip(official.Count-suffix.Count).ToList(),suffix) &&
-                (localNums.Count==0 || localNums.SequenceEqual(officialNums,StringComparer.Ordinal));
-        }
-        // Local library numbering can annotate an otherwise unnumbered official
-        // subtitle (Untold Legends 1/2). Require exact remaining title identity;
-        // the dropped numeral never substitutes for an *existing* IGDB ordinal.
-        private static bool LocalSeriesAnnotation(List<string> official,List<string> local)
-        {
-            if(local.Count<6 || official.Count<5 || local.Count!=official.Count+1)
+            if(local.Count<4 || official.Count<=local.Count)return false;
+            if(!NumericIdentityCompatible(local,official) && local.Any(x=>x.Any(Char.IsDigit)))return false;
+            for(int prefix=1;prefix<=local.Count-3;prefix++)
             {
-                // Allow harmless possessive-splitting only, never arbitrary words.
-                if(local.Count<6 || official.Count<5 || Math.Abs(local.Count-official.Count-1)>1)return false;
+                if(!official.Take(prefix).SequenceEqual(local.Take(prefix),StringComparer.Ordinal))break;
+                var suffix=local.Skip(prefix).ToList();
+                if(!DistinctiveSubtitle(suffix))continue;
+                var middle=official.Skip(prefix).Take(official.Count-local.Count).ToList();
+                if(!middle.Any(x=>OrdinalLabels.Contains(x)) || !middle.Any(IsNumberToken))continue;
+                if(EqualTokens(official.Skip(official.Count-suffix.Count).ToList(),suffix))return true;
             }
-            if(!local.Take(2).SequenceEqual(official.Take(2),StringComparer.Ordinal))return false;
-            if(local[2]!="1" && local[2]!="2")return false;
-            if(official.Any(x=>x.All(Char.IsDigit)))return false;
-            var without=local.Take(2).Concat(local.Skip(3));
-            return String.Equals(String.Concat(without),String.Concat(official),StringComparison.Ordinal);
+            return false;
         }
-        // A distinctive title can omit an internal series ordinal entirely,
-        // e.g. Ys: The Ark of Napishtim vs Ys VI: The Ark of Napishtim.
-        // Do not manufacture an ordinal when the local title supplies one.
+        // An omitted catalog ordinal can occur after a series of any length.
+        // It never licenses discarding a number present in the local title.
         private static bool OmittedSeriesOrdinal(List<string> official,List<string> local)
         {
-            if(local.Count<4 || official.Count!=local.Count+1 ||
-                official[0]!=local[0] || official[1].Length>2 ||
-                !official[1].All(Char.IsDigit))return false;
-            if(local.Any(x=>x.All(Char.IsDigit)))return false;
-            // The Ark of Napishtim has one rare long word plus a shorter
-            // identifying noun (Ark). Requiring two 5+ letter words rejected
-            // this distinctive real PSP release. Generic short subtitles
-            // remain in review; rival and platform checks still apply.
-            var subtitle=local.Skip(1).ToList();
-            bool distinctive=subtitle.Count(x=>x.Length>=5)>=2 ||
-                (subtitle.Count>=4 && subtitle.Any(x=>x.Length>=8) &&
-                 subtitle.Count(x=>x.Length>=3 && x!="the" && x!="and" &&
-                     x!="for" && x!="of")>=2);
-            return distinctive &&
-                EqualTokens(official.Take(1).Concat(official.Skip(2)).ToList(),local);
-        }
-        private static bool TruncatedAdventure(List<string> official,List<string> local)
-        {
-            return local.Count==3 && official.Count>=5 &&
-                local[0]==official[0] && local[1]==official[1] &&
-                local[2]=="adv" && official[2]=="adventures";
-        }
-        // A local library may name an explicitly numbered *pair* without the
-        // catalogue's descriptive word 'Chronicles' (Ys One And Two PSP).
-        // This is NOT general substring matching or permission to choose a
-        // standalone installment: the IGDB record must separately be a playable
-        // bundle (game type 3), with exact ordered numerals and no added edition.
-        private static bool ExplicitPairedChronicles(List<string> official,List<string> local)
-        {
-            return local.Count>=3 && official.Count==local.Count+1 &&
-                official[official.Count-1]=="chronicles" &&
-                local[local.Count-2]=="1" && local[local.Count-1]=="2" &&
-                official.Take(local.Count).SequenceEqual(local,StringComparer.Ordinal);
+            if(local.Count<4 || official.Count!=local.Count+1 || local.Any(x=>x.Any(Char.IsDigit)))return false;
+            for(int i=1;i<official.Count-2;i++)
+            {
+                if(!IsNumberToken(official[i]) || !DistinctiveSubtitle(official.Skip(i+1).ToList()))continue;
+                if(EqualTokens(official.Where((x,n)=>n!=i).ToList(),local))return true;
+            }
+            return false;
         }
         private static int TitleKind(string requested,string official,IEnumerable<string> aliases)
         {
@@ -250,21 +201,15 @@ namespace SmartMetadataMatcher
             if(EqualTokens(local,name))return 3;
             // A catalog +/++ suffix can denote a distinct port or version.
             // Never infer missing '+' from an approximate or prefix match.
-            if(local.Contains("plus")!=name.Contains("plus"))return 0;
-            if(ExplicitPairedChronicles(name,local))return 2;
+            if(local.Count(x=>x=="plus")!=name.Count(x=>x=="plus"))return 0;
             // An unrelated canonical name with an exact alias may be bootleg,
             // translated, or incorrectly indexed. Require shared canonical words.
             if((aliases??Enumerable.Empty<string>()).Any(x=>EqualTokens(local,Tokens(x))))
             {
                 int common=local.Intersect(name,StringComparer.Ordinal).Count();
-                if(common>=2 && common*2>=Math.Min(local.Count,name.Count))return 2;
+                if(common>=2 && common*2>=Math.Min(local.Count,name.Count) &&
+                    NumericIdentityCompatible(local,name))return 2;
             }
-            // Informal "Part 1" naming may refer to an unnumbered first game.
-            // Only the numeral ONE may be dropped; other sequels remain distinct.
-            if(local.Count>=4 && local[local.Count-1]=="1" &&
-                EqualTokens(local.Take(local.Count-1).ToList(),name) &&
-                !BroadFranchises.Contains(String.Join(" ",local.Take(local.Count-1))) &&
-                !Edition.IsMatch(requested))return 1;
             // Exact token-set but different word order: e.g. Dissidia Final Fantasy.
             // Do not drop a number or edition marker to force an identity.
             if(local.Count>=3 && local.Count==name.Count &&
@@ -274,17 +219,19 @@ namespace SmartMetadataMatcher
             // Incomplete titles are common in ROM libraries. A proper multiword
             // title can identify a single platform-specific subtitle release.
             // A bare series name is not sufficient (Mario Kart / Final Fantasy).
-            if(StartsWith(name,local) && !Edition.IsMatch(requested) &&
-                !Edition.IsMatch(official) && !BroadFranchises.Contains(String.Join(" ",local)) &&
-                (local.Count>=4 || (local.Count>=3 && local.Any(x=>x.All(Char.IsDigit))) ||
-                 (local.Count>=2 && requested.Length>=9 &&
-                  official.IndexOf(':')>=0 && local.Any(x=>x.Length>=5))))return 1;
-            if(FlexibleNumberedPrefix(name,local) &&
+            if(NumericIdentityCompatible(local,name) && StartsWith(name,local) && !Edition.IsMatch(requested) &&
+                !Edition.IsMatch(official) &&
+                (local.Count>=4 || (local.Count>=3 && local.Any(x=>x.All(Char.IsDigit)))))return 1;
+            if(NumericIdentityCompatible(local,name) && FlexibleNumberedPrefix(name,local) &&
                 !Edition.IsMatch(requested) && !Edition.IsMatch(official))return 1;
             if(DistinctiveSuffix(name,local) || WrappedSubtitle(name,local) ||
-                LocalSeriesAnnotation(name,local) || OmittedSeriesOrdinal(name,local))return 2;
-            if(TruncatedAdventure(name,local))return 1;
-            if(NearSameFullTitle(local,name))return 2;
+                OmittedSeriesOrdinal(name,local))return 2;
+            // A typo cannot add/drop an installment or reinterpret an ambiguous
+            // single Roman letter as a digit. Such records remain reviewable.
+            if(NumericIdentityCompatible(local,name) &&
+                local.Where(x=>x=="i"||x=="v"||x=="x").SequenceEqual(
+                    name.Where(x=>x=="i"||x=="v"||x=="x"),StringComparer.Ordinal) &&
+                NearSameFullTitle(local,name))return 2;
             return 0;
         }
         private static bool HasConflictingQualifier(string requested,string official,int kind)
@@ -342,8 +289,6 @@ namespace SmartMetadataMatcher
             int kind=TitleKind(requested,game.Name,game.Aliases);
             if(kind==0 || HasConflictingQualifier(requested,game.Name,kind) ||
                 !IsPlayable(game,kind,requested))return null;
-            if(ExplicitPairedChronicles(Tokens(game.Name),Tokens(requested)) &&
-                game.GameTypeId!=3)return null;
             int points=kind==3?130:kind==2?105:92;
             int year=PlatformYear(game,platform);
             if(input.LocalReleaseYear>=1970 && year>=1970)
@@ -354,9 +299,6 @@ namespace SmartMetadataMatcher
             if(kind==1 && game.GameTypeId==3)points-=17; // compound collection, if a standalone exists.
             if(kind==3 && game.GameTypeId==3)points+=2; // a named bundle may be the correct release.
             if(kind==3 && game.GameTypeId==0)points+=3;
-            // Provider popularity only breaks *minor* ordering ties. It is not
-            // evidence of a particular local copy's provenance.
-            if(game.RatingCount>=100)points+=2;
             return new Ranked{Game=game,Kind=kind,Points=points,Year=year};
         }
         internal static string BuildPrefixQuery(string title,string platform)
@@ -425,46 +367,14 @@ namespace SmartMetadataMatcher
             if(ranked.Count==0)return preliminary;
             var winner=ranked[0];
             var rival=ranked.Skip(1).FirstOrDefault();
-            // An exceptionally well-established catalogue entry can be a useful
-            // assisted choice among *exactly the same* official game titles. It
-            // is not a calibrated 80% probability: require a very large vote
-            // disparity and substantive record context; keep close calls in review.
-            bool dominantCatalogConsensus=false;
-            var exacts=ranked.Where(x=>x.Kind==3 &&
-                EqualTokens(Tokens(x.Game.Name),Tokens(winner.Game.Name))).ToList();
-            if(input.LocalReleaseYear<1970 && exacts.Count>=2 &&
-                exacts.All(x=>x.Game.GameTypeId==0 && x.Year>=1970))
-            {
-                var popularity=exacts.OrderByDescending(x=>x.Game.RatingCount).ToList();
-                var most=popularity[0];var second=popularity[1];
-                bool distinctive=Tokens(input.Name).Count>=2 ||
-                    (most.Game.RatingCount>=500 &&
-                     most.Game.RatingCount>=100*Math.Max(1,second.Game.RatingCount));
-                if(distinctive && Math.Abs(most.Year-second.Year)<10 &&
-                    most.Game.RatingCount>=150 && second.Game.RatingCount<=10 &&
-                    most.Game.RatingCount>=25*Math.Max(1,second.Game.RatingCount) &&
-                    !String.IsNullOrWhiteSpace(most.Game.Summary) &&
-                    most.Game.Summary.Trim().Length>=80 &&
-                    !BroadFranchises.Contains(String.Join(" ",Tokens(input.Name))))
-                {
-                    winner=most;
-                    ranked.Remove(most);ranked.Insert(0,most);
-                    rival=ranked.Skip(1).FirstOrDefault();
-                    dominantCatalogConsensus=true;
-                }
-            }
             int margin=rival==null?100:winner.Points-rival.Points;
-            if(!dominantCatalogConsensus)
-            {
-                if(winner.Kind==1 && margin<14)return preliminary;
-                if(winner.Kind==2 && margin<18)return preliminary;
-                if(winner.Kind==3 && margin<10)return preliminary;
-                // Two genuine full-title homonyms still need independent year
-                // evidence unless the catalogue dominance rule is exceptional.
-                if(rival!=null && winner.Kind==3 && rival.Kind==3 &&
-                    (input.LocalReleaseYear<1970 || Math.Abs(winner.Year-input.LocalReleaseYear)>1 ||
-                        rival.Year<1970 || Math.Abs(rival.Year-input.LocalReleaseYear)<3))return preliminary;
-            }
+            if(winner.Kind==1 && margin<14)return preliminary;
+            if(winner.Kind==2 && margin<18)return preliminary;
+            if(winner.Kind==3 && margin<10)return preliminary;
+            // Same-title releases need an independent local year that distinguishes them.
+            if(rival!=null && winner.Kind==3 && rival.Kind==3 &&
+                (input.LocalReleaseYear<1970 || Math.Abs(winner.Year-input.LocalReleaseYear)>1 ||
+                    rival.Year<1970 || Math.Abs(rival.Year-input.LocalReleaseYear)<3))return preliminary;
             if(winner.Kind==1 && winner.Game.GameTypeId==3)return preliminary;
             // Prefix-based identity needs dated target-platform evidence.
             if(winner.Kind==1 && (!winner.Game.GameTypeId.HasValue ||
@@ -484,7 +394,6 @@ namespace SmartMetadataMatcher
                 ", ordinal/edition and platform checked, "+
                 (winner.Kind==3?"official full title":winner.Kind==2?"related alias or near-identical full title":"unique franchise/ordinal prefix")+
                 ", lead "+margin+" ranking points (NOT probability), "+
-                (dominantCatalogConsensus?"exceptional provider popularity consensus (not independent local proof), ":"")+
                 (undatedShadows.Count>0?"related undated port shadow excluded from same-platform rivals, ":"")+
                 "bounded exact/prefix rival queries complete; only missing fields eligible; live ID preflight required";
             return resolved;
@@ -497,8 +406,6 @@ namespace SmartMetadataMatcher
             var requested=CatalogCore.QueryTitle(input.Name,input.Platform);
             int kind=TitleKind(requested,candidate.Name,candidate.Aliases);
             return kind>0 && candidate.GameTypeId.HasValue &&
-                (!ExplicitPairedChronicles(Tokens(candidate.Name),Tokens(requested)) ||
-                    candidate.GameTypeId==3) &&
                 IsPlayable(candidate,kind,requested) &&
                 !HasConflictingQualifier(requested,candidate.Name,kind);
         }

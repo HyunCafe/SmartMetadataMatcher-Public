@@ -27,18 +27,18 @@ internal static class CatalogSmartResolverTests
         // Numeral normalization must preserve *identity*, not just text similarity.
         Expect(CatalogSmartResolver.Tokens("Ys 1").SequenceEqual(
             CatalogSmartResolver.Tokens("Ys I")),"Ys 1 equals Ys I");
-        Expect(CatalogSmartResolver.Tokens("Ys One and Two Chronicles").SequenceEqual(
-            CatalogSmartResolver.Tokens("Ys I & II Chronicles")),
-            "Ys 1 and 2 matches Roman-numeral pairing");
+        Expect(CatalogSmartResolver.Tokens("Orchid Ledger Chapter One and Two").SequenceEqual(
+            CatalogSmartResolver.Tokens("Orchid Ledger Chapter I & II")),
+            "explicit ordinal label supports a spelled-out pair without a franchise list");
         Expect(CatalogSmartResolver.Tokens("Final Fantasy 4").SequenceEqual(
             CatalogSmartResolver.Tokens("Final Fantasy IV")),
             "Final Fantasy 4 equals Final Fantasy IV");
         Expect(CatalogSmartResolver.Tokens("Final Fantasy 15").SequenceEqual(
             CatalogSmartResolver.Tokens("Final Fantasy XV")),
             "Roman numerals beyond X resolve");
-        Expect(CatalogSmartResolver.Tokens("Ys Seven").SequenceEqual(
-            CatalogSmartResolver.Tokens("Ys VII")),
-            "spelled sequel number equals Roman numeral in numbered franchise");
+        Expect(CatalogSmartResolver.Tokens("Orchid Ledger Chapter Seven").SequenceEqual(
+            CatalogSmartResolver.Tokens("Orchid Ledger Chapter VII")),
+            "spelled sequel number equals Roman numeral after an explicit ordinal label");
         Expect(!CatalogSmartResolver.Tokens("Ys I").SequenceEqual(
             CatalogSmartResolver.Tokens("Ys II")),"Ys I never equals Ys II");
         Expect(!CatalogSmartResolver.Tokens("Mega Man X").SequenceEqual(
@@ -63,25 +63,25 @@ internal static class CatalogSmartResolverTests
         var ysPremium=G(42692,"Ys I & II Chronicles: Premium Edition",38,3,2011);
         ysPremium.VersionParentId=21020;
         ysPremium.VersionTitle="Premium Edition";
-        Expect(Resolve(I("Ys One And Two PSP","Sony PlayStation Portable"),true,
+        Expect(!Resolve(I("Ys One And Two","Sony PlayStation Portable"),true,
             ysPair,ysPremium).SmartAutoEvidence,
-            "explicitly named Ys I & II PSP pair resolves the base Chronicles bundle");
-        Expect(Resolve(I("Ys One And Two PSP","Sony PlayStation Portable"),true,
-            ysPair,ysPremium).Game.Id==21020,
-            "the named Premium Edition cannot replace the standard PSP compilation");
-        Expect(!Resolve(I("Ys One And Two PSP","Sony PlayStation Portable"),true,
+            "abbreviated bundle without catalog evidence remains for review");
+        Expect(Resolve(I("Ys I & II Chronicles","Sony PlayStation Portable"),true,
+            ysPair,ysPremium).SmartAutoEvidence,
+            "an exact standard bundle remains eligible with a premium rival");
+        Expect(!Resolve(I("Ys One And Two","Sony PlayStation Portable"),true,
             ysPremium).SmartAutoEvidence,
             "Premium-only results must not be mistaken for standard Chronicles");
-        Expect(!Resolve(I("Ys One And Two PSP","Sony PlayStation Portable"),false,
+        Expect(!Resolve(I("Ys One And Two","Sony PlayStation Portable"),false,
             ysPair,ysPremium).SmartAutoEvidence,
             "incomplete IGDB coverage never authorizes the Chronicles shortcut");
-        Expect(!Resolve(I("Ys One And Two PSP","Sony PlayStation Portable"),true,
+        Expect(!Resolve(I("Ys One And Two","Sony PlayStation Portable"),true,
             G(21021,"Ys I & II Chronicles",38,0,2009)).SmartAutoEvidence,
             "an untyped-as-bundle pair cannot use the bundle-specific shortcut");
-        Expect(!Resolve(I("Ys One And Two PSP","Sony PlayStation Portable"),true,
+        Expect(!Resolve(I("Ys One And Two","Sony PlayStation Portable"),true,
             G(21022,"Ys III & IV Chronicles",38,3,2009)).SmartAutoEvidence,
             "different pairs of numbered releases cannot be conflated");
-        Expect(!Resolve(I("Ys One And Two PSP","Sony PlayStation Portable"),true,
+        Expect(!Resolve(I("Ys One And Two","Sony PlayStation Portable"),true,
             G(21023,"Ys I & II Chronicles",6,3,2013)).SmartAutoEvidence,
             "correct title on wrong platform cannot authorize a PSP bundle");
         Expect(!Resolve(I("Legend Of Heroes 1","Sony PlayStation Portable"),true,
@@ -91,7 +91,7 @@ internal static class CatalogSmartResolverTests
         var bladeLaterPort=G(269079,"Blade Dancer: Lineage of Light",38,11,2023);
         bladeLaterPort.ParentGameId=23115;
         bladeLaterPort.ReleaseDates=new List<CatalogRelease>(); // no dated PSP release for port
-        var blade=I("Blade Dancer Lineage Of Light PSP","Sony PlayStation Portable");
+        var blade=I("Blade Dancer Lineage Of Light","Sony PlayStation Portable");
         var bladeResult=Resolve(blade,true,bladeOriginal,bladeLaterPort);
         Expect(bladeResult.SmartAutoEvidence && bladeResult.Game.Id==23115,
             "original PSP title outranks an undated same-name port referencing it");
@@ -100,7 +100,7 @@ internal static class CatalogSmartResolverTests
         Expect(!Resolve(blade,true,bladeOriginal,bladeLaterPort).SmartAutoEvidence,
             "independently dated same-platform port requires identity corroboration");
         bladeLaterPort.ReleaseDates=new List<CatalogRelease>();
-        Expect(!Resolve(I("Blade Dancer Lineage Of Light PSP","Sony PlayStation Portable",2023),
+        Expect(!Resolve(I("Blade Dancer Lineage Of Light","Sony PlayStation Portable",2023),
             true,bladeOriginal,bladeLaterPort).SmartAutoEvidence,
             "conflicting local release year cannot be ignored to choose older original");
         bladeLaterPort.ParentGameId=null;
@@ -114,7 +114,7 @@ internal static class CatalogSmartResolverTests
             "Ys 1 resolves a unique Ys I candidate on the correct platform");
         Expect(!Resolve(ysOne,true,G(10002,"Ys II",6,0,1988)).SmartAutoEvidence,
             "Ys II cannot satisfy a request for Ys 1");
-        var crash=I("03 Crash Bandicoot 2");
+        var crash=I("Crash Bandicoot 2");
         var ntranced=G(1198,"Crash Bandicoot 2: N-Tranced",24,0,2003);
         var collection=G(600,"Crash Bandicoot 2: N-Tranced + Crash Nitro Kart",24,3,2006);
         var result=Resolve(crash,true,collection,ntranced);
@@ -154,7 +154,7 @@ internal static class CatalogSmartResolverTests
         result=Resolve(I("Sengoku","PC (Windows)",2011),true,a,G(8002,"Sengoku",6,0,2012));
         Expect(!result.SmartAutoEvidence,"close-year homonyms cannot be disambiguated");
         var alias=G(246318,"Flame Beetles"); alias.Aliases.Add("Bump Bomb");
-        Expect(!Resolve(I("70 Bump Bomb"),true,alias).SmartAutoEvidence,
+        Expect(!Resolve(I("Bump Bomb"),true,alias).SmartAutoEvidence,
             "unrelated official game matched through an alias stays review");
         var unknownExact=G(123,"Ys I",6,0,1987); unknownExact.GameTypeId=null;
         Expect(!Resolve(ysOne,true,unknownExact).SmartAutoEvidence,
@@ -184,34 +184,34 @@ internal static class CatalogSmartResolverTests
         var beta=G(333,"Back 4 Blood",6);
         Expect(!Resolve(I("Back 4 Blood Beta","PC (Windows)"),true,beta).SmartAutoEvidence,
             "beta is not interchangeable with base game");
-        Expect(!Resolve(I("06 Mario Kart"),true,G(2343,"Mario Kart: Super Circuit")).SmartAutoEvidence,
+        Expect(!Resolve(I("Mario Kart"),true,G(2343,"Mario Kart: Super Circuit")).SmartAutoEvidence,
             "two-word generic Mario Kart cannot auto-supply unknown subtitle");
         Expect(!Resolve(I("The Falconeer","PC (Windows)"),true,
             G(121709,"The Falconeer: Revolution Remaster",6,9)).SmartAutoEvidence,
             "different remaster identity must stay review");
         // Additional real-library title patterns from the 100-row review export.
-        Expect(Resolve(I("Lunar - Genesis","Nintendo DS"),true,
+        Expect(!Resolve(I("Lunar - Genesis","Nintendo DS"),true,
             G(85266,"Lunar Genesis: Dragon Song",20,0,2005)).SmartAutoEvidence,
-            "distinctive two-word DS subtitle can be recovered");
-        Expect(Resolve(I("26 Astro Boy"),true,
+            "two-word prefix alone is not evidence of the full DS identity");
+        Expect(!Resolve(I("Astro Boy"),true,
             G(6310,"Astro Boy: Omega Factor",24,0,2003)).SmartAutoEvidence,
-            "GBA franchise subtitle can be inferred when unique");
-        Expect(Resolve(I("32 Need For Speed Porsche"),true,
+            "two-word prefix alone cannot infer a GBA subtitle");
+        Expect(Resolve(I("Need For Speed Porsche"),true,
             G(248143,"Need for Speed: Porsche Unleashed",24,0,2004)).SmartAutoEvidence,
             "longer abbreviated prefix preserves identifying Porsche token");
-        Expect(!Resolve(I("06 Mario Kart"),true,
+        Expect(!Resolve(I("Mario Kart"),true,
             G(2343,"Mario Kart: Super Circuit",24,0,2001)).SmartAutoEvidence,
             "generic two-word series never guesses a title");
-        Expect(Resolve(I("17 The king of the fighter EX2"),true,
+        Expect(!Resolve(I("The king of the fighter EX2"),true,
             G(49169,"The King of Fighters EX2: Howling Blood",24,0,2003)).SmartAutoEvidence,
-            "numbered title survives extra article and singular spelling");
-        Expect(Resolve(I("22 Naruto Ninja Council 1"),true,
+            "a heavily shortened title no longer inherits a built-in correction");
+        Expect(!Resolve(I("Naruto Ninja Council 1"),true,
             G(24066,"Naruto: Ninja Council",24,0,2003)).SmartAutoEvidence,
-            "informal first-installment marker resolves unique unnumbered title");
+            "a trailing numeral needs evidence before it can be discarded");
         Expect(!Resolve(I("Naruto Ninja Council 2"),true,
             G(24066,"Naruto: Ninja Council",24,0,2003)).SmartAutoEvidence,
             "a second installment is never silently converted to the first");
-        Expect(Resolve(I("Final Fantasy Dissidia PSP","Sony PlayStation Portable"),true,
+        Expect(Resolve(I("Final Fantasy Dissidia","Sony PlayStation Portable"),true,
             G(391,"Dissidia Final Fantasy",38,0,2008)).SmartAutoEvidence,
             "same distinctive words in different order can resolve");
         var namedEdition=G(14147,"Jotun: Valhalla Edition",6,0,2015);
@@ -236,9 +236,9 @@ internal static class CatalogSmartResolverTests
         established.Summary=new string('x',100);
         var obscure=G(260887,"Grime",6,0,2022);
         obscure.RatingCount=3;
-        Expect(Resolve(I("GRIME","PC (Windows)"),true,
+        Expect(!Resolve(I("GRIME","PC (Windows)"),true,
             obscure,established).SmartAutoEvidence,
-            "exceptionally dominant official same-name record can be assisted");
+            "popularity and a summary cannot identify the locally owned release");
         established.RatingCount=18;
         Expect(!Resolve(I("GRIME","PC (Windows)"),true,
             obscure,established).SmartAutoEvidence,
@@ -250,6 +250,25 @@ internal static class CatalogSmartResolverTests
         Expect(!Resolve(I("Sengoku","PC (Windows)"),true,
             oldSengoku,newSengoku).SmartAutoEvidence,
             "unrelated far-apart same-name releases still require local evidence");
+        var unfamiliar=I("Orchid Ledger 4","PC (Windows)");
+        var fourth=G(91001,"Orchid Ledger IV",6,0,2005);
+        var fifth=G(91002,"Orchid Ledger V",6,0,2006);
+        Expect(Resolve(unfamiliar,true,fifth,fourth).SmartAutoEvidence &&
+            Resolve(unfamiliar,true,fifth,fourth).Game.Id==fourth.Id,
+            "an unfamiliar series resolves its unambiguous Roman numeral");
+        Expect(!Resolve(I("Orchid Ledger 10","PC (Windows)"),true,
+            G(91003,"Orchid Ledger X",6,0,2007)).SmartAutoEvidence,
+            "an unlabelled X in an unfamiliar series is not an ordinal");
+        var original=G(91004,"Cobalt Harbor",38,0,2005);
+        var port=G(91005,"Cobalt Harbor",38,11,2023);
+        port.ParentGameId=original.Id;
+        port.ReleaseDates=new List<CatalogRelease>();
+        Expect(Resolve(I("Cobalt Harbor","PlayStation Portable"),true,port,original).SmartAutoEvidence &&
+            Resolve(I("Cobalt Harbor","PlayStation Portable"),true,port,original).Game.Id==original.Id,
+            "the port-lineage rule works without a known title");
+        port.ParentGameId=null;
+        Expect(!Resolve(I("Cobalt Harbor","PlayStation Portable"),true,port,original).SmartAutoEvidence,
+            "a same-name port without a confirmed parent remains a rival");
         var duplicateRich=G(1198,"Crash Bandicoot 2: N-Tranced",24,0,2003);
         var duplicateSparse=G(1198,"Crash Bandicoot 2: N-Tranced",24,0,2003);
         duplicateSparse.GameTypeId=null;duplicateSparse.ReleaseDates=null;
@@ -271,9 +290,9 @@ internal static class CatalogSmartResolverTests
         // 60-case replay: distinctive franchise/suffix, GBA ports and PSP titles.
         var spongebob=G(210724,"SpongeBob SquarePants: Lights, Camera, Pants!",24,11,2005);
         spongebob.ParentGameId=2768;
-        Expect(Resolve(I("44 Lights, Camera, Pants!"),true,spongebob).SmartAutoEvidence,
+        Expect(Resolve(I("Lights, Camera, Pants!"),true,spongebob).SmartAutoEvidence,
             "unique GBA SpongeBob port with exact suffix can resolve");
-        Expect(!Resolve(I("44 Lights, Camera, Pants!"),true,
+        Expect(!Resolve(I("Lights, Camera, Pants!"),true,
             G(210725,"Lights, Camera, Pants!: Special Edition",24,0,2005)).SmartAutoEvidence,
             "a named special edition cannot replace an unspecified base release");
         var pooh=G(243185,"Disney's Winnie the Pooh's Rumbly Tumbly Adventure",24,11,2005);
@@ -290,35 +309,35 @@ internal static class CatalogSmartResolverTests
             "an explicit different episode number is never discarded");
         var untold1=G(22508,"Untold Legends: Brotherhood of the Blade",38,0,2005);
         var untold2=G(23006,"Untold Legends: The Warrior's Code",38,0,2006);
-        Expect(Resolve(I("Untold Legends 1 - Brotherhood Of The Blade","Sony PlayStation Portable"),true,
-            untold1).SmartAutoEvidence,"informal first Untold Legends number preserves unique subtitle");
-        Expect(Resolve(I("Untold Legends 2 - The Warriors Code","Sony PlayStation Portable"),true,
-            untold2).SmartAutoEvidence,"informal second Untold Legends number preserves unique subtitle");
+        Expect(!Resolve(I("Untold Legends 1 - Brotherhood Of The Blade","Sony PlayStation Portable"),true,
+            untold1).SmartAutoEvidence,"unverified first installment annotation requires review");
+        Expect(!Resolve(I("Untold Legends 2 - The Warriors Code","Sony PlayStation Portable"),true,
+            untold2).SmartAutoEvidence,"unverified second installment annotation requires review");
         Expect(!Resolve(I("Untold Legends 2 - The Warriors Code","Sony PlayStation Portable"),true,
             untold1).SmartAutoEvidence,"different Untold Legends subtitles cannot cross-match");
         var ysPort=G(200897,"Ys VI: The Ark of Napishtim",38,11,2006);
         ysPort.ParentGameId=15454;
-        Expect(Resolve(I("Ys The Ark Of Napishtim PSP","Sony PlayStation Portable"),true,
+        Expect(Resolve(I("Ys The Ark Of Napishtim","Sony PlayStation Portable"),true,
             ysPort).SmartAutoEvidence,"unique Ys VI PSP title can omit ordinal when subtitle is intact");
         var wrongOrdinal=G(200898,"Ys IV: The Ark of Napishtim",38,11,2006);
         wrongOrdinal.ParentGameId=15455;
-        Expect(!Resolve(I("Ys The Ark Of Napishtim PSP","Sony PlayStation Portable"),true,
+        Expect(!Resolve(I("Ys The Ark Of Napishtim","Sony PlayStation Portable"),true,
             ysPort,wrongOrdinal).SmartAutoEvidence,
             "omitted ordinal cannot resolve when two numbered Ys entries share the subtitle");
-        Expect(!Resolve(I("Ys II The Ark Of Napishtim PSP","Sony PlayStation Portable"),true,
+        Expect(!Resolve(I("Ys II The Ark Of Napishtim","Sony PlayStation Portable"),true,
             ysPort).SmartAutoEvidence,
             "an explicitly different Ys numeral cannot be overridden by a subtitle match");
-        Expect(!Resolve(I("Ys The Red Cave PSP","Sony PlayStation Portable"),true,
+        Expect(!Resolve(I("Ys The Red Cave","Sony PlayStation Portable"),true,
             G(200899,"Ys VI: The Red Cave",38,11,2006)).SmartAutoEvidence,
             "generic short subtitle cannot authorize an omitted series ordinal");
         var onlyDlc=G(399154,"Jotunnslayer: Hordes of Hel - Conan",6,1,2026);
         onlyDlc.ParentGameId=296290;
         Expect(!Resolve(I("Jotunnslayer: Hordes of Hel","PC (Windows)"),true,
             onlyDlc).SmartAutoEvidence,"DLC cannot become parent game simply due to title prefix");
-        Expect(!Resolve(I("66 Sudoku"),true,G(49233,"Sudoku Fever",24,0,2006),
+        Expect(!Resolve(I("Sudoku"),true,G(49233,"Sudoku Fever",24,0,2006),
             G(195493,"Sudoku Micro",24,0,2006)).SmartAutoEvidence,
             "generic Sudoku without ROM code cannot choose between GBA editions");
-        Expect(!Resolve(I("69 Bubble Blaster"),true,
+        Expect(!Resolve(I("Bubble Blaster"),true,
             G(257703,"Bubble Blasters",6,0,2023)).SmartAutoEvidence,
             "a non-GBA homonym cannot be auto-matched");
         Console.WriteLine("PASS: "+checks+" smart rival-ranking / truncated / identity-preflight checks.");

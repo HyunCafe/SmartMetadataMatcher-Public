@@ -43,11 +43,11 @@ internal static class Program
             G("Pokemon Diamond", "GBC"), G("20 Minutes Till Dawn", "PC", "Local")
         };
         var proposals = NameRules.Analyze(roms);
-        ExpectProposal(proposals, "01 Pokemon Fire Red", "Pokemon Fire Red", "Ready");
-        ExpectProposal(proposals, "02 Pokemon Leaf Green", "Pokemon Leaf Green", "Ready");
-        ExpectProposal(proposals, "03 Crash Bandicoot 2", "Crash Bandicoot 2", "Ready");
-        ExpectProposal(proposals, "14 Sonic Advance", "Sonic Advance", "Ready");
-        ExpectProposal(proposals, "25 Golden Sun", "Golden Sun", "Ready");
+        ExpectProposal(proposals, "01 Pokemon Fire Red", "Pokemon Fire Red", "Review");
+        ExpectProposal(proposals, "02 Pokemon Leaf Green", "Pokemon Leaf Green", "Review");
+        ExpectProposal(proposals, "03 Crash Bandicoot 2", "Crash Bandicoot 2", "Review");
+        ExpectProposal(proposals, "14 Sonic Advance", "Sonic Advance", "Review");
+        ExpectProposal(proposals, "25 Golden Sun", "Golden Sun", "Review");
         ExpectProposal(proposals, "Legend of Zelda, The - Oracle of Ages",
             "The Legend of Zelda - Oracle of Ages", "Review");
         ExpectProposal(proposals, "20 Minutes Till Dawn", "Minutes Till Dawn", "Review");
@@ -58,7 +58,7 @@ internal static class Program
             G("01 Golden Sun"), G("02 Golden Sun"), G("03 Sonic Advance")
         });
         Expect(collision.Count(x => x.Proposed == "Golden Sun" && x.Status == "Review") == 2,
-            "same-platform collision blocks Ready status");
+            "same-platform collision keeps Review status");
         var two = NameRules.Analyze(new[] { G("01 Golden Sun"), G("02 Pokemon Leaf Green") });
         Expect(two.All(x => x.Status == "Review"), "two numbers are not enough to infer a collection");
         var psp = NameRules.Analyze(new[] {
@@ -69,8 +69,9 @@ internal static class Program
             G("Phantasy Star Portable PSP", "Sony PlayStation Portable")
         });
         ExpectProposal(psp, "Class Of Heroes PSP", "Class Of Heroes", "Review");
-        ExpectProposal(psp, "Cladun X 2 PSP", "ClaDun x2", "Review");
-        ExpectProposal(psp, "Final Fantasy VII Crisis Core", "Crisis Core: Final Fantasy VII", "Review");
+        ExpectProposal(psp, "Cladun X 2 PSP", "Cladun X 2", "Review");
+        Expect(!psp.Any(x => x.Original == "Final Fantasy VII Crisis Core"),
+            "no title-specific editorial rename");
         ExpectProposal(psp, "Phantasy Star Portable PSP", "Phantasy Star Portable", "Review");
         Expect(!psp.Any(x => x.Original == "Mega Man Xtreme 2 PSP"),
             "PSP suffix retained when actual platform is not PSP");
@@ -83,6 +84,7 @@ internal static class Program
         CatalogCoreTests.Run();
         CatalogCandidateEvidenceTests.Run();
         CatalogSmartResolverTests.Run();
+        UniversalMatchingTests.Run();
         IgdbConnectionTests.Run();
         CatalogReviewActionsTests.Run();
         CatalogImportDraftTests.Run();

@@ -30,7 +30,7 @@ internal static class CatalogQueueViewTests
         verify(CatalogQueueView.ReviewPriority(256,"description cover screenshot")==1,"series only later");
         verify(CatalogQueueView.ReviewPriority(1,"cover screenshot")==1,"nonoverlapping fields later");
         verify(CatalogQueueView.HighScoreTitleMismatch("70 Bump Bomb","Flame Beetles","Nintendo Game Boy Advance","1.000"),"unrelated title warning");
-        verify(!CatalogQueueView.HighScoreTitleMismatch("28 Prince of Persia","Prince of Persia","Nintendo Game Boy Advance","1.000"),"numbered prefix normalized");
+        verify(CatalogQueueView.HighScoreTitleMismatch("28 Prince of Persia","Prince of Persia","Nintendo Game Boy Advance","1.000"),"possible numbered prefix still warrants identity warning");
         verify(!CatalogQueueView.HighScoreTitleMismatch("Pokemon Leaf Green","Pokémon LeafGreen","Nintendo Game Boy Advance","1.000"),"accents normalized");
         verify(!CatalogQueueView.HighScoreTitleMismatch("70 Bump Bomb","Flame Beetles","Nintendo Game Boy Advance","0.65"),"low score not high-score warning");
         verify(CatalogQueueView.TitleMismatchWarning("28 Prince of Persia","Prince of Persia","Nintendo Game Boy Advance","0.660","Platform mismatch").Contains("platform"),"platform mismatch caution");
