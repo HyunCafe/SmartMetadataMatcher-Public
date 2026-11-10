@@ -1,5 +1,7 @@
 > Historical development record, preserved for continuity. For current status, see [release readiness](../../RELEASE_READINESS.md). Relative links and commands below describe the original checkout and may no longer apply.
 
+# Historical development changelog
+
 ## v0.5.17 — private public-readiness candidate (NOT YET RELEASED)
 - Remove the 50-game manual identity approval ceiling; support up to 1000 explicitly reviewed identities, with source and persistence validation, full-list preflight and per-game undo journals.
 - Show 50-game groups in live IGDB preflight progress; this is presentation grouping, not a transaction boundary.
@@ -20,12 +22,10 @@
 - Requires Windows full build/tests and read-only 49-case IGDB replay before any metadata approval; no GitHub push.
 
 ## v0.5.14 — 60-case title and port resolver follow-up (private)
-
 - Extend smart reranking for distinctive omitted franchise prefixes, named episodes, PSP/GBA ports and annotated series ordinals.
 - Add targeted positive/negative replay fixtures for SpongeBob, Winnie the Pooh, Wallace & Gromit, Untold Legends, Ys, Sudoku and wrong-platform Bubble Blaster.
 - Retain exact-platform checks, complete rival evidence, special-edition exclusions, live ID preflight and missing-field-only writes; no journal or ROM mutations.
 - Real-game identity correctness and ROM/store-ID corroboration remain pending live validation; see `SMM_v0.5.13_60_Case_Individual_Research_Audit.md` outside the repository.
-
 
 ## v0.5.13 — Candidate reranking + assisted automatic matching (private)
 - Search matching-platform exact-title and title-prefix IGDB rivals (bounded; 101st row flags truncation).
@@ -33,6 +33,14 @@
 - Promote dominant exact-title, corroborated alias, and unique numbered-franchise candidates into existing guarded missing-fields batch workflow.
 - Block unresolved same-title homonyms, uncertain editions, cross-platform identities, truncated lookups, and missing live game-type evidence.
 - Maintain fresh-only promotion state, live selected-ID verification, backup/undo, and no automatic existing-title overwrite.
+
+## v0.5.13 private optimized matching (pre-install)
+- Re-rank complete same-platform IGDB rival sets; preserve richer duplicate-ID evidence.
+- Normalize numbered titles (`Ys 1` / `Ys I`, `Final Fantasy 4` / `IV`) without conflating sequels or `Mega Man X` with `10`.
+- Allow exact named playable episodes/standalone expansions; block unknown game types.
+- Retain fresh-only eligibility, live ID/platform checks, missing-field-only imports, backup approval and undo.
+- Protect plus-suffixed releases and premium editions from abbreviated-title conflation.
+
 ## v0.5.12 — Read-only rival evidence (private Stage A)
 - Inspect up to 12 competing IGDB IDs only when a freshly scanned game is already marked Review.
 - Gather game type, version/parent relationship and platform-specific release years, with explicit incomplete coverage.
@@ -50,7 +58,6 @@
 - Add targeted offline regression tests and revised Review matches counts/labels. Windows compilation and Playnite acceptance remain required.
 
 ## v0.5.10 — Private verified-batch workflow (2026-11-06)
-
 - Expose **Apply verified matches...** as the main dashboard action, using the existing strict planner and live revalidation without requiring intermediate checkbox selection.
 - The final scrollable approval, Playnite + extension-data backup acknowledgement, sequential fail-fast writer and per-game undo are unchanged.
 - Preserve ambiguous/confirmed/stale identity paths in **Review matches**, separate from strict batch selection.
@@ -71,14 +78,18 @@
 - Introduced a deterministic source/package/Git evidence audit and 11 positive/negative fixtures. Requires the recorded exact v0.5.8 `.pext` SHA and byte identity with a freshly built Release DLL and manifest; outputs a private JSON report outside tracked source.
 - Added a current acceptance matrix distinguishing reported Windows/live observations from synthetic tests and unresolved real crash/supply-chain evidence. No production C# change, no new `.pext`, journal edits, GitHub actions, or public release approval.
 
-## v0.5.8 — Indexed enrichment journal replay (2026-11-06)
+## Development-only recovery fault matrix (post-v0.5.8)
+- Added a disposable cross-ledger interruption matrix for before/after Begin, media tracking, metadata Prepare, Handoff, Commit, undo and clean no-change stages.
+- Tests fail-closed handling of orphan handoffs, mismatched owners/media IDs, truncated records, unknown markers and out-of-sequence events.
+- Replays each state with fresh journal instances and verifies inspections never rewrite the underlying ledger bytes.
+- Test-only: no extension source changes, new `.pext`, journal migrations, crash injection into Playnite, or changes to real user data.
 
+## v0.5.8 — Indexed enrichment journal replay (2026-11-06)
 - Replaced repeated list-wide duplicate/commit/undo searches with a transient per-replay `Dictionary<Guid, EnrichmentEntry>`. Same P/C/U log data, oldest-to-newest replay, public history ordering and undo rules.
 - Added 400-operation mixed legacy/current marker regression and corruption rejection tests. Retains v0.5.7 synthetic benchmark.
 - No media-stage caching, log cleanup, format conversion, existing journal mutation, Playnite write-path change, dependency update or GitHub activity.
 
 ## v0.5.7 — Private searchable history and full-title readability (2026-11-06)
-
 - Compact Update History now filters All / Applied / Undone without limiting the number of retained rows; displays visible counts.
 - Full History adds All / Applied / Undone and a case-insensitive game/field/date search, with optional hidden entries.
 - Hovering shows full game titles and field text; selected-entry details show the complete title, timestamp, state and changed fields without column truncation.
@@ -86,7 +97,6 @@
 - Private v0.5.7 Windows compilation and Playnite UI acceptance required before claiming runtime completion. No public release action.
 
 ## v0.5.6 — Private read-only scan checkpoints (2026-11-06)
-
 - Save each 10 completed IGDB lookup records through the existing atomic v1 cache file, not only when the entire selected scan batch finishes. After normal completion, cancellation or IGDB failure, save the remaining short tail.
 - Preserve full in-memory scan results and continue read-only lookups if disk cache saving fails; show cache warning instead of claiming persistence.
 - On next launch, reuse only unexpired saved results matching each live game's current name, platform and missing-field state. Saved evidence never gives strict write authorization.
@@ -107,7 +117,6 @@
 - Added pure readiness-label regression tests and release guards. No changes to matching thresholds, metadata writer, undo, caches, or recovery journal format.
 
 ## v0.5.3 — Private clean no-change batch handling (pending Windows/Playnite acceptance)
-
 - A live IGDB item with **no actual safe metadata or title changes** is now **Skipped**, not a hard batch failure. No Playnite update and no field/undo record are created; the empty media stage is durably closed clean before proceeding.
 - Skip is permitted **only when no media upload and no globally shared metadata Add operation was attempted**, no field change is reported, and the clean stage closure succeeds. Anything uncertain still fails closed, stops the batch and requires recovery review.
 - Batch progress and summary distinguish **Applied / Skipped / Failed**; a skipped row is unmarked and labeled `No changes available` until refreshed. Single-item imports show the same outcome without falsely reporting a completed operation.
@@ -115,7 +124,6 @@
 - Regression coverage checks all eleven possible field flags, staged-media/global-reference uncertainty, invalid counters and correct total progress; live WPF+writer compilation and Playnite runtime remain unverified here.
 
 ## v0.5.2 — private update-history clarity and safe mixed-selection undo (pending Windows acceptance)
-
 - The dashboard **Update history** now lists every visible committed operation with scrolling and virtualization, removing the hidden 10-row cap. Hidden entries remain accessible in Full History.
 - Full History distinguishes **Undo selected metadata** (changes Playnite records) from **Show in update history** (only changes local history visibility). The latter is disabled until hidden entries are selected.
 - Mixed history selections may contain Applied and Undone rows. Undo ignores already-undone operations and processes only the selected newest consecutive *applied* prefix after reading the live journal. Selected older nonconsecutive applied records are explicitly left unchanged, with counts in confirmation and result messages.
@@ -123,7 +131,6 @@
 - RC version/package labels updated; automated mixed-selection regression assertions added. No Playnite UI/runtime validation is claimed until Windows build and manual check pass.
 
 ## v0.5.1 — private batch-unlock candidate (post-stable, pending Windows/Playnite acceptance)
-
 - The v0.5.0 private-stable source at `c1b08d1` and the local `v0.5.0-private-stable` tag remain the rollback baseline.
 - Remove the fixed 25-game cap for **independently strict-ready, freshly validated** matches. Select all remaining ready entries or manually choose a subset; no silent truncation.
 - Keep the **five-game supervised** limit for user-confirmed/weaker-evidence matches and the one-at-a-time manual exception path. Strict evidence, cached-result refresh, duplicate game ID checks and explicit final approval are unchanged.
@@ -131,8 +138,14 @@
 - **Do not mistake removing the testing cap for proving crash recovery or large-batch performance**. No unattended import, cross-run auto-resume, or unbounded retry is added; test a backed-up modest batch before a large one.
 - This is a **private development candidate** until Windows build/offline suites and focused Playnite runtime verification pass. No GitHub publication.
 
-## Private RC3 — Precision and export audit (2026-11-06)
+## v0.5.0 private RC4 — review recall, exact search and Series-only scope
+- Preserve RC3 Strong/auto-match gates while recovering low-score but corroborated same-platform candidates into manual Review.
+- Add read-only exact-name IGDB fallback after ordinary search fails; no new write paths.
+- Preserve slash in IGDB query strings; correct combined Final Fantasy X/X-2 search variants; guarded legacy client fallback.
+- Prioritize non-Series gaps and add optional dashboard missing-field filter; original 837-game results remain accessible.
+- Extend regression tests for false candidates, numeral conflicts, discovery and Series-only isolation.
 
+## Private RC3 — Precision and export audit (2026-11-06)
 - Corrected false edition warning for ordinary titles such as *Hogwarts Legacy*. Explicit `- Legacy` and `Legacy Mode` remain review-sensitive.
 - Exact alias matches with a material remaster/edition/client difference now require identity review (e.g., *The Falconeer* and *Realm of the Mad God Exalt*); matched edition titles are unaffected.
 - Rejects implausibly low-similarity candidate recommendations such as *THE FINALS* → *Final Fantasy IV*, retaining manual search; adds search-only article-free and collection punctuation variants.
@@ -140,8 +153,13 @@
 - No ROM, emulator, import writer, journal schema, five/25 batch-policy or Playnite library changes during build.
 - Existing RC2 checkpoint `91148ae` remains the rollback target. Windows compilation and live IGDB search remain unverified until performed locally.
 
-## v0.5.0 private RC1 — release readiness checkpoint
+## v0.5.0 private RC2 (targeted pre-stable correctness)
+- Discover titles missing any supported field: description, cover, background, icon, platform-specific release date, genres, developers, publishers or series.
+- Share one missing-field bitmask across opening scans, fresh rescans, selective refresh, and persisted read-only lookup cache. Legacy v1 cache rows can still be displayed read-only when the original three primary field states agree; newer rows invalidate on all supported fields.
+- Keep any pre-journal shared-object Add() failure unresolved in the existing media staging gate; never mark it clean based only on artwork cleanup. No automatic deletion of shared genre/company/series records.
+- New offline tests for every single missing field, cache migration/invalidation, and shared-object uncertainty.
 
+## v0.5.0 private RC1 — release readiness checkpoint
 - Bump assembly and extension manifest to `0.5.0` and label the dashboard/package clearly **private RC1**.
 - Freeze v0.4.32 catalog matching, title cleanup, metadata writer, journal formats, batch caps and recovery behavior.
 - Add read-only release candidate checks for pinned build dependencies, release compilation settings, manifest/assembly identity, source private paths, and expected package validation; include negative-case self-tests.
@@ -151,7 +169,6 @@
 - This milestone deliberately does NOT authorize unattended 25-game import, GitHub uploads or automatic crash recovery.
 
 ## v0.4.32 — Batch preflight and package integrity (private preview)
-
 - Reject duplicate Playnite **game IDs** in any submitted batch before network and write stages; allow distinct game records to share one verified IGDB ID.
 - Recheck cached/history-only/user-confirmed evidence on the strict batch path and enforce explicit status/ID/title/limit checks at the write dispatcher.
 - Require a post-build .pext integrity/privacy verifier and offline negative-case tests; only DLL + manifest may ship.
@@ -164,18 +181,37 @@
 - Batch import now stops immediately on the first failed game even when recovery inspection says journals remain healthy; completed prior entries remain independently undoable. Unresolved artwork/journal operations continue to block future writes.
 - Added 20 offline batch-policy regression checks and static guard validation of both review and writer limits. **Windows compile and Playnite runtime validation required before treating 25-game batches as proven.**
 
-### v0.4.30 — Preserve review selection on draft edits
+## v0.4.30 — Preserve review selection on draft edits
 - Right-click **Edit proposed import** now keeps the current Review Matches filter, selected game, selection marks, and status.
 - Only a confirmed IGDB identity change may switch the review list to All matches.
 - Added a read-only source regression check for menu callback routing; writer and undo journals are unchanged.
 
 - Added search-only recovery for titles ending in Legacy/Beta/Test/Playtest/Starter Access/Launcher/SDK and + DLC; ambiguous editions never become Strong automatically.
-### Full 318-game export audit
+
+## v0.4.29 — In-app import drafts
+- Stage a custom Playnite title, plain-text description override, and opt-outs for missing metadata fields from right-click or Review Matches. No Playnite write occurs on Save draft.
+- The final approval window allows editing the selected proposal and recomputes the displayed plan before approval.
+- Pure title/identity guards prevent accidental duplicate titles, stale game/IGDB IDs and unsafe content. The same title resolver is used at preview and write time.
+- Optional description replacement is HTML-escaped and recorded in the original enrichment journal for undo. Media/metadata exclusions are honored by downloader and writer.
+- Retains existing supervised caps, recovery gates and platform/identity verification.
+
+## 0.4.28 — Context-sensitive game review and editing
+- Right-click a game in the main results or Review Matches list to open the supported native Playnite Edit Game dialog (all fields), compare current/suggested fields, inspect live exact IGDB metadata, or search alternative IGDB records.
+- Searches are read-only. An alternative match can be used only after explicit confirmation and a structured platform-ID match; the selected decision persists locally, but is not import authorization.
+- Edits made in the Playnite native editor are outside the plugin undo journal. After saving, import marks and auto eligibility are invalidated, and the game needs revalidation. Review Matches reopens automatically.
+- The original metadata writer, title cleanup, ROM paths, recovery journals, and five-game supervised cap are unchanged.
+
+## 0.4.27 — Equivalent library duplicates and console-suffixed display names
+- Identical IGDB ID, official title and console across multiple Playnite game IDs no longer automatically blocks all otherwise-eligible games. Strict title/platform evidence (or explicit individual confirmation), live IGDB ID/platform checks, final approval and undo are still required.
+- Conflicting official titles or console identities sharing a catalog ID remain blocked for review. Ignored or completed equivalent records do not disqualify an independent eligible game.
+- Display-title cleanup adds a console suffix (e.g. `04 Donkey Kong` → `Donkey Kong (GBA)`) when the clean name exists on the same or another console. Does not modify ROM paths. A second suffix collision remains unmodified rather than generating invented edition numbers.
+- Regression tests use actual repeated-ID patterns identified in the full-library CSV.
+
+## Full 318-game export audit
 - Detected 244 Strong, 48 Review, 24 Unmatched, 1 Completed, 1 Ignored entries.
 - Three unrelated-name exact aliases (Bump Bomb / Manic Troll / Hanoic Tower) were previously Strong; now forced to Review unless independently confirmed.
 - Resolve equal-score IGDB candidates by official catalog title relevance before provider ID; ambiguous same-platform identities still require manual review.
 - Cached Strong results gain targeted read-only Refresh selected without being auto-approved from persisted score labels.
-
 
 ## 0.4.26 — Targeted cached-result validation
 - Review explains why saved Strong labels cannot immediately enter strict multi-game imports.
@@ -189,6 +225,11 @@
 - Add a read-only prebuild verifier covering source/manifest version consistency, runtime UI titles, project compile inventory and invoked offline tests.
 - Keep the five-game supervised limit and all existing writer paths unchanged. Live Playnite import, undo and crash recovery remain unverified.
 
+## v0.4.24 — Recovery Consistency & Final Preflight (private preview)
+- Read-only consistency audit cross-checks every completed artwork handoff against its metadata journal entry; blocked orphan/mismatched records prevent new writes. Legacy field-only journal records remain valid.
+- Recovery Status shows unresolved and handed-off stages, clean abandons, pending operations and detailed reasons for blockers.
+- Final approval displays *potential* field changes beside the proposed Playnite title; a live IGDB/Playnite preflight still decides actual writes.
+- Added 17 recovery/preview regression checks, including persisted journal replay; preserved the supervised five-game limit pending live Playnite recovery testing.
 
 ## v0.4.23 — unified final approval and recovery visibility (private preview)
 - Replaced the separate backup prompt and single-line manual confirmation with one scrollable final approval window shared by manual and strict planning. User must confirm a restorable Playnite library and extension-data backup before Apply is enabled.
@@ -196,6 +237,12 @@
 - Added per-game batch progress, explicit stop-after-current wording, and a close-window safeguard while an operation runs. An interrupted/ambiguous journal remains fail-closed.
 - Added Tools > Recovery status, a read-only inspection of unresolved media stages and uncommitted enrichment operations. It cannot delete or repair files automatically.
 - Retained supervised five-game validation limit and per-operation journals; no production bulk unlock until Playnite import/undo and crash-recovery testing.
+
+## 0.4.22 — durable media staging detection (private preview)
+- Append-only staged-artwork ledger begins before the first Playnite media side effect, tracks returned cover/icon/background media IDs, and transfers ownership only after the full enrichment undo record is durably prepared.
+- Interrupted, unrecorded or partially cleaned media staging blocks later imports instead of silently continuing. A failed cleanup is never recorded as successful.
+- Fail-closed recovery message provides the operation identifier. No automatic filesystem/ROM edits, unsafe guessed deletion, or unattended bulk writes.
+- Added offline interruption/replay/corruption tests; original undo journal format remains unchanged.
 
 ## 0.4.21 — user-confirmed IGDB identities (private preview)
 - Review matches: confirm/forget a highlighted exact IGDB ID for one unchanged Playnite game.
@@ -213,15 +260,47 @@
 - Tools > Rescan all archives any existing cache, resets pending scan work and leaves Playnite metadata, journals, ROMs and history unchanged.
 - Added offline tests for persistence, expiry, invalidation, UTF-8 data, malformed-state preservation and fresh-scan recovery.
 
-## v0.4.14 — History selection and approved Playnite title corrections (private preview)
+## v0.4.19 — Direct actions and cautious undated IGDB matches
+- Removed the main results More menu and Recent Updates History actions menu.
+- Exposed direct, context-sensitive Ignore/Restore, Clear selection, Restore changes, and Remove from recent actions with clear titles and tooltips.
+- Kept Full History as the place to restore hidden entries and inspect journal events.
+- Promoted unique, exact structured-platform matches with substantive summary evidence when the release year is unavailable; known generic series and duplicate same-platform IDs remain review.
+- Added Fire Dragon Game Boy positive/negative regression tests. ROM paths, metadata writer, journals, and approval boundaries unchanged.
 
+## v0.4.18 — Everyday selection and review UX
+- Consolidate separate mark/unmark buttons into one contextual select/deselect action for highlighted rows. Add a matching toggle for currently visible ready games. Move Clear all and Ignore/restore to a More menu.
+- Place the primary Review & apply action beside the results selection controls; show selected count. Preserve independent row highlighting versus import checkboxes.
+- Simplify review dialog headings, selection labels, match status and approval action; preserve exact confirmation, test cap and recovery safeguards.
+- Improve selected-row status contrast and use softer amber for review, muted coral for unmatched. Group uncommon history actions in a dropdown.
+- No changes to IGDB matching logic, import writer, ROM paths, or journal schema.
+
+## v0.4.17 — Integrated title cleanup during approved import
+- Approving a verified IGDB identity now includes the normalized Playnite display-name update in the same journaled metadata operation. No separate history action required.
+- When another game on the same platform already uses the clean title, propose the official title with a platform suffix (e.g., Super Mario Advance (GBA)). If that also conflicts, leave title untouched and report manual-review need.
+- Preview, review plan and final confirmation display the same planned name; live writer fails closed if the approved title differs at commit time.
+- Preserve launch actions, ROM files, existing metadata, journaling and undo; no unattended writes.
+
+## 0.4.16 — Title cleanup and reversible recent-history removal (private preview)
+- User-approved Playnite-only title correction adds a platform suffix (e.g. `Super Mario Advance (GBA)`) when the clean catalog title already exists on the same platform. No ROM-file, emulator or install-path renaming.
+- Mixed Applied/Undone selection no longer silently blocks all rename operations; only eligible distinct applied games are considered and skips are disclosed before approval.
+- Recent Updates adds reversible **Remove from recent**; Full History offers **Show hidden** and **Restore selected**. Undo/write-ahead journal records are never deleted.
+- Tests cover collision suffixes, unsafe second collisions, persistence and malformed visibility state.
+
+## v0.4.15 — Dated history and UX checkpoint
+- Preserve committed operations in history after undo, without re-enabling undo for those operations.
+- Record UTC prepare/commit/undo dates on new journal operations, while legacy timestamps remain unknown; accept historical two-field markers.
+- Add Date and visually distinct applied/undone statuses in Recent Updates / Full History; add selection count guidance.
+- Distinguish review and unmatched states visually; rename history action to clarify Playnite-only title edits.
+- Automatically guard build against mismatched YAML/source/DLL versions.
+- No IGDB matching, ROM, Playnite metadata writer, or launch configuration changes.
+
+## v0.4.14 — History selection and approved Playnite title corrections (private preview)
 - Recent and full history tables support Ctrl-click, Shift-click and full-row extended selection.
 - History can rename previously imported titles inside Playnite, with explicit confirmation for same-platform duplicate display names; it never changes ROM paths, executables, or launch configuration.
 - Selective undo is limited to the newest consecutive journal operations, in reverse order; stale/manual edits fail closed.
 - Unattended and supervised metadata-import collision protections remain unchanged. Build and live Playnite testing required.
 
 ## 0.4.13 — Visual dashboard refinement (private preview, 2026-11-05)
-
 - Kept IGDB credentials in Settings, aligned status in a compact header.
 - Replaced inline Expander with a single scan-settings dropdown (20/50/all and collision-safe rename setting).
 - Separated main Scan/Review actions from Undo, Export, Tools and Close; improved category tab visual weight.
@@ -230,8 +309,15 @@
 - Matching, metadata writer, journal format, approval paths, and network transport unchanged. No bulk-automation safety gate changes.
 - Verification pending: Windows build and real Playnite UI at user DPI.
 
+## 0.4.12 — Consolidated UI preview (private)
+- Scan and review actions are primary; scan size/title-rename options live under an expandable panel.
+- Right-hand preview gains space, artwork size and sensible default selected results.
+- No-import history collapses to a single informative line.
+- Review plan supports checkbox marking directly, select all strict-ready, clearing marks and filtering by text without returning to the dashboard.
+- Fix misleading preview count when IGDB returned no description.
+- No change to catalog resolution, writer, journal, stored credentials or public GitHub.
 
-### 0.4.11 — CSV-driven title retrieval and identity safety (private preview)
+## 0.4.11 — CSV-driven title retrieval and identity safety (private preview)
 - Audited **Super Mario Adv** on GBA resolves to Super Mario Advance; no generic `Adv` trust.
 - Verified redundant acronym removal (e.g. `WDL - World Destruction League`), preserving nonmatching acronyms.
 - Exact complete-token permutations enable reordered edition/main-title matches while retaining every digit; unique same-platform catalog identity and dated record remain mandatory for automatic planning.
@@ -239,10 +325,9 @@
 - Fire Dragon (undated), bare Mario Kart, wrong-platform Pokemon Yellow, rival sequels and duplicate exact IGDB records continue to require review.
 - The matching evidence is still not calibrated probability; **no modifications to enrichment writer or journals**. Live IGDB quality and Playnite tests are pending.
 
-### 0.4.10 — UI selection/test-preview correction
+## 0.4.10 — UI selection/test-preview correction
 
 ## v0.4.10 — marked review and supervised test UI
-
 - Review dialog opens on marked games when available, otherwise ready games or all matches; no unexplained empty first view.
 - Inspect button has an auto-selected row, disabled state for empty categories, and explanatory no-selection messages.
 - Strictly ready marked games can be forwarded to the **existing** exact-ID revalidated batch writer only after a Playnite backup confirmation and full second approval. Private testing limit is five marked games; no silent truncation.
@@ -260,7 +345,6 @@
 - Next: Windows build and UI smoke check, then durable job runner, exact field-level preview, recovery.
 
 ## v0.4.8 — PRIVATE engine foundation checkpoint (target v0.5 redesign)
-
 - Replaces displayed explanation-string parsing as the strict auto-plan authority with typed resolver evidence; matching threshold and platform/year guards remain unchanged.
 - Introduces a pure, independently testable job-plan builder: explicit reasons, duplicate IGDB IDs across all currently known scanned records, optional rename separated from metadata eligibility, and marked-scope modeling.
 - Strict auto-plan now consumes the plan builder; still uses v0.4.7's conservative 25-at-a-time confirmation and existing per-game writer (temporary transitional UI).
@@ -370,8 +454,6 @@
 - Catalog discovery does not modify Playnite records. Existing approved renaming remains intact.
 - Live API integration and full metadata application deliberately deferred pending accuracy tests.
 
-# Changelog
-
 ## 0.2.0 — private development checkpoint
 - Add explicit name-only batch update after a scrollable full confirmation preview.
 - Add private persistent write-ahead journal and latest-batch undo, with exact-name stale guards.
@@ -387,8 +469,6 @@
 - Keep collisions on Review; mark/copy only true rename proposals.
 - Add pure rule and metadata classification tests; no database mutation.
 
-# Changelog
-
 ## 0.1.0-preview — private development checkpoint (2026-11-05)
 - Created read-only Playnite GenericPlugin and WPF preview window.
 - Added deterministic whitespace, two-digit collection prefix, trailing article rules.
@@ -396,105 +476,3 @@
 - Included search, filtering, first-click mark semantics, multi-selection, and copy-to-clipboard.
 - Added source-only regression tests, build script and privacy-oriented packaging defaults.
 - No Playnite database update, external catalog access or game-file modification yet.
-
-
-## 0.4.12 — Consolidated UI preview (private)
-- Scan and review actions are primary; scan size/title-rename options live under an expandable panel.
-- Right-hand preview gains space, artwork size and sensible default selected results.
-- No-import history collapses to a single informative line.
-- Review plan supports checkbox marking directly, select all strict-ready, clearing marks and filtering by text without returning to the dashboard.
-- Fix misleading preview count when IGDB returned no description.
-- No change to catalog resolution, writer, journal, stored credentials or public GitHub.
-
-## v0.4.15 — Dated history and UX checkpoint
-- Preserve committed operations in history after undo, without re-enabling undo for those operations.
-- Record UTC prepare/commit/undo dates on new journal operations, while legacy timestamps remain unknown; accept historical two-field markers.
-- Add Date and visually distinct applied/undone statuses in Recent Updates / Full History; add selection count guidance.
-- Distinguish review and unmatched states visually; rename history action to clarify Playnite-only title edits.
-- Automatically guard build against mismatched YAML/source/DLL versions.
-- No IGDB matching, ROM, Playnite metadata writer, or launch configuration changes.
-
-## 0.4.16 — Title cleanup and reversible recent-history removal (private preview)
-- User-approved Playnite-only title correction adds a platform suffix (e.g. `Super Mario Advance (GBA)`) when the clean catalog title already exists on the same platform. No ROM-file, emulator or install-path renaming.
-- Mixed Applied/Undone selection no longer silently blocks all rename operations; only eligible distinct applied games are considered and skips are disclosed before approval.
-- Recent Updates adds reversible **Remove from recent**; Full History offers **Show hidden** and **Restore selected**. Undo/write-ahead journal records are never deleted.
-- Tests cover collision suffixes, unsafe second collisions, persistence and malformed visibility state.
-
-## v0.4.17 — Integrated title cleanup during approved import
-- Approving a verified IGDB identity now includes the normalized Playnite display-name update in the same journaled metadata operation. No separate history action required.
-- When another game on the same platform already uses the clean title, propose the official title with a platform suffix (e.g., Super Mario Advance (GBA)). If that also conflicts, leave title untouched and report manual-review need.
-- Preview, review plan and final confirmation display the same planned name; live writer fails closed if the approved title differs at commit time.
-- Preserve launch actions, ROM files, existing metadata, journaling and undo; no unattended writes.
-
-## v0.4.18 — Everyday selection and review UX
-- Consolidate separate mark/unmark buttons into one contextual select/deselect action for highlighted rows. Add a matching toggle for currently visible ready games. Move Clear all and Ignore/restore to a More menu.
-- Place the primary Review & apply action beside the results selection controls; show selected count. Preserve independent row highlighting versus import checkboxes.
-- Simplify review dialog headings, selection labels, match status and approval action; preserve exact confirmation, test cap and recovery safeguards.
-- Improve selected-row status contrast and use softer amber for review, muted coral for unmatched. Group uncommon history actions in a dropdown.
-- No changes to IGDB matching logic, import writer, ROM paths, or journal schema.
-
-## v0.4.19 — Direct actions and cautious undated IGDB matches
-- Removed the main results More menu and Recent Updates History actions menu.
-- Exposed direct, context-sensitive Ignore/Restore, Clear selection, Restore changes, and Remove from recent actions with clear titles and tooltips.
-- Kept Full History as the place to restore hidden entries and inspect journal events.
-- Promoted unique, exact structured-platform matches with substantive summary evidence when the release year is unavailable; known generic series and duplicate same-platform IDs remain review.
-- Added Fire Dragon Game Boy positive/negative regression tests. ROM paths, metadata writer, journals, and approval boundaries unchanged.
-
-## 0.4.22 — durable media staging detection (private preview)
-- Append-only staged-artwork ledger begins before the first Playnite media side effect, tracks returned cover/icon/background media IDs, and transfers ownership only after the full enrichment undo record is durably prepared.
-- Interrupted, unrecorded or partially cleaned media staging blocks later imports instead of silently continuing. A failed cleanup is never recorded as successful.
-- Fail-closed recovery message provides the operation identifier. No automatic filesystem/ROM edits, unsafe guessed deletion, or unattended bulk writes.
-- Added offline interruption/replay/corruption tests; original undo journal format remains unchanged.
-
-## v0.4.24 — Recovery Consistency & Final Preflight (private preview)
-- Read-only consistency audit cross-checks every completed artwork handoff against its metadata journal entry; blocked orphan/mismatched records prevent new writes. Legacy field-only journal records remain valid.
-- Recovery Status shows unresolved and handed-off stages, clean abandons, pending operations and detailed reasons for blockers.
-- Final approval displays *potential* field changes beside the proposed Playnite title; a live IGDB/Playnite preflight still decides actual writes.
-- Added 17 recovery/preview regression checks, including persisted journal replay; preserved the supervised five-game limit pending live Playnite recovery testing.
-
-### 0.4.27 — Equivalent library duplicates and console-suffixed display names
-- Identical IGDB ID, official title and console across multiple Playnite game IDs no longer automatically blocks all otherwise-eligible games. Strict title/platform evidence (or explicit individual confirmation), live IGDB ID/platform checks, final approval and undo are still required.
-- Conflicting official titles or console identities sharing a catalog ID remain blocked for review. Ignored or completed equivalent records do not disqualify an independent eligible game.
-- Display-title cleanup adds a console suffix (e.g. `04 Donkey Kong` → `Donkey Kong (GBA)`) when the clean name exists on the same or another console. Does not modify ROM paths. A second suffix collision remains unmodified rather than generating invented edition numbers.
-- Regression tests use actual repeated-ID patterns identified in the full-library CSV.
-
-### 0.4.28 — Context-sensitive game review and editing
-- Right-click a game in the main results or Review Matches list to open the supported native Playnite Edit Game dialog (all fields), compare current/suggested fields, inspect live exact IGDB metadata, or search alternative IGDB records.
-- Searches are read-only. An alternative match can be used only after explicit confirmation and a structured platform-ID match; the selected decision persists locally, but is not import authorization.
-- Edits made in the Playnite native editor are outside the plugin undo journal. After saving, import marks and auto eligibility are invalidated, and the game needs revalidation. Review Matches reopens automatically.
-- The original metadata writer, title cleanup, ROM paths, recovery journals, and five-game supervised cap are unchanged.
-
-## v0.4.29 — In-app import drafts
-- Stage a custom Playnite title, plain-text description override, and opt-outs for missing metadata fields from right-click or Review Matches. No Playnite write occurs on Save draft.
-- The final approval window allows editing the selected proposal and recomputes the displayed plan before approval.
-- Pure title/identity guards prevent accidental duplicate titles, stale game/IGDB IDs and unsafe content. The same title resolver is used at preview and write time.
-- Optional description replacement is HTML-escaped and recorded in the original enrichment journal for undo. Media/metadata exclusions are honored by downloader and writer.
-- Retains existing supervised caps, recovery gates and platform/identity verification.
-
-## v0.5.0 private RC2 (targeted pre-stable correctness)
-- Discover titles missing any supported field: description, cover, background, icon, platform-specific release date, genres, developers, publishers or series.
-- Share one missing-field bitmask across opening scans, fresh rescans, selective refresh, and persisted read-only lookup cache. Legacy v1 cache rows can still be displayed read-only when the original three primary field states agree; newer rows invalidate on all supported fields.
-- Keep any pre-journal shared-object Add() failure unresolved in the existing media staging gate; never mark it clean based only on artwork cleanup. No automatic deletion of shared genre/company/series records.
-- New offline tests for every single missing field, cache migration/invalidation, and shared-object uncertainty.
-
-## v0.5.0 private RC4 — review recall, exact search and Series-only scope
-
-- Preserve RC3 Strong/auto-match gates while recovering low-score but corroborated same-platform candidates into manual Review.
-- Add read-only exact-name IGDB fallback after ordinary search fails; no new write paths.
-- Preserve slash in IGDB query strings; correct combined Final Fantasy X/X-2 search variants; guarded legacy client fallback.
-- Prioritize non-Series gaps and add optional dashboard missing-field filter; original 837-game results remain accessible.
-- Extend regression tests for false candidates, numeral conflicts, discovery and Series-only isolation.
-
-## Development-only recovery fault matrix (post-v0.5.8)
-
-- Added a disposable cross-ledger interruption matrix for before/after Begin, media tracking, metadata Prepare, Handoff, Commit, undo and clean no-change stages.
-- Tests fail-closed handling of orphan handoffs, mismatched owners/media IDs, truncated records, unknown markers and out-of-sequence events.
-- Replays each state with fresh journal instances and verifies inspections never rewrite the underlying ledger bytes.
-- Test-only: no extension source changes, new `.pext`, journal migrations, crash injection into Playnite, or changes to real user data.
-
-### v0.5.13 private optimized matching (pre-install)
-- Re-rank complete same-platform IGDB rival sets; preserve richer duplicate-ID evidence.
-- Normalize numbered titles (`Ys 1` / `Ys I`, `Final Fantasy 4` / `IV`) without conflating sequels or `Mega Man X` with `10`.
-- Allow exact named playable episodes/standalone expansions; block unknown game types.
-- Retain fresh-only eligibility, live ID/platform checks, missing-field-only imports, backup approval and undo.
-- Protect plus-suffixed releases and premium editions from abbreviated-title conflation.

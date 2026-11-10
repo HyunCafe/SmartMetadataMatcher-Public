@@ -6,6 +6,8 @@ These entries record what was accepted, deferred or prohibited **at that checkpo
 
 [Latest decisions](#2026-11-09--title-independent-matching-and-one-public-repository) · [Initial design](#initial-design-v01) · [Undated notes](#undated-notes)
 
+[Development changelog](Docs/DevelopmentHistory/CHANGELOG.md) · [Development notes](Docs/DevelopmentHistory/README.md) · [Historical release checkpoints](Docs/DevelopmentHistory/RELEASE_READINESS.md)
+
 ## 2026-11-09 — Title-independent matching and one public repository
 
 - Replace game-specific overrides with shared title, ordinal, platform, edition and rival-evidence rules. Numeric prefixes and platform suffixes are discovery hints, not independent identity proof.
