@@ -325,8 +325,6 @@
 - Fire Dragon (undated), bare Mario Kart, wrong-platform Pokemon Yellow, rival sequels and duplicate exact IGDB records continue to require review.
 - The matching evidence is still not calibrated probability; **no modifications to enrichment writer or journals**. Live IGDB quality and Playnite tests are pending.
 
-## 0.4.10 — UI selection/test-preview correction
-
 ## v0.4.10 — marked review and supervised test UI
 - Review dialog opens on marked games when available, otherwise ready games or all matches; no unexplained empty first view.
 - Inspect button has an auto-selected row, disabled state for empty categories, and explanatory no-selection messages.
