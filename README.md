@@ -80,6 +80,8 @@ No controlled accuracy comparison against Playnite's provider has been published
 
 ## Development
 
+[Architecture and safety boundaries](Docs/ARCHITECTURE.md) · [Contributing](CONTRIBUTING.md) · [Release readiness](RELEASE_READINESS.md)
+
 [Resolver fixtures](Tests/CatalogSmartResolverTests.cs) cover cases such as abbreviated sequels, competing compilations, and same-title games. [Recovery fixtures](Tests/CatalogRecoveryConsistencyTests.cs) cover consistency checks for interrupted operations.
 
 <details>

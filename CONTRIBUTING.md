@@ -2,6 +2,8 @@
 
 Use this public repository for current work. Start with a small issue or focused pull request; matching fixes should improve a general rule, not add a per-game exception.
 
+For a map of components, data flow and trust boundaries, see [Architecture and safety boundaries](Docs/ARCHITECTURE.md). Current release acceptance is tracked in [Release readiness](RELEASE_READINESS.md); historical decisions are recorded in [DECISIONS.md](DECISIONS.md).
+
 ## Build and check
 
 On Windows, install Git, the .NET 10 SDK, PowerShell 7 and Python 3. From the repository root run:
