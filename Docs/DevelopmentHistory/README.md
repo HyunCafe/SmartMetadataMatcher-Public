@@ -20,10 +20,10 @@ Read-only scan reranking can now promote a uniquely supported game whose local t
 
 ## v0.5.13 private — Smart candidate selection
 Fresh scans compare IGDB's platform-specific exact-title and prefix results instead of trusting the first fuzzy result. A distinct best candidate can enter the existing verified-matches batch, with an auditable reason and heuristic lead (not a true probability). Prefix automation requires a numbered multiword game, a verified base-game type and a nontruncated query. Different editions, DLC, identical-title games with no independent distinguishing date, and unresolved rivals remain in Review. Saved scan results never regain automatic eligibility without refresh. Automatic assisted imports fill only missing metadata; leave **Use catalog title** unchecked. Final live ID checks, backup acknowledgement, per-game journals and undo remain mandatory.
-# Smart Metadata Matcher — v0.5.11 Private Candidate
-
 ## v0.5.12 private — read-only candidate evidence
 When a fresh scan marks a game **Needs review**, Smart Metadata Matcher makes at most one bounded lookup of up to 12 competing IGDB IDs and records game type, version/parent relationships and platform-specific release years when available. Details appear in match diagnostics and CSV reasons. The investigation does **not** change the proposed game, automatic eligibility, write decisions or approval flow; IGDB search coverage is never assumed exhaustive. No ROM or executable files are read. Offline unit tests do not prove live IGDB classification accuracy.
+
+## Smart Metadata Matcher — v0.5.11 Private Candidate
 
 **Manual-review fix:** checked, unresolved IGDB matches can now be confirmed together in a scrollable identity review (maximum 50 games) and then proceed to the same backup-gated final approval. Checkboxes alone are not proof of identity. The reviewed batch checks **every** IGDB title and platform live before any metadata write; if one fails, the batch stops without writing. Earlier five-game supervised flows and strict-ready automation remain unchanged. This candidate requires Windows validation and a small live Playnite check.
 

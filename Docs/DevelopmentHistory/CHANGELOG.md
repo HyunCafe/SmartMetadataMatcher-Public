@@ -33,8 +33,6 @@
 - Promote dominant exact-title, corroborated alias, and unique numbered-franchise candidates into existing guarded missing-fields batch workflow.
 - Block unresolved same-title homonyms, uncertain editions, cross-platform identities, truncated lookups, and missing live game-type evidence.
 - Maintain fresh-only promotion state, live selected-ID verification, backup/undo, and no automatic existing-title overwrite.
-## v0.5.11 private — Manual review confirmation in one workflow
-
 ## v0.5.12 — Read-only rival evidence (private Stage A)
 - Inspect up to 12 competing IGDB IDs only when a freshly scanned game is already marked Review.
 - Gather game type, version/parent relationship and platform-specific release years, with explicit incomplete coverage.
@@ -42,6 +40,8 @@
 - Leave auto-plan rules, selected identity, metadata writer, undo, journal formats and ROM files unchanged.
 - Add mock-only regression tests for candidate bounds, coverage and no inferred approval.
 - Live authenticated IGDB replay against the 100-case cohort remains required before Stage B automatic promotion.
+
+## v0.5.11 private — Manual review confirmation in one workflow
 - Checkbox selections no longer dead-end at zero ready: show a full, scrollable per-game identity confirmation and explicit acknowledgement before saving confirmed IDs.
 - Save up to 50 explicitly verified identities in one atomic private JSON update; a failed check preserves existing decisions.
 - Permit a bounded batch of 1–50 explicitly user-confirmed, freshly scanned games through the existing final backup approval, sequential writer and undo journal. Existing five-game legacy supervised cap is retained.
@@ -248,6 +248,7 @@
 - Strictly ready marked games can be forwarded to the **existing** exact-ID revalidated batch writer only after a Playnite backup confirmation and full second approval. Private testing limit is five marked games; no silent truncation.
 - This is NOT the v0.5 durable unified job runner, not an accuracy certification, and not permission for production bulk imports.
 - The Playnite metadata writer, journal format, IGDB transport, installed extension, and public repositories are unchanged by this source patch.
+- Allow one personally identity-verified Strong candidate through existing manual supervised path; never automatically treat a heuristic Strong label as verified.
 
 ## 0.4.9 — read-only plan review and dashboard simplification (private preview)
 - Windows build not yet verified. No host/runtime verification or install claims.
@@ -396,7 +397,6 @@
 - Added source-only regression tests, build script and privacy-oriented packaging defaults.
 - No Playnite database update, external catalog access or game-file modification yet.
 
-- Allow one personally identity-verified Strong candidate through existing manual supervised path; never automatically treat a heuristic Strong label as verified.
 
 ## 0.4.12 — Consolidated UI preview (private)
 - Scan and review actions are primary; scan size/title-rename options live under an expandable panel.

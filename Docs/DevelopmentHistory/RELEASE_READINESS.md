@@ -28,14 +28,14 @@
 
 ## v0.5.13 private smart resolver — acceptance checkpoint
 Read-only candidate enrichment now directly changes classification for a bounded set of high-evidence matches. Offline synthetic regressions exercise ordinal-prefix, original/sequel, bundle, same-name homonyms, alias and edition exclusions. Real authenticated IGDB replay across the 100 review cases and Playnite runtime import behavior remain **unverified** until Windows build and targeted fresh scan. Avoid claiming an 80% empirical correctness probability; compare actual promotions and wrong-ID counterexamples first. Existing source backups, last verified stable tag, fully reversible journal, and independent undo remain protected.
-## v0.5.11 private manual identity review — PENDING WINDOWS AND PLAYNITE ACCEPTANCE
-
 ## v0.5.12 private Stage A evidence gate
 - Offline: bounded candidate ID set, incomplete coverage, platform-specific year and no-write evidence tests.
 - Windows: extension build, full offline suites, packaged DLL/manifest/privacy verifier required.
 - Live: fresh read-only scan of representative review cases, export and compare rival diagnostics before any promotion.
 - Unknown: unqueried IGDB records and classification precision on the full 100-case cohort.
 - No automatic-write policy expansion, no ROM inspection and no provider secrets in reports.
+
+## v0.5.11 private manual identity review — PENDING WINDOWS AND PLAYNITE ACCEPTANCE
 
 - Planned: scrollable all-selected identity confirmation, explicit acknowledgement, atomic private identity persistence, bounded 50-game manual review, read-only whole-batch IGDB ID/title/platform validation before any writes.
 - Existing: normal five-game legacy supervised cap, unrestricted strict-ready batch, final backup acknowledgement, serial fail-fast metadata writer, journaled undo, no ROM/path changes.
