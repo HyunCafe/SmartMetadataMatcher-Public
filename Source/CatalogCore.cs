@@ -174,6 +174,24 @@ namespace SmartMetadataMatcher
                 case "sonyplaystation2": case "playstation2": case "ps2": return "ps2";
                 case "sonyplaystation": case "playstation": case "ps1": return "ps1";
                 case "nintendoswitch": case "switch": return "switch";
+                // Exact console aliases only: source/launcher text, combined consoles,
+                // and ambiguous abbreviations never create strict IGDB identity evidence.
+                case "sonyplaystation3": case "playstation3": case "ps3": return "ps3";
+                case "nintendogamecube": case "gamecube": case "ngc": return "gamecube";
+                case "nintendowii": case "wii": return "wii";
+                case "nintendowiiu": case "wiiu": return "wiiu";
+                case "nintendo64": case "n64": return "n64";
+                case "nintendoentertainmentsystem": case "nintendofamicom":
+                case "famicom": case "nes": case "nesfamicom": return "nes";
+                case "supernintendoentertainmentsystem": case "supernintendo":
+                case "superfamicom": case "snes": case "sfc": case "snessfc": return "snes";
+                case "segamegadrivegenesis": case "segamegadrive":
+                case "megadrivegenesis": case "megadrive": case "genesis": return "genesis";
+                case "segagamegear": case "gamegear": return "gamegear";
+                case "segadreamcast": case "dreamcast": return "dreamcast";
+                case "segasaturn": case "saturn": return "saturn";
+                case "microsoftxbox360": case "xbox360": return "xbox360";
+                case "microsoftxbox": case "xbox": return "xbox";
                 default: return x;
             }
         }
@@ -207,6 +225,21 @@ namespace SmartMetadataMatcher
                 case "ps1": return 7;
                 case "ps2": return 8;
                 case "switch": return 130;
+                // IGDB stable platform identifiers; these corroborate a candidate,
+                // they never authorize importing without complete strict evidence.
+                case "ps3": return 9;
+                case "gamecube": return 21;
+                case "wii": return 5;
+                case "wiiu": return 41;
+                case "n64": return 4;
+                case "nes": return 18;
+                case "snes": return 19;
+                case "genesis": return 29;
+                case "gamegear": return 35;
+                case "dreamcast": return 23;
+                case "saturn": return 32;
+                case "xbox": return 11;
+                case "xbox360": return 12;
                 default: return 0;
             }
         }

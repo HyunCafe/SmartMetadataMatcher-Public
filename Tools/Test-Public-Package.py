@@ -19,6 +19,9 @@ for invalid in ("", "Version: pending\n", "Version: 0.5.17-beta.1\n",
 with tempfile.TemporaryDirectory() as directory:
     root = Path(directory)
     check.ROOT = root
+    # BOM must not become part of the first YAML key (Id).
+    (root / "extension.yaml").write_bytes(b"\xef\xbb\xbfId: demo\nVersion: 0.5.69\n")
+    assert check.load_extension_manifest().startswith("Id: demo\n")
     dll = root / "bin/Release/net462/SmartMetadataMatcher.dll"
     dll.parent.mkdir(parents=True)
     dll.write_bytes(b"fixture-build-bytes")

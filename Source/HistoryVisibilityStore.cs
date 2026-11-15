@@ -47,4 +47,34 @@ namespace SmartMetadataMatcher
             finally {if(File.Exists(temp))File.Delete(temp);}
         }
     }
+
+    // Same history-hidden-operations.txt used by Classic. A visibility change
+    // never edits the journal, changes undo ordering or modifies Playnite games.
+    internal static class WorkspaceHistoryVisibility
+    {
+        internal static void Set(string dataPath, IEnumerable<Guid> operationIds, bool hide)
+        {
+            if(String.IsNullOrWhiteSpace(dataPath))
+                throw new ArgumentException("Plugin data directory is required.");
+            var ids=(operationIds??Enumerable.Empty<Guid>()).ToList();
+            if(ids.Count==0 || ids.Any(x=>x==Guid.Empty) ||
+                ids.Distinct().Count()!=ids.Count)
+                throw new InvalidOperationException("Select distinct valid history operations.");
+            // Recheck the complete journal after the user's confirmation;
+            // hidden entries are still present and remain undo-relevant.
+            var journalIds=new HashSet<Guid>(new EnrichmentJournal(dataPath)
+                .AllEntries().Select(x=>x.OperationId));
+            if(ids.Any(id=>!journalIds.Contains(id)))
+                throw new InvalidOperationException("History changed. Reopen History before editing visibility.");
+            var store=new HistoryVisibilityStore(dataPath);
+            var before=store.Load();
+            if(ids.Any(id=>before.Contains(id)==hide))
+                throw new InvalidOperationException("Visibility changed since review. Reopen History.");
+            var updated=new HashSet<Guid>(before);
+            foreach(var id in ids) {if(hide) updated.Add(id); else updated.Remove(id);}
+            store.Save(updated);  // Reuse existing atomic preference writer.
+            if(!store.Load().SetEquals(updated))
+                throw new IOException("History visibility was not verified after saving.");
+        }
+    }
 }

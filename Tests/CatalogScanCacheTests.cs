@@ -41,8 +41,54 @@ internal static class CatalogScanCacheTests
                 Platform="Nintendo Game Boy",MissingCount=3},now,out found),"platform invalidates");
             Check(!reload.TryGet(new CatalogInput{Id=input.Id,Name=input.Name,
                 Platform=input.Platform,MissingCount=2},now,out found),"missing-field change invalidates");
-            Check(!reload.TryGet(input,now.AddDays(8),out found),"expired cache invalidates");
+            Check(reload.TryGet(input,now.AddDays(8),out found),"unchanged eight-day cache reused");
+            Check(reload.TryGet(input,now.AddYears(2),out found),"unchanged long-term cache reused");
             Check(!reload.TryGet(input,now.AddMinutes(-10),out found),"future cache invalidates");
+
+            // 0.5.18: adding new games after many days must not discard the
+            // unchanged older results; only newly discovered games need lookup.
+            var later=now.AddDays(90);
+            var newInput=new CatalogInput{Id=Guid.NewGuid(),Name="New PSP ROM",
+                Platform="Sony PlayStation Portable",MissingCount=2};
+            reload.SaveBatch(new[]{new CatalogScanRecord{GameId=newInput.Id,Name=newInput.Name,
+                Platform=newInput.Platform,MissingCount=2,
+                ScannedUtc=later.ToString("o",System.Globalization.CultureInfo.InvariantCulture),
+                Status="Unmatched",Candidate="(none)"}},later);
+            var persisted=new CatalogScanCache(folder);persisted.Load();
+            Check(persisted.TryGet(input,later,out found),"older unchanged record survives newer scan");
+            Check(persisted.TryGet(newInput,later,out found),"new game cached alongside existing games");
+            Check(!persisted.TryGet(new CatalogInput{Id=input.Id,Name="Renamed Game",
+                Platform=input.Platform,MissingCount=3},later,out found),
+                "old record still invalidates when title changes");
+            Check(!persisted.TryGet(new CatalogInput{Id=input.Id,Name=input.Name,
+                Platform="Different Platform",MissingCount=3},later,out found),
+                "old record still invalidates when platform changes");
+            Check(!persisted.TryGet(new CatalogInput{Id=input.Id,Name=input.Name,
+                Platform=input.Platform,MissingCount=42},later,out found),
+                "old record still invalidates when missing-field count changes");
+
+            var datedInput=new CatalogInput{Id=Guid.NewGuid(),Name="Dated Game",
+                Platform="Sony PlayStation Portable",MissingCount=3,LocalReleaseYear=2004};
+            reload.SaveBatch(new[]{new CatalogScanRecord{GameId=datedInput.Id,
+                Name=datedInput.Name,Platform=datedInput.Platform,MissingCount=3,
+                LocalReleaseYear=2004,ScannedUtc=now.ToString("o",
+                    System.Globalization.CultureInfo.InvariantCulture),
+                Status="Review",Candidate="Dated Game"}},now);
+            var datedSaved=new CatalogScanCache(folder);datedSaved.Load();
+            Check(datedSaved.TryGet(datedInput,now.AddDays(30),out found),
+                "unchanged dated game remains cached");
+            Check(!datedSaved.TryGet(new CatalogInput{Id=datedInput.Id,
+                Name=datedInput.Name,Platform=datedInput.Platform,MissingCount=3,
+                LocalReleaseYear=2005},now.AddDays(30),out found),
+                "changed local release year invalidates candidate");
+            Check(!datedSaved.TryGet(new CatalogInput{Id=datedInput.Id,
+                Name=datedInput.Name,Platform=datedInput.Platform,MissingCount=3,
+                LocalReleaseYear=0},now.AddDays(30),out found),
+                "removed local release year invalidates candidate");
+            Check(!datedSaved.TryGet(new CatalogInput{Id=input.Id,Name=input.Name,
+                Platform=input.Platform,MissingCount=3,LocalReleaseYear=2004},
+                now.AddDays(30),out found),
+                "legacy entry with unknown year requires refresh for a dated game");
 
             // v0.5.6: simulate a large scan with a process restart between
             // checkpoints. A new cache instance sees only fully saved chunks.

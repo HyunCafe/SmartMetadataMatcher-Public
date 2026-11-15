@@ -1,6 +1,6 @@
 # Release readiness
 
-The public beta **v0.5.17-beta.1** is available from [GitHub Releases](https://github.com/HyunCafe/SmartMetadataMatcher-Public/releases/tag/v0.5.17-beta.1). It predates the title-independent matching revision. Current `main` includes that revision and the consolidated development history; it is not a new binary release.
+The downloadable public beta **v0.5.17-beta.1** remains available from [GitHub Releases](https://github.com/HyunCafe/SmartMetadataMatcher-Public/releases/tag/v0.5.17-beta.1). This publication candidate contains **unreleased v0.5.70 development source**. Automated local build and tests have passed; real Playnite UI/import/undo/recovery acceptance remains open. No newer binary is approved for distribution.
 
 | Evidence | Status |
 | --- | --- |

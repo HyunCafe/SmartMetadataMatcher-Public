@@ -46,6 +46,7 @@ namespace SmartMetadataMatcher
         public bool SmartAutoEvidence { get; set; }
         public int MissingCount { get; set; }
         public int MissingMask { get; set; }
+        public int LocalReleaseYear { get; set; }
         public bool FromSavedScan { get; set; }
         public bool UserConfirmed { get; set; }
         public bool PreviousAutoPlanEligible { get; set; }
@@ -109,6 +110,13 @@ namespace SmartMetadataMatcher
     internal sealed class CatalogWindow
     {
         private readonly IPlayniteAPI api;
+        // Non-persistent Design C subset. No match evidence or write permission.
+        private readonly WorkspaceReviewHandoff workspaceHandoff;
+        private readonly HashSet<Guid> handoffMarksPending = new HashSet<Guid>();
+        // Selected-only lookups remain read-only, interruptible, and opt-in.
+        private bool handoffPreparing;
+        private int handoffIdentityChanges;
+        private Button handoffPrepareButton;
         private static int MissingMask(Game g)
         {
             if(g==null)throw new ArgumentNullException("g");
@@ -140,7 +148,7 @@ namespace SmartMetadataMatcher
         }
         // Rerank the *whole* bounded provider set, not merely the initial top ID.
         // Optional IGDB calls cannot turn provider failure into an import approval.
-        private static CatalogMatch ResolveWithExactFallback(CatalogInput input,
+        internal static CatalogMatch ResolveWithExactFallback(CatalogInput input,
             List<CatalogGame> found,IgdbReadOnly client,CancellationToken token)
         {
             var original=CatalogCore.Choose(input,found);
@@ -237,6 +245,7 @@ namespace SmartMetadataMatcher
         private TextBox clientId;
         private PasswordBox secret;
         private Button scanButton;
+        private Button refreshNeededButton;
         private Button applyButton;
         private Button batchButton;
         private Button autoBatchButton;
@@ -245,7 +254,6 @@ namespace SmartMetadataMatcher
         private bool diagnosticColumnsVisible;
         private ComboBox scanSize;
         private ComboBox resultView;
-        private CheckBox useCatalogTitle;
         private Button cancelButton;
         private TextBlock summary;
         private ProgressBar batchProgress;
@@ -256,6 +264,39 @@ namespace SmartMetadataMatcher
         // In-memory only. Drafts never approve imports and expire on identity changes.
         private readonly Dictionary<Guid,CatalogImportDraft> importDrafts =
             new Dictionary<Guid,CatalogImportDraft>();
+        // Transferred Design C drafts must never silently become default fields
+        // if the source Playnite game or IGDB identity has changed.
+        private readonly HashSet<Guid> requiredTransferredDrafts = new HashSet<Guid>();
+        // Validate the native batch snapshot on the receiving UI thread.
+        // This never grants final approval or bypasses Classic preflight.
+        private WorkspaceReviewContract stagedNativeReview;
+        internal void StageVerifiedNativeReview(WorkspaceReviewContract reviewed)
+        {
+            if (reviewed == null) throw new ArgumentNullException("reviewed");
+            reviewed.EnsureCurrent(id => {
+                var live = api.Database.Games[id];
+                return live == null ? null : ScanInput(live);
+            });
+            stagedNativeReview = reviewed;
+        }
+        internal void StageTransferredDrafts(IEnumerable<CatalogImportDraft> incoming)
+        {
+            if (incoming == null) throw new ArgumentNullException("incoming");
+            var snapshot = incoming.ToList();
+            var seen = new HashSet<Guid>();
+            if (snapshot.Count > WorkspaceReviewHandoff.MaximumSelectedGames ||
+                snapshot.Any(d => d == null || !CatalogImportDraft.Valid(d) ||
+                    !seen.Add(d.GameId)) || importDrafts.Count != 0 ||
+                requiredTransferredDrafts.Count != 0)
+                throw new InvalidOperationException("Invalid or duplicate transferred draft; no review started.");
+            // No library, identity, or journal writes. Final snapshot validation
+            // remains in PlanBatchTitles and CatalogEnrichmentWriter.ApplyOne.
+            foreach (var source in snapshot)
+            {
+                importDrafts.Add(source.GameId, source.Copy());
+                requiredTransferredDrafts.Add(source.GameId);
+            }
+        }
         private CancellationTokenSource cancellation;
         private int cursor;
         private int excludedTesting;
@@ -275,6 +316,99 @@ namespace SmartMetadataMatcher
             // Fail closed for malformed privacy/preferences state. Never silently
             // reset the user's hidden-record choices or mutate the undo journal.
             hiddenOperations = historyVisibility.Load();
+        }
+        internal CatalogWindow(IPlayniteAPI apiValue, string pluginDataPath,
+            WorkspaceReviewHandoff selection) : this(apiValue, pluginDataPath)
+        {
+            if(selection == null)throw new ArgumentNullException("selection");
+            workspaceHandoff = selection;
+            // IDs are transferred only as a one-time selection; they are never
+            // treated as approved evidence or persisted in the scan cache.
+            foreach(var game in api.Database.Games.Where(g=>g!=null && selection.Includes(g.Id)))
+                handoffMarksPending.Add(game.Id);
+        }
+        private void ApplyWorkspaceHandoffMarks()
+        {
+            if(workspaceHandoff==null || handoffMarksPending.Count==0)return;
+            foreach(var row in results)
+            {
+                if(!handoffMarksPending.Contains(row.GameId))continue;
+                if(!WorkspaceReviewHandoff.CanMark(row.IsCompleted,row.IsIgnored,row.FromHistory))continue;
+                row.Marked=true;
+                handoffMarksPending.Remove(row.GameId);
+            }
+        }
+        // Reuse the existing selected-only scan, refresh, and supervised review
+        // machinery. Never call RunBatch here; it alone performs write approval.
+        private void StartWorkspaceReviewPreparation()
+        {
+            if(workspaceHandoff==null || busy || handoffPreparing || window==null || !window.IsVisible)return;
+            int pending=Math.Max(0,queue.Count-cursor);
+            int saved=results.Count(x=>workspaceHandoff.Includes(x.GameId) &&
+                x.FromSavedScan && !x.IsCompleted && !x.IsIgnored && !x.FromHistory);
+            if(pending+saved>0 &&
+                (String.IsNullOrWhiteSpace(clientId.Text) || String.IsNullOrWhiteSpace(secret.Password)))
+            {
+                summary.Text="IGDB credentials required to prepare selected matches. " +
+                    "Configure IGDB settings, then press Prepare selected review. No metadata changed.";
+                return;
+            }
+            if(pending+saved>50 && api.Dialogs.ShowMessage(
+                "Check "+pending+" selected games not yet looked up and refresh "+saved+
+                " selected saved IGDB matches? These are read-only network requests. " +
+                "Stop after current game remains available. No metadata will be imported.",
+                "Prepare selected games",MessageBoxButton.YesNo,MessageBoxImage.Question)!=MessageBoxResult.Yes)
+            {
+                summary.Text="Selected review preparation was not started. No metadata changed.";
+                return;
+            }
+            handoffPreparing=true;
+            handoffIdentityChanges=0;
+            if(handoffPrepareButton!=null)handoffPrepareButton.IsEnabled=false;
+            ContinueWorkspaceReviewPreparation();
+        }
+        private void StopWorkspaceReviewPreparation(string explanation)
+        {
+            handoffPreparing=false;
+            if(handoffPrepareButton!=null)handoffPrepareButton.IsEnabled=true;
+            if(window!=null && window.IsVisible)
+                summary.Text="Selected review paused: "+explanation+
+                    ". Completed read-only lookups remain available. " +
+                    "Press Prepare selected review to retry, or review existing results.";
+        }
+        private void ContinueWorkspaceReviewPreparation()
+        {
+            if(!handoffPreparing || busy || window==null || !window.IsVisible)return;
+            int pending=Math.Max(0,queue.Count-cursor);
+            var saved=results.Where(x=>workspaceHandoff.Includes(x.GameId) &&
+                x.FromSavedScan && !x.IsCompleted && !x.IsIgnored && !x.FromHistory).ToList();
+            var step=WorkspaceReviewPreparation.Next(pending,saved.Count,false);
+            if(step==WorkspacePreparationStep.ScanPending)
+            {
+                summary.Text="Checking "+pending+" selected games not previously scanned (read-only).";
+                int previous=scanSize.SelectedIndex;
+                scanSize.SelectedIndex=2; // All remaining, scoped to handoff IDs.
+                try {StartScan();}
+                finally {scanSize.SelectedIndex=previous;}
+                if(!busy)StopWorkspaceReviewPreparation("Selected-only lookup could not start");
+            }
+            else if(step==WorkspacePreparationStep.RefreshSaved)
+            {
+                summary.Text="Refreshing "+saved.Count+" selected saved identities (read-only).";
+                RefreshSelectedCatalogMatches(saved);
+                if(!busy)StopWorkspaceReviewPreparation("Selected cached refresh could not start");
+            }
+            else
+            {
+                handoffPreparing=false;
+                if(handoffPrepareButton!=null)handoffPrepareButton.IsEnabled=true;
+                if(handoffIdentityChanges>0)
+                    api.Dialogs.ShowMessage(handoffIdentityChanges+
+                        " selected IGDB identities changed during live refresh and were unmarked. " +
+                        "Review the new candidates and confirm any changed matches manually.",
+                        "Selected match identities changed");
+                ShowPlanReview();
+            }
         }
         private static SolidColorBrush UiColor(byte r,byte g,byte b)
         {
@@ -538,7 +672,11 @@ namespace SmartMetadataMatcher
             top.Children.Add(toolbar);
             var actions=new WrapPanel{VerticalAlignment=VerticalAlignment.Center};
             Grid.SetColumn(actions,0);toolbar.Children.Add(actions);
-            AddButton(actions,"Scan games",StartScan,out scanButton);Decorate(scanButton,"\uE72C");
+            AddButton(actions,"Scan games",StartScan,out scanButton);
+            AddButton(actions,"Prepare selected review",StartWorkspaceReviewPreparation,out handoffPrepareButton);
+            handoffPrepareButton.Visibility=workspaceHandoff==null?Visibility.Collapsed:Visibility.Visible;
+            handoffPrepareButton.ToolTip="Only selected games: read-only IGDB checks, then existing supervised review. " +
+                "No import occurs until you separately approve the exact changes and a backup.";Decorate(scanButton,"\uE72C");
             // Native ComboBox matches the All platforms filter; no custom menu.
             actions.Children.Add(Caption("Scan size",12));
             scanSize=new ComboBox{Width=125,Height=32,FontSize=13,Margin=new Thickness(8,0,12,4)};
@@ -546,12 +684,13 @@ namespace SmartMetadataMatcher
             scanSize.Items.Add("All remaining");scanSize.SelectedIndex=1;
             scanSize.ToolTip="Choose how many remaining games to scan; scanning is read-only.";
             actions.Children.Add(scanSize);
-            useCatalogTitle=new CheckBox{Content="Clean titles on import",IsChecked=true,
-                VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,0,12,4),FontSize=12};
-            useCatalogTitle.ToolTip="Rename only Playnite display titles during approved imports; ROM files and launch paths are untouched.";
-            useCatalogTitle.Checked+=(s,e)=>UpdatePreview();
-            useCatalogTitle.Unchecked+=(s,e)=>UpdatePreview();
-            actions.Children.Add(useCatalogTitle);
+            // Explicit single-action refresh for the exact games displaying
+            // "Refresh required"; NEVER reset or consume the pending scan queue.
+            AddButton(actions,"Refresh required (0)",RefreshAllCachedRequired,out refreshNeededButton);
+            refreshNeededButton.ToolTip="Recheck all saved strong matches that require fresh IGDB evidence. " +
+                "Does not scan new ROMs, reset other saved results, or apply metadata.";
+            // Approved imports always plan safe Playnite display-title cleanup.
+            // There is no title-cleanup option; identity and collision gates still apply.
             AddButton(actions,"Stop after current game",Cancel,out cancelButton);
             cancelButton.IsEnabled=false;cancelButton.Visibility=Visibility.Collapsed;
 
@@ -940,11 +1079,29 @@ namespace SmartMetadataMatcher
                 .Select(p=>p.Name).Where(p=>!String.IsNullOrWhiteSpace(p))
                 .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(p=>p,StringComparer.OrdinalIgnoreCase))
                 platformFilter.Items.Add(platform);
-            summary.Text=(savedMatchesLoaded+queue.Count)+" eligible games; "+
-                savedMatchesLoaded+" recent results restored; "+queue.Count+" awaiting IGDB; "+
+            if(workspaceHandoff!=null)
+            {
+                queue=queue.Where(x=>workspaceHandoff.Includes(x.Id)).ToList();
+                // Selected games still require explicit approval; safe title cleanup is standard.
+            }
+            summary.Text=queue.Count+" awaiting IGDB lookup; "+
+                savedMatchesLoaded+" unchanged saved results (no lookup needed); "+
                 completedIds.Count+" completed; "+ignoredIds.Count+" ignored. " +
                 "Saved results are read-only and require live revalidation before writing.";
             RefreshHistory();RefreshVisibility();
+            if(workspaceHandoff!=null)
+            {
+                int available=results.Count(x=>workspaceHandoff.Includes(x.GameId) &&
+                    WorkspaceReviewHandoff.CanMark(x.IsCompleted,x.IsIgnored,x.FromHistory));
+                summary.Text="Design C selection: "+workspaceHandoff.Count+" games. "+
+                    available+" saved matches available for review; "+queue.Count+
+                    " selected games awaiting a lookup. Scan games checks ONLY the selected pending games. "+
+                    "Nothing is approved or applied.";
+                // One deliberate Design C handoff prepares only the selected
+                // games. A cancel, network error, or stale identity stops here.
+                window.Loaded+=(s,e)=>window.Dispatcher.BeginInvoke(
+                    new Action(()=>{if(!busy)StartWorkspaceReviewPreparation();}));
+            }
             window.Closed+=(s,e)=>Cancel();
             window.ShowDialog();
         }
@@ -1069,7 +1226,7 @@ namespace SmartMetadataMatcher
             var library=api.Database.Games.Where(g=>g!=null).Select(g=>
                 Tuple.Create(g.Id,g.Name,g.Platforms==null?"":String.Join(", ",g.Platforms.Select(p=>p.Name))));
             var title=CatalogImportDraft.ResolveTitle(row.CurrentName,row.Candidate,row.GameId,
-                row.Platform,library,useCatalogTitle.IsChecked==true,draft);
+                row.Platform,library,true,draft);
             return String.IsNullOrWhiteSpace(title)?row.CurrentName:title;
         }
         private bool EditImportDraft(CatalogViewRow row,Window owner)
@@ -1169,7 +1326,7 @@ namespace SmartMetadataMatcher
                     var library=api.Database.Games.Where(g=>g!=null).Select(g=>
                         Tuple.Create(g.Id,g.Name,g.Platforms==null?"":String.Join(", ",g.Platforms.Select(p=>p.Name))));
                     if(CatalogImportDraft.ResolveTitle(row.CurrentName,row.Candidate,row.GameId,
-                        row.Platform,library,useCatalogTitle.IsChecked==true,draft)==null)
+                        row.Platform,library,true,draft)==null)
                     {message.Text="That Playnite title conflicts with another game. Add the correct console suffix.";return;}
                 }
                 if(draft.Customized())importDrafts[row.GameId]=draft.Copy();
@@ -1177,7 +1334,8 @@ namespace SmartMetadataMatcher
                 dialog.DialogResult=true;
             },out save);
             save.Background=Accent();save.Foreground=Deep();save.FontWeight=FontWeights.SemiBold;
-            AddButton(footer,"Reset draft",()=>{importDrafts.Remove(row.GameId);dialog.DialogResult=true;},out reset);
+            AddButton(footer,"Reset draft",()=>{importDrafts.Remove(row.GameId);
+                requiredTransferredDrafts.Remove(row.GameId);dialog.DialogResult=true;},out reset);
             AddButton(footer,"Cancel",()=>{dialog.DialogResult=false;},out cancel);
             dialog.Content=body;return dialog.ShowDialog()==true;
         }
@@ -1282,6 +1440,7 @@ namespace SmartMetadataMatcher
                     row.Evidence="Playnite metadata was manually edited; revalidate this game before a Matcher import";
                     row.MissingMask=MissingMask(live);
                     row.MissingCount=CatalogEnrichmentNeeds.Count(row.MissingMask);
+                    row.LocalReleaseYear=ScanInput(live).LocalReleaseYear;
                     RefreshVisibility();UpdatePreview();
                     summary.Text="Playnite editor saved changes for "+live.Name+
                         ". Match approval cleared; rescan before importing. Native edits are outside Matcher undo.";
@@ -1594,8 +1753,8 @@ namespace SmartMetadataMatcher
                 row.Ready=true;row.IdentityStatus="Confirmed by you";
                 row.Explanation="Manually confirmed by you; exact live ID/title/platform checks still required";
                 row.PlannerCode="UserConfirmed";
-                var wanted=useCatalogTitle.IsChecked==true?EnrichmentPlan.SuggestedUniqueDisplayTitle(
-                    source.CurrentName,source.Candidate,source.GameId,source.Platform,library):source.CurrentName;
+                var wanted=EnrichmentPlan.SuggestedUniqueDisplayTitle(
+                    source.CurrentName,source.Candidate,source.GameId,source.Platform,library);
                 row.RenameHandling=String.IsNullOrWhiteSpace(wanted)?"Keep original title":wanted;
             }
             return true;
@@ -1607,7 +1766,8 @@ namespace SmartMetadataMatcher
         private void ShowPlanReview()
         {
             if(busy)return;
-            if(results.Count==0)
+            if(results.Count==0 || (workspaceHandoff!=null &&
+                !results.Any(x=>workspaceHandoff.Includes(x.GameId))))
             {
                 api.Dialogs.ShowMessage("Scan at least one batch to build a review plan. " +
                     "Scanning and this preview are read-only.","Smart Metadata Matcher");
@@ -1615,18 +1775,20 @@ namespace SmartMetadataMatcher
             }
             var library=api.Database.Games.Where(g=>g!=null).Select(g=>Tuple.Create(
                 g.Id,g.Name,g.Platforms==null?"":String.Join(", ",g.Platforms.Select(p=>p.Name)))).ToList();
-            var candidates=results.Select(x=>new EnrichmentCandidate {
+            var reviewSources=workspaceHandoff==null ? results.ToList() :
+                results.Where(x=>workspaceHandoff.Includes(x.GameId)).ToList();
+            var candidates=reviewSources.Select(x=>new EnrichmentCandidate {
                 GameId=x.GameId,CurrentName=x.CurrentName,Platform=x.Platform,
                 CandidateTitle=x.Candidate,CatalogId=x.IgdbId,Status=x.Status,
                 StrictEvidence=x.AutoPlanEligible,UserConfirmed=x.UserConfirmed,Completed=x.IsCompleted,Ignored=x.IsIgnored,
                 FromHistory=x.FromHistory,FromSavedScan=x.FromSavedScan,Marked=x.Marked,
                 PriorFailure=(x.Evidence??"").StartsWith("Apply failed:",StringComparison.Ordinal)
             }).ToList();
-            var decisions=EnrichmentJobPlanner.Create(candidates,library,useCatalogTitle.IsChecked==true,false);
+            var decisions=EnrichmentJobPlanner.Create(candidates,library,true,false);
             var lines=new List<PlanPreviewRow>();
             for(int i=0;i<decisions.Count;i++)
             {
-                var d=decisions[i];var r=results[i];
+                var d=decisions[i];var r=reviewSources[i];
                 lines.Add(new PlanPreviewRow {
                     SourceRow=r,Game=r.CurrentName??"",Catalog=r.Candidate??"",
                     Platform=r.Platform??"",CatalogId=r.IgdbId??"",PlannerCode=d.Code,
@@ -1904,8 +2066,8 @@ namespace SmartMetadataMatcher
                     source.Status="Confirmed";
                     current.Ready=true;current.IdentityStatus="Confirmed by you";
                     current.Explanation="User-confirmed ID. Exact live ID/platform check and import approval still required.";
-                    var wanted=useCatalogTitle.IsChecked==true?EnrichmentPlan.SuggestedUniqueDisplayTitle(
-                        source.CurrentName,source.Candidate,source.GameId,source.Platform,library):source.CurrentName;
+                    var wanted=EnrichmentPlan.SuggestedUniqueDisplayTitle(
+                        source.CurrentName,source.Candidate,source.GameId,source.Platform,library);
                     current.RenameHandling=String.IsNullOrWhiteSpace(wanted)?"Keep original title":wanted;
                 }
                 // A confirmed row may have moved out of the current Needs-review
@@ -2169,6 +2331,7 @@ namespace SmartMetadataMatcher
         private void RefreshVisibility()
         {
             if(grid==null || grid.ItemsSource==null || resultView==null)return;
+            ApplyWorkspaceHandoffMarks();
             var view=CollectionViewSource.GetDefaultView(grid.ItemsSource);
             if(view==null)return;
             // No-change, unmatched and All views are status inventory views.
@@ -2403,8 +2566,8 @@ namespace SmartMetadataMatcher
             previewTitle.Text="Metadata preview — "+row.CurrentName;
             var game=api.Database.Games[row.GameId];
             var current=game==null?row.CurrentName:game.Name;
-            bool rename=useCatalogTitle!=null&&useCatalogTitle.IsChecked==true&&
-                !String.IsNullOrWhiteSpace(row.Candidate)&&row.Candidate!="(none)"&&row.Candidate!="(ignored)";
+            bool rename=!String.IsNullOrWhiteSpace(row.Candidate)&&
+                row.Candidate!="(none)"&&row.Candidate!="(ignored)";
             var libraryNames=api.Database.Games.Where(g=>g!=null).Select(g=>
                 Tuple.Create(g.Id,g.Name,g.Platforms==null?"":
                     String.Join(", ",g.Platforms.Select(p=>p.Name)))).ToList();
@@ -2423,7 +2586,6 @@ namespace SmartMetadataMatcher
             AddPreviewField("Name (Playnite only)",current,chosenName,
                 collision?"Needs manual title review":
                     draft!=null && draft.CustomTitleEnabled?"Custom title draft":
-                    !rename?"Title cleanup disabled":
                     current==chosenName?"No change":"Included with approved import");
             AddPreviewField("Platform",row.Platform,row.Platform,"Preserve original");
             AddPreviewField("Description",haveDescription?ShortText(game.Description,16000):"(empty)",
@@ -2559,6 +2721,14 @@ namespace SmartMetadataMatcher
         private void UpdateSelectionActions()
         {
             if(grid==null || selectionToggleButton==null)return;
+            if(refreshNeededButton!=null)
+            {
+                var needingRefresh=results.Count(x=>CatalogQueueView.RequiresCachedRefresh(
+                    x.Status,x.IsCompleted,x.IsIgnored,x.FromSavedScan,
+                    x.AutoPlanEligible,x.UserConfirmed));
+                refreshNeededButton.Content="Refresh required ("+needingRefresh+")";
+                refreshNeededButton.IsEnabled=!busy && needingRefresh>0;
+            }
             var highlightedRows=grid.SelectedItems.OfType<CatalogViewRow>().ToList();
             var highlighted=highlightedRows.Where(CanSelectForImport).ToList();
             var visible=VisibleReadyRows();
@@ -2586,7 +2756,7 @@ namespace SmartMetadataMatcher
                 ignoreHighlightedButton.IsEnabled=!busy && active!=null && !active.IsCompleted;
             }
             if(verifiedBatchButton!=null){
-                verifiedBatchButton.IsEnabled=!busy&&results.Any(x=>x.AutoPlanEligible &&
+                verifiedBatchButton.IsEnabled=workspaceHandoff==null && !busy&&results.Any(x=>x.AutoPlanEligible &&
                     !x.FromSavedScan && !x.FromHistory && !x.IsCompleted && !x.IsIgnored &&
                     !x.UserConfirmed && x.Status=="Strong candidate");
             }
@@ -2744,7 +2914,8 @@ namespace SmartMetadataMatcher
         {
             return new CatalogViewRow {
                 GameId=input.Id,CurrentName=input.Name,Platform=input.Platform,
-                MissingCount=input.MissingCount,MissingMask=input.MissingMask,FromSavedScan=true,
+                MissingCount=input.MissingCount,MissingMask=input.MissingMask,
+                LocalReleaseYear=input.LocalReleaseYear,FromSavedScan=true,
                 // Old evidence can support the review UI, never strict automatic planning.
                 AutoPlanEligible=false,Marked=false,Candidate=saved.Candidate,
                 Status=saved.Status,MatchScore=saved.Score,IgdbId=saved.CatalogId,
@@ -2780,7 +2951,8 @@ namespace SmartMetadataMatcher
         {
             return new CatalogScanRecord {
                 GameId=row.GameId,Name=row.CurrentName,Platform=row.Platform,
-                MissingCount=row.MissingCount,MissingMask=row.MissingMask,ScannedUtc=DateTime.UtcNow.ToString("o",System.Globalization.CultureInfo.InvariantCulture),
+                MissingCount=row.MissingCount,MissingMask=row.MissingMask,
+                LocalReleaseYear=row.LocalReleaseYear,ScannedUtc=DateTime.UtcNow.ToString("o",System.Globalization.CultureInfo.InvariantCulture),
                 Candidate=row.Candidate,Status=row.UserConfirmed?(row.PreviousStatus??"Review"):row.Status,Evidence=row.Evidence,
                 CatalogId=row.IgdbId,Score=row.MatchScore,
                 AvailableMetadata=row.AvailableMetadata,Summary=row.CatalogSummary,
@@ -2792,6 +2964,30 @@ namespace SmartMetadataMatcher
         // Refresh ONLY marked saved matches instead of discarding an entire scan cache.
         // Strict evidence is recalculated from a fresh IGDB search, never restored from disk.
         // The user's mark survives only when the exact catalog ID/title remains unchanged.
+        private void RefreshAllCachedRequired()
+        {
+            if(busy)return;
+            if(workspaceHandoff!=null)
+            {
+                api.Dialogs.ShowMessage("Use Review matches > Refresh cached matches to refresh " +
+                    "only selected games. Full-library refresh is unavailable in this review.",
+                    "Selected-only review");return;
+            }
+            // Use the same predicate that defines the Next step status. This
+            // gathers cached strong rows only, across all display filters.
+            var targets=results.Where(x=>CatalogQueueView.RequiresCachedRefresh(
+                x.Status,x.IsCompleted,x.IsIgnored,x.FromSavedScan,
+                x.AutoPlanEligible,x.UserConfirmed)).ToList();
+            if(targets.Count==0){UpdateSelectionActions();return;}
+            if(targets.Count>50 && api.Dialogs.ShowMessage(
+                "Refresh "+targets.Count+" saved matches from IGDB?\n\n"+
+                "This performs new online lookups for the refresh-required games only. " +
+                "It will not rescan pending games or modify Playnite metadata. " +
+                "You can stop after the current game.",
+                "Refresh required matches",MessageBoxButton.YesNo,
+                MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
+            RefreshSelectedCatalogMatches(targets);
+        }
         private void RefreshSelectedCatalogMatches(List<CatalogViewRow> selected)
         {
             if(busy || selected==null || selected.Count==0)return;
@@ -2840,7 +3036,8 @@ namespace SmartMetadataMatcher
                         var game=match.Game;
                         var result=new CatalogViewRow {
                             GameId=item.Id,CurrentName=item.Name,Platform=item.Platform,
-                            MissingCount=item.MissingCount,MissingMask=item.MissingMask,FromSavedScan=false,
+                            MissingCount=item.MissingCount,MissingMask=item.MissingMask,
+                             LocalReleaseYear=item.LocalReleaseYear,FromSavedScan=false,
                             AutoPlanEligible=CatalogCore.CanAutoPlan(match),
                             SmartAutoEvidence=match.SmartAutoEvidence,
                             Candidate=game==null?"(none)":game.Name,
@@ -2907,12 +3104,24 @@ namespace SmartMetadataMatcher
                         (cancelled?" Stopped on request.":"")+
                         (error==null?"":" IGDB error: "+error)+
                         (cacheError==null?"":" Cache save failed: "+cacheError);
+                    if(workspaceHandoff!=null && handoffPreparing)
+                    {
+                        handoffIdentityChanges+=changed;
+                        if(error!=null || cancelled || fresh.Count!=targets.Count)
+                            StopWorkspaceReviewPreparation("Refresh stopped or did not complete");
+                        else window.Dispatcher.BeginInvoke(new Action(()=>ContinueWorkspaceReviewPreparation()));
+                    }
                 }));
             });
         }
         private void RescanAllCatalogMatches()
         {
             if(busy)return;
+            if(workspaceHandoff!=null)
+            {
+                api.Dialogs.ShowMessage("Full-library rescans are disabled in this selected-only review. " +
+                    "Open Classic Matcher normally for full-library tools.","Selected-only review");return;
+            }
             if(api.Dialogs.ShowMessage("Rescan all unresolved game candidates from IGDB?\n\n"+
                 "Saved read-only results will be archived, so you can start with fresh matches. " +
                 "Existing Playnite metadata, committed history and ignored games are unchanged. " +
@@ -2985,6 +3194,7 @@ namespace SmartMetadataMatcher
                             next.Add(new CatalogViewRow {
                                 GameId=item.Id, CurrentName=item.Name, Platform=item.Platform,
                                 MissingCount=item.MissingCount,MissingMask=item.MissingMask,
+                                 LocalReleaseYear=item.LocalReleaseYear,
                                 AutoPlanEligible=CatalogCore.CanAutoPlan(match),
                             SmartAutoEvidence=match.SmartAutoEvidence,
                                 Candidate=game == null ? "(none)" : game.Name,
@@ -3062,6 +3272,12 @@ namespace SmartMetadataMatcher
                             results.Count(x=>x.IsCompleted)+" completed.  "+
                             "No changes made.  Strong is not a calibrated probability."+
                             (finalCacheWarning==null?"":"  "+finalCacheWarning);
+                    if(workspaceHandoff!=null && handoffPreparing)
+                    {
+                        if(done!=batch.Count || token.IsCancellationRequested)
+                            StopWorkspaceReviewPreparation("Lookup stopped or was incomplete");
+                        else window.Dispatcher.BeginInvoke(new Action(()=>ContinueWorkspaceReviewPreparation()));
+                    }
                 }));
             });
         }
@@ -3072,16 +3288,26 @@ namespace SmartMetadataMatcher
             internal GameExtrasSnapshot Extra;
             internal long IgdbId;
             internal CatalogImportDraft Draft;
+        internal bool RenameRequested;
         }
-        private string PlanBatchTitles(List<BatchItem> items,bool rename)
+        private string PlanBatchTitles(List<BatchItem> items,bool rename,bool automatic)
         {
             var library=api.Database.Games.Where(g=>g!=null).Select(g=>Tuple.Create(
                 g.Id,g.Name,g.Platforms==null?"":String.Join(", ",g.Platforms.Select(p=>p.Name)))).ToList();
             foreach(var item in items)
             {
-                item.Draft=CurrentImportDraft(item.Row)==null?null:CurrentImportDraft(item.Row).Copy();
+                var currentDraft=CurrentImportDraft(item.Row);
+                if (requiredTransferredDrafts.Contains(item.Row.GameId) && currentDraft == null)
+                    return "A Design C draft became stale for " + item.Name + "; recheck it before importing";
+                item.Draft=currentDraft==null?null:currentDraft.Copy();
+                // A smart-inferred identity may fill missing metadata only.
+                // Confirm its exact identity manually before changing its name.
+                item.RenameRequested=rename &&
+                    !(automatic && item.Row.SmartAutoEvidence && !item.Row.UserConfirmed);
+                if (!item.RenameRequested && item.Draft!=null && item.Draft.CustomTitleEnabled)
+                    return "Confirm the inferred IGDB identity manually before proposing a custom title for " + item.Name;
                 var proposed=CatalogImportDraft.ResolveTitle(item.Name,item.Candidate,item.Row.GameId,
-                    item.Platform,library,rename,item.Draft);
+                    item.Platform,library,item.RenameRequested,item.Draft);
                 if(proposed==null)return "Invalid or colliding proposed title for "+item.Name;
                 item.PlannedTitle=proposed;
                 var pos=library.FindIndex(x=>x.Item1==item.Row.GameId);
@@ -3097,6 +3323,12 @@ namespace SmartMetadataMatcher
         private void AutoPlan()
         {
             if(busy) return;
+            if(workspaceHandoff!=null)
+            {
+                api.Dialogs.ShowMessage("This review is limited to the games marked in Design C. " +
+                    "Use Review matches to approve only those games.","Selected-only review");
+                return;
+            }
             var library=api.Database.Games.Where(g=>g!=null).Select(g=>Tuple.Create(
                 g.Id,g.Name,g.Platforms==null?"":String.Join(", ",g.Platforms.Select(p=>p.Name)))).ToList();
             var candidates=results.Select(x=>new EnrichmentCandidate {
@@ -3106,7 +3338,7 @@ namespace SmartMetadataMatcher
                 FromHistory=x.FromHistory,FromSavedScan=x.FromSavedScan,Marked=x.Marked,
                 PriorFailure=(x.Evidence??"").StartsWith("Apply failed:",StringComparison.Ordinal)
             }).ToList();
-            var plan=EnrichmentJobPlanner.Create(candidates,library,useCatalogTitle.IsChecked==true,false);
+            var plan=EnrichmentJobPlanner.Create(candidates,library,true,false);
             var ready=CatalogStrictBatchFlow.EligibleIds(candidates,plan);
             var safe=results.Where(x=>ready.Contains(x.GameId))
                 .OrderBy(x=>x.CurrentName,StringComparer.OrdinalIgnoreCase)
@@ -3122,10 +3354,36 @@ namespace SmartMetadataMatcher
             RunBatch(safe,true,excluded);
         }
 
+        // Validate the exact field/title plan that crossed from Design C.
+        // The existing writer still independently validates live Playnite/IGDB.
+        private void EnsureNativeApprovalPlan(List<BatchItem> items)
+        {
+            if (stagedNativeReview == null) return;
+            stagedNativeReview.EnsureCurrent(id => {
+                var live = api.Database.Games[id];
+                return live == null ? null : ScanInput(live);
+            });
+            stagedNativeReview.EnsureSamePlan(items.Select(x => Tuple.Create(
+                x.Row.GameId, x.IgdbId, x.Candidate, x.PlannedTitle, x.Draft)));
+        }
+
         // One, scrollable final approval for manual and strict candidates.
         // No writes occur until user checks the backup acknowledgement and approves.
         private bool ConfirmImportPlan(List<BatchItem> items,bool automatic,int excluded,bool rename)
         {
+            // One existing final-approval surface: verify native selected scope,
+            // identity, proposed title and staged field choices before display.
+            // This does NOT skip the later exact IGDB re-fetch or original writer.
+            if (stagedNativeReview != null)
+            {
+                try { EnsureNativeApprovalPlan(items); }
+                catch (Exception ex)
+                {
+                    api.Dialogs.ShowMessage(ex.Message + " Recheck the exact fields in Design C.",
+                        "Verified review changed");
+                    return false;
+                }
+            }
             var dialog=new Window {Title="Smart Metadata Matcher — Final import review",
                 Width=1230,Height=700,MinWidth=760,MinHeight=480,
                 Owner=window,WindowStartupLocation=WindowStartupLocation.CenterOwner,
@@ -3139,7 +3397,9 @@ namespace SmartMetadataMatcher
             var note=Caption("Verify each matched game, platform, edition and proposed Playnite title. " +
                 (automatic?"All identities passed strict planning; live IGDB evidence is still checked.":
                 "Manually confirmed identities — verify the exact title and platform; a label is not a guarantee.")+
-                " Fields shown are potential changes from the latest scan, not guaranteed imports. " +
+                (stagedNativeReview == null ?
+                    " Fields shown are potential changes from the latest scan, not guaranteed imports. " :
+                    " The listed IGDB fields were checked in Design C; availability and image downloads will still be revalidated during import. ") +
                 "Live IGDB and Playnite preflight may skip unavailable fields. ROM files and launch paths are untouched.",13);
             note.TextWrapping=TextWrapping.Wrap;heading.Children.Add(note);
             if(excluded>0)
@@ -3169,7 +3429,20 @@ namespace SmartMetadataMatcher
             footer.Children.Add(actions);
             Button approve,cancel;
             AddButton(actions,"Apply "+items.Count+" reviewed game"+(items.Count==1?"":"s"),
-                ()=>{dialog.DialogResult=true;},out approve);
+                ()=>{
+                    try
+                    {
+                        if (stagedNativeReview != null) EnsureNativeApprovalPlan(items);
+                        dialog.DialogResult=true;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Unchecking backup disables Apply through the existing handler.
+                        backup.IsChecked=false;
+                        api.Dialogs.ShowMessage(ex.Message + " Return to Design C and recheck exact fields.",
+                            "Verified plan changed");
+                    }
+                },out approve);
             approve.Background=Accent();approve.Foreground=Deep();approve.FontWeight=FontWeights.SemiBold;
             approve.IsEnabled=false;
             bool planValid=true;
@@ -3191,7 +3464,8 @@ namespace SmartMetadataMatcher
                 var all=items.Select(x=>new ImportReviewRow {
                     Item=x,Name=x.Name,Platform=x.Platform,Candidate=x.Candidate,
                     CatalogId=x.IgdbId.ToString(),PlannedTitle=x.PlannedTitle,
-                    PotentialFields=DescribeDraftIntent(x)
+                    PotentialFields=stagedNativeReview == null ? DescribeDraftIntent(x) :
+                        stagedNativeReview.DescribeVerifiedFields(x.Row.GameId)
                 }).ToList();
                 table.ItemsSource=all;
                 if(all.Count>0)table.SelectedItem=all.FirstOrDefault(x=>x.Item.Row.GameId==priorId)??all[0];
@@ -3203,8 +3477,13 @@ namespace SmartMetadataMatcher
             editRow.Click+=(s,e)=>{
                 var selected=table.SelectedItem as ImportReviewRow;
                 if(selected==null || !EditImportDraft(selected.Item.Row,dialog))return;
-                var problem=PlanBatchTitles(items,rename);
+                var problem=PlanBatchTitles(items,rename,automatic);
                 planValid=problem==null;
+                if (planValid && stagedNativeReview != null)
+                {
+                    try { EnsureNativeApprovalPlan(items); }
+                    catch (Exception ex) {problem=ex.Message;planValid=false;}
+                }
                 // The plan changed; final approval requires a fresh acknowledgement.
                 backup.IsChecked=false;
                 approve.IsEnabled=false;
@@ -3351,6 +3630,14 @@ namespace SmartMetadataMatcher
         private void RunBatch(List<CatalogViewRow> marked,bool automatic,int excluded,
             bool reviewedBulk=false)
         {
+            // Independent final scope guard. A UI action or stale checkbox
+            // outside the Design C selection must never enter the writer.
+            if(workspaceHandoff!=null && (marked==null ||
+                marked.Any(x=>x==null || !workspaceHandoff.Includes(x.GameId))))
+            {
+                api.Dialogs.ShowMessage("An unselected game entered this batch. " +
+                    "No Playnite metadata was changed.","Selected-only safety check");return;
+            }
             if(!JournalAllowsNewWrites()) return;
             if(busy || marked==null) return;
             var selectionError=CatalogBatchPolicy.ValidateSelection(marked.Select(x=>
@@ -3385,15 +3672,10 @@ namespace SmartMetadataMatcher
                     Background=game.BackgroundImage,Sorting=game.SortingName,IgdbId=id,
                     Extra=GameExtrasSnapshot.Capture(game),Candidate=row.Candidate});
             }
-            bool rename=useCatalogTitle.IsChecked==true;
-            if(automatic && rename && marked.Any(x=>x.SmartAutoEvidence))
-            {
-                api.Dialogs.ShowMessage("Assisted automatic matches only fill missing fields. " +
-                    "Uncheck Use catalog title to continue, or confirm the identities manually first.",
-                    "Assisted matching: preserve existing titles");
-                return;
-            }
-            var planningError=PlanBatchTitles(items,rename);
+            const bool rename=true; // Standard approved-import behavior, not a user option.
+            // Smart-inferred identities are still protected: they retain their
+            // original titles until independently confirmed. No unsafe rename.
+            var planningError=PlanBatchTitles(items,rename,automatic);
             if(planningError!=null)
             {api.Dialogs.ShowMessage(planningError+". Edit the draft before importing.","Invalid proposed title");return;}
             // Both manual and strict plans share the same final approval.
@@ -3533,9 +3815,10 @@ namespace SmartMetadataMatcher
                             window.Dispatcher.Invoke(new Action(()=>{
                                 if(token.IsCancellationRequested || !window.IsVisible)
                                     throw new OperationCanceledException("Import stopped before next Playnite write.");
-                                var outcome=CatalogEnrichmentWriter.ApplyOne(api,enrichmentJournal,item.Row.GameId,
+                                var outcome=WorkspaceImportCoordinator.ApplyOne(api,enrichmentJournal,
+                                    stagedNativeReview, ScanInput, item.Row.GameId,
                                     item.Name,item.Platform,item.Description,item.Cover,item.Icon,
-                                    item.Background,item.Sorting,cat,cover,icon,background,rename,item.Extra,
+                                    item.Background,item.Sorting,cat,cover,icon,background,item.RenameRequested,item.Extra,
                                     item.PlannedTitle,item.Draft);
                                 item.Row.Marked=false;
                                 if(outcome.NoChanges)
@@ -3650,15 +3933,14 @@ namespace SmartMetadataMatcher
             {
                 api.Dialogs.ShowMessage("Enter your local IGDB credentials first.","Smart Metadata Matcher"); return;
             }
-            var nameRequested=useCatalogTitle.IsChecked==true;
             var libraryNames=api.Database.Games.Where(g=>g!=null).Select(g=>
                 Tuple.Create(g.Id,g.Name,g.Platforms==null?"":
                     String.Join(", ",g.Platforms.Select(p=>p.Name)))).ToList();
-            var wanted=nameRequested?EnrichmentPlan.SuggestedUniqueDisplayTitle(
-                game.Name,row.Candidate,game.Id,platform,libraryNames):"";
+            var wanted=EnrichmentPlan.SuggestedUniqueDisplayTitle(
+                game.Name,row.Candidate,game.Id,platform,libraryNames);
             var selectedDraft=CurrentImportDraft(row)==null?null:CurrentImportDraft(row).Copy();
             var approvedTitle=CatalogImportDraft.ResolveTitle(
-                game.Name,row.Candidate,game.Id,platform,libraryNames,nameRequested,selectedDraft);
+                game.Name,row.Candidate,game.Id,platform,libraryNames,true,selectedDraft);
             if(approvedTitle==null)
             {api.Dialogs.ShowMessage("The proposed title is invalid or conflicts with another game.",
                 "Import title review");return;}
@@ -3670,10 +3952,9 @@ namespace SmartMetadataMatcher
                 "genres, developers, publishers, series and platform-specific release year.\n"+
                 (selectedDraft!=null && selectedDraft.CustomTitleEnabled?
                     "Your proposed Playnite title: "+approvedTitle+".\n":
-                 nameRequested ? (String.IsNullOrWhiteSpace(wanted)?
+                 String.IsNullOrWhiteSpace(wanted)?
                     "Name requires manual review; other metadata can still be imported.\n" :
-                    "Playnite name after import: "+approvedTitle+" (ROMs and launch paths unchanged).\n") :
-                    "Playnite title cleanup disabled for this operation.\n")+
+                    "Playnite name after import: "+approvedTitle+" (ROMs and launch paths unchanged).\n")+
                 (selectedDraft==null?"":
                     "Staged field choices: "+(selectedDraft.CustomDescriptionEnabled?"CUSTOM DESCRIPTION. ":"")+
                     "Only enabled optional fields will be imported.\n")+
@@ -3730,9 +4011,10 @@ namespace SmartMetadataMatcher
                         try
                         {
                             if(!window.IsVisible || token.IsCancellationRequested) return;
-                            var outcome=CatalogEnrichmentWriter.ApplyOne(api,enrichmentJournal,row.GameId,
+                            var outcome=WorkspaceImportCoordinator.ApplyOne(api,enrichmentJournal,
+                                null, ScanInput, row.GameId,
                                 originalName,platform,originalDescription,originalCover,originalIcon,
-                                originalBackground,originalSorting,catalog,cover,icon,background,nameRequested,originalExtras,
+                                originalBackground,originalSorting,catalog,cover,icon,background,true,originalExtras,
                                 approvedTitle,selectedDraft);
                             if(outcome.NoChanges)
                             {

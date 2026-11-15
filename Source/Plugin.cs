@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
 using Playnite.SDK;
@@ -8,8 +8,8 @@ using Playnite.SDK.Plugins;
 [assembly: AssemblyCompany("HyunCafe")]
 [assembly: AssemblyProduct("Smart Metadata Matcher")]
 [assembly: AssemblyDescription("Review IGDB candidates and enrich missing Playnite metadata with user approval") ]
-[assembly: AssemblyVersion("0.5.17.0")]
-[assembly: AssemblyFileVersion("0.5.17.0")]
+[assembly: AssemblyVersion("0.5.70.0")]
+[assembly: AssemblyFileVersion("0.5.70.0")]
 
 namespace SmartMetadataMatcher
 {
@@ -34,6 +34,22 @@ namespace SmartMetadataMatcher
                     catch (Exception ex)
                     {
                         PlayniteApi.Dialogs.ShowErrorMessage("Smart Metadata Matcher could not open: " + ex.Message,
+                            "Smart Metadata Matcher");
+                    }
+                }
+            };
+            // Design C preview is opt-in. The classic menu item remains first.
+            yield return new MainMenuItem
+            {
+                Description = "Open Library Workspace (Design C preview)...",
+                MenuSection = "@Smart Metadata Matcher",
+                Action = a =>
+                {
+                    try { new LibraryWorkspacePreview(PlayniteApi, GetPluginUserDataPath()).Show(); }
+                    catch (Exception ex)
+                    {
+                        PlayniteApi.Dialogs.ShowErrorMessage(
+                            "Library Workspace preview could not open: " + ex.Message,
                             "Smart Metadata Matcher");
                     }
                 }

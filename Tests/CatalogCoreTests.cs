@@ -51,6 +51,25 @@ internal static class CatalogCoreTests
             "abbreviation expansion for any title is discovery only");
         Assert(CatalogCore.QueryVariants("10 Second Ninja X","PC (Windows)")[0].Text=="10 Second Ninja X", "preserve legitimate PC leading number");
         Assert(CatalogCore.PlatformId("Game Boy Advance")==24 && CatalogCore.PlatformId("PlayStation Portable")==38, "structured platform identifiers");
+        // Explicit console mappings are corroboration only. Cross-platform or
+        // custom labels must not be guessed into strict IGDB identities.
+        foreach (var mapping in new [] {
+            Tuple.Create("Sony PlayStation 3",9L), Tuple.Create("PS3",9L),
+            Tuple.Create("Nintendo GameCube",21L), Tuple.Create("GC",0L),
+            Tuple.Create("Nintendo Wii",5L), Tuple.Create("Wii U",41L),
+            Tuple.Create("Nintendo 64",4L), Tuple.Create("N64",4L),
+            Tuple.Create("NES (Famicom)",18L), Tuple.Create("SNES (SFC)",19L),
+            Tuple.Create("Mega Drive (Genesis)",29L), Tuple.Create("Game Gear",35L),
+            Tuple.Create("Dreamcast",23L), Tuple.Create("Sega Saturn",32L),
+            Tuple.Create("Xbox 360",12L), Tuple.Create("Xbox",11L)})
+            Assert(CatalogCore.PlatformId(mapping.Item1)==mapping.Item2,
+                "exact platform alias: "+mapping.Item1);
+        foreach (var uncertain in new [] {"PS3, PC (Windows)", "GameCube / Wii",
+            "PS3 Homebrew", "Xbox Cloud Gaming", "Custom Launcher", "Nintendo Switch 2"})
+            Assert(CatalogCore.PlatformId(uncertain)==0,
+                "mixed or unknown platform must not gain automatic identity trust: "+uncertain);
+        Assert(CatalogCore.PlatformId("PS1")==7 && CatalogCore.PlatformId("GBA")==24,
+            "existing console platform IDs preserved");
         var direct=CatalogCore.BuildSingleQueryBody("Pokemon FireRed Version");
         Assert(direct.Contains("search \"Pokemon FireRed Version\"") && direct.Contains("platforms.id") &&
             direct.Contains("first_release_date"), "direct search requests structured metadata");

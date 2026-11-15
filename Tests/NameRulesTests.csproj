@@ -18,6 +18,8 @@
     <Compile Include="CatalogReviewActionsTests.cs" />
     <Compile Include="../Source/CatalogEnrichmentNeeds.cs" Link="CatalogEnrichmentNeeds.cs" />
     <Compile Include="../Source/CatalogQueueView.cs" Link="CatalogQueueView.cs" />
+    <Compile Include="../Source/WorkspaceTaskClassifier.cs" Link="WorkspaceTaskClassifier.cs" />
+    <Compile Include="WorkspaceTaskClassifierTests.cs" />
     <Compile Include="../Source/CatalogStrictBatchFlow.cs" Link="CatalogStrictBatchFlow.cs" />
     <Compile Include="../Source/CatalogManualReviewFlow.cs" Link="CatalogManualReviewFlow.cs" />
     <Compile Include="CatalogManualReviewFlowTests.cs" />
@@ -34,6 +36,7 @@
     <Compile Include="IgdbConnectionTests.cs" />
     <Compile Include="CatalogCoreTests.cs" />
     <Compile Include="../Source/CatalogIgnored.cs" Link="CatalogIgnored.cs" />
+    <Compile Include="../Source/WorkspaceIgnoreDecision.cs" Link="WorkspaceIgnoreDecision.cs" />
     <Compile Include="../Source/CatalogScanCache.cs" Link="CatalogScanCache.cs" />
     <Compile Include="../Source/CatalogConfirmedIdentities.cs" Link="CatalogConfirmedIdentities.cs" />
     <Compile Include="CatalogConfirmedIdentitiesTests.cs" />
@@ -42,6 +45,7 @@
     <Compile Include="../Source/HistoryViewFilter.cs" Link="HistoryViewFilter.cs" />
     <Compile Include="HistoryViewFilterTests.cs" />
     <Compile Include="CatalogIgnoredTests.cs" />
+    <Compile Include="WorkspaceIgnoreDecisionTests.cs" />
     <Compile Include="../Source/MetadataPlan.cs" Link="MetadataPlan.cs" />
     <Compile Include="../Source/MetadataJournal.cs" Link="MetadataJournal.cs" />
     <Compile Include="MetadataPlanTests.cs" />
@@ -67,6 +71,25 @@
     <Compile Include="JournalReplayBenchmarkTests.cs" />
     <Compile Include="EnrichmentJournalReplayTests.cs" />
     <Compile Include="JournalFaultMatrixTests.cs" />
+    <Compile Include="WorkspaceReviewHandoffTests.cs" />
+    <Compile Include="WorkspaceReviewPreparationTests.cs" />
+    <Compile Include="WorkspaceReturnStateTests.cs" />
+    <Compile Include="WorkspaceScanSelectionTests.cs" />
+    <Compile Include="WorkspaceRefreshPolicyTests.cs" />
+    <Compile Include="WorkspaceIdentityReviewTests.cs" />
+    <Compile Include="WorkspaceLiveComparisonTests.cs" />
+    <Compile Include="WorkspaceDraftPolicyTests.cs" />
+    <Compile Include="WorkspaceBatchReviewTests.cs" />
+    <Compile Include="../Source/WorkspaceIdentityReview.cs" Link="WorkspaceIdentityReview.cs" />
+    <Compile Include="../Source/WorkspaceLiveComparison.cs" Link="WorkspaceLiveComparison.cs" />
+    <Compile Include="../Source/WorkspaceDraftPolicy.cs" Link="WorkspaceDraftPolicy.cs" />
+    <Compile Include="../Source/WorkspaceBatchReview.cs" Link="WorkspaceBatchReview.cs" />
+    <Compile Include="../Source/WorkspaceReviewContract.cs" Link="WorkspaceReviewContract.cs" />
+    <Compile Include="../Source/WorkspaceRefreshPolicy.cs" Link="WorkspaceRefreshPolicy.cs" />
+    <Compile Include="../Source/WorkspaceScanSelection.cs" Link="WorkspaceScanSelection.cs" />
+    <Compile Include="../Source/WorkspaceReturnState.cs" Link="WorkspaceReturnState.cs" />
+    <Compile Include="../Source/WorkspaceReviewPreparation.cs" Link="WorkspaceReviewPreparation.cs" />
+    <Compile Include="../Source/WorkspaceReviewHandoff.cs" Link="WorkspaceReviewHandoff.cs" />
     <Compile Include="NameRulesTests.cs" />
   </ItemGroup>
 </Project>

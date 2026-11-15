@@ -8,7 +8,7 @@ Compare IGDB candidates by title, platform, and edition. Review the matches and 
 
 `Playnite 10 Desktop` · `Windows` · `Twitch developer credentials required`
 
-> **Release status:** the downloadable **v0.5.17-beta.1** predates the universal matching revision shown below. Those improvements are on `main`; a new package is pending validation. [Current readiness](RELEASE_READINESS.md) · [Build and test runs](https://github.com/HyunCafe/SmartMetadataMatcher-Public/actions/workflows/windows-ci.yml)
+> **Release status:** **v0.5.17-beta.1** remains the downloadable beta. This branch contains **unreleased v0.5.70 Design C development source**. Local Windows build, offline tests and package-integrity checks passed; **real Playnite UI, metadata import, undo and recovery acceptance remain unverified**. No v0.5.70 binary release is available.
 
 ![Smart Metadata Matcher 0.5.17 showing the candidate queue, proposed artwork and metadata, and update history.](Docs/readme/review-queue.png)
 
@@ -80,6 +80,8 @@ No controlled accuracy comparison against Playnite's provider has been published
 
 ## Development
 
+[Design C runtime acceptance](Docs/DESIGN_C_RUNTIME_ACCEPTANCE.md)
+
 [Architecture and safety boundaries](Docs/ARCHITECTURE.md) · [Contributing](CONTRIBUTING.md) · [Release readiness](RELEASE_READINESS.md)
 
 [Resolver fixtures](Tests/CatalogSmartResolverTests.cs) cover cases such as abbreviated sequels, competing compilations, and same-title games. [Recovery fixtures](Tests/CatalogRecoveryConsistencyTests.cs) cover consistency checks for interrupted operations.
@@ -93,7 +95,7 @@ The extension targets .NET Framework 4.6.2 and references Playnite SDK 6.18.0. U
 pwsh -NoLogo -NoProfile -File .\Tools\Build-Candidate.ps1
 ```
 
-The script builds and tests before producing a local candidate `.pext`, checksums and source-commit record. See [contribution guidance](CONTRIBUTING.md) and the [release criteria](Docs/RELEASE_GATE.md). Historical private tools remain available for reproducibility; this is the current build entry point.
+The script builds and tests before producing a local candidate `.pext`, checksums and source-commit record. See [contribution guidance](CONTRIBUTING.md) and the [release criteria](Docs/RELEASE_GATE.md). For public clones, use the supported Build-Candidate.ps1 entry point; internal-only preview utilities are not distributed.
 
 </details>
 

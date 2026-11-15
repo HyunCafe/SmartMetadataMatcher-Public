@@ -18,12 +18,15 @@ def valid_manifest_version(manifest):
     ) is not None
 
 
+def load_extension_manifest():
+    return (ROOT/'extension.yaml').read_text(encoding='utf-8-sig')
+
 def check():
     issues=[]
     for name in REQUIRED:
         if not (ROOT/name).is_file():issues.append("Missing: "+name)
     if issues:return issues
-    manifest=(ROOT/'extension.yaml').read_text()
+    manifest=load_extension_manifest()
     db=(ROOT/'Manifests/addon-database.yaml').read_text()
     installer=(ROOT/'Manifests/installer.yaml').read_text()
     if not valid_manifest_version(manifest):

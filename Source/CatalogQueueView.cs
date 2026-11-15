@@ -9,6 +9,14 @@ namespace SmartMetadataMatcher
     {
         // 0:Candidates 1:Review 2:Unmatched 3:No changes 4:Completed 5:Ignored
         // Tab 6 shows everything regardless of bucket.
+        // Identical to the actionable Next step label. Cached evidence is
+        // read-only; refreshing it does not authorize a metadata import.
+        internal static bool RequiresCachedRefresh(string status,bool completed,
+            bool ignored,bool fromSavedScan,bool strictEvidence,bool userConfirmed)
+        {
+            return !completed && !ignored && fromSavedScan && !strictEvidence &&
+                !userConfirmed && String.Equals(status,"Strong candidate",StringComparison.Ordinal);
+        }
         internal static int Bucket(string status,bool completed,bool ignored,bool selectable)
         {
             if(ignored)return 5;

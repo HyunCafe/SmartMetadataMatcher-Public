@@ -57,6 +57,12 @@ internal static class CatalogEnrichmentNeedsTests
             "games missing Series and important fields remain in main view");
         Check(!CatalogEnrichmentNeeds.VisibleInMissingScope(1,2),
             "non-Series games are excluded from optional Series-only view");
+        Check(CatalogEnrichmentNeeds.VisibleInMissingScope(16,1) &&
+            CatalogEnrichmentNeeds.VisibleInMissingScope(257,1),
+            "release-only and mixed Series gaps remain meaningful");
+        Check(!CatalogEnrichmentNeeds.VisibleInMissingScope(256,1) &&
+            CatalogEnrichmentNeeds.VisibleInMissingScope(256,2),
+            "low-priority Series-only can be isolated without removing games");
         Console.WriteLine("PASS: "+checks+" supported-field discovery and shared-stage recovery checks.");
     }
 }

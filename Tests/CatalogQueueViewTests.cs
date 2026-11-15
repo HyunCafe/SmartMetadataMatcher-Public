@@ -10,6 +10,31 @@ internal static class CatalogQueueViewTests
             checks++;
             if(!yes)throw new Exception("Catalog queue UI: "+label);
         };
+        verify(CatalogQueueView.RequiresCachedRefresh("Strong candidate",false,false,true,false,false),
+            "cached strong result needs fresh IGDB verification");
+        verify(!CatalogQueueView.RequiresCachedRefresh("Strong candidate",false,false,false,true,false),
+            "fresh strong match must not be refreshed again");
+        verify(!CatalogQueueView.RequiresCachedRefresh("Strong candidate",true,false,true,false,false),
+            "completed game must not be refreshed");
+        verify(!CatalogQueueView.RequiresCachedRefresh("Strong candidate",false,true,true,false,false),
+            "ignored game must not be refreshed");
+        verify(!CatalogQueueView.RequiresCachedRefresh("Review",false,false,true,false,false),
+            "manual review candidate is not marked Refresh required");
+        verify(!CatalogQueueView.RequiresCachedRefresh("Unmatched",false,false,true,false,false),
+            "unmatched cached game is not marked Refresh required");
+        verify(!CatalogQueueView.RequiresCachedRefresh("Strong candidate",false,false,true,false,true),
+            "user-confirmed game must not lose its confirmed decision");
+        verify(!CatalogQueueView.RequiresCachedRefresh("No changes available",false,false,true,false,false),
+            "no-change result is not refresh-required");
+        verify(EnrichmentJobPlanner.DashboardStatus("Strong candidate",false,false,true,false,false)==
+            "Refresh required","UI classification matches cached-refresh action");
+        var statuses=new[]{"Strong candidate","Review","Strong candidate","Strong candidate"};
+        var cached=new[]{true,true,false,true};
+        int required=0;
+        for(int i=0;i<statuses.Length;i++)
+            if(CatalogQueueView.RequiresCachedRefresh(statuses[i],i==3,false,cached[i],false,false))
+                required++;
+        verify(required==1,"batch refresh selects only cached unresolved strong matches");
         verify(CatalogQueueView.Bucket("Strong candidate",false,false,true)==0,"strong candidate");
         verify(CatalogQueueView.Bucket("Confirmed",false,false,true)==0,"user confirmed");
         verify(CatalogQueueView.Bucket("Review",false,false,false)==1,"review");
