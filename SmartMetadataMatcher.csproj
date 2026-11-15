@@ -58,5 +58,24 @@
     <Compile Include="Source/DiagnosticCsv.cs" />
     <Compile Include="Source/DiagnosticExport.cs" />
     <Compile Include="Source/Plugin.cs" />
+    <Compile Include="Source/WorkspaceTaskClassifier.cs" />
+    <Compile Include="Source/LibraryWorkspacePreview.cs" />
+    <Compile Include="Source/WorkspaceReviewHandoff.cs" />
+    <Compile Include="Source/WorkspaceReviewPreparation.cs" />
+    <Compile Include="Source/WorkspaceReturnState.cs" />
+    <Compile Include="Source/WorkspaceScanSelection.cs" />
+    <Compile Include="Source/WorkspaceCatalogLookup.cs" />
+    <Compile Include="Source/WorkspaceRefreshPolicy.cs" />
+    <Compile Include="Source/WorkspaceIdentityReview.cs" />
+    <Compile Include="Source/WorkspaceLiveComparison.cs" />
+    <Compile Include="Source/WorkspaceDraftPolicy.cs" />
+    <Compile Include="Source/WorkspaceBatchReview.cs" />
+    <Compile Include="Source/WorkspaceReviewContract.cs" />
+    <Compile Include="Source/WorkspaceImportCoordinator.cs" />
+    <Compile Include="Source/WorkspaceNativeSingleImport.cs" />
+    <Compile Include="Source/WorkspaceNativeConfirmedBatch.cs" />
+    <Compile Include="Source/WorkspaceHistoryUndo.cs" />
+    <Compile Include="Source/WorkspaceIgnoreDecision.cs" />
+    <Compile Include="Source/WorkspaceFreshStrictLookup.cs" />
   </ItemGroup>
 </Project>

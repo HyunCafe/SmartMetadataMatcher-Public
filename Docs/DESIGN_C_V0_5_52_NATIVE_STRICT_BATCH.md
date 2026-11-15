@@ -1,0 +1,5 @@
+# v0.5.52 — Native Fresh Strict Batch Import
+
+Design C's existing verified batch button now accepts either independently fresh strict match evidence or prior individually confirmed identity. For strict-only games it RE-RUNS the full existing resolver with bounded rival comparison immediately before applying each item; it refuses a different ID/title, missing independent title/platform/year proof, stale game snapshot, changed plan, or failed exact IGDB fetch. The cached Strong score and saved match records never authorize writing. Confirmed games still use the unchanged RequireConfirmed route. The only writer is the existing shared coordinator with existing journaling, rollback and recovery. Explicit field preview, display-title cleanup, checkbox backup acknowledgement, one final approval, and sequential per-game partial failure reporting are retained. There is no automatic write on scan, marking or strict checking.
+
+Classic remains available for fallback while remaining parity work is completed. Runtime import/undo needs a backed-up disposable Playnite library before real game data is used.

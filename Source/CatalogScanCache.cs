@@ -20,6 +20,8 @@ namespace SmartMetadataMatcher
         [DataMember] public int MissingCount;
         // Nullable preserves v1 cache snapshots created before the expanded field mask.
         [DataMember(EmitDefaultValue=false)] public int? MissingMask;
+        // Local release-year affects matching even when missing-field flags do not.
+        [DataMember(EmitDefaultValue=false)] public int? LocalReleaseYear;
         [DataMember] public string ScannedUtc;
         [DataMember] public string Candidate;
         [DataMember] public string Status;
@@ -83,7 +85,9 @@ namespace SmartMetadataMatcher
     {
         private const int MaxBytes = 8 * 1024 * 1024;
         private const int MaxRecords = 10000;
-        internal static readonly TimeSpan Lifetime = TimeSpan.FromDays(7);
+        // Unchanged scan evidence is retained across restarts. Revalidate any
+        // saved candidate against live IGDB before metadata writes.
+        // Manual Tools > Rescan all still archives and clears this cache.
         private readonly string path;
         private readonly Dictionary<Guid,CatalogScanRecord> known = new Dictionary<Guid,CatalogScanRecord>();
         internal CatalogScanCache(string pluginDataDir)
@@ -109,6 +113,8 @@ namespace SmartMetadataMatcher
             if(entry==null || entry.GameId==Guid.Empty || String.IsNullOrWhiteSpace(entry.Name) ||
                 entry.Platform==null || entry.Name.Length>1024 ||
                 entry.Platform.Length>256 || entry.MissingCount<0 || entry.MissingCount>100 ||
+                (entry.LocalReleaseYear.HasValue &&
+                    (entry.LocalReleaseYear.Value<0 || entry.LocalReleaseYear.Value>9999)) ||
                 (entry.MissingMask.HasValue && (entry.MissingMask.Value<0 ||
                     (entry.MissingMask.Value & ~CatalogEnrichmentNeeds.AllMask)!=0 ||
                     CatalogEnrichmentNeeds.Count(entry.MissingMask.Value)!=entry.MissingCount)) ||
@@ -164,8 +170,11 @@ namespace SmartMetadataMatcher
                     candidate.MissingCount!=input.MissingCount :
                     candidate.MissingCount!=(input.MissingMask==0 ? input.MissingCount :
                         CatalogEnrichmentNeeds.PrimaryCount(input.MissingMask))) ||
-                ParseUtc(candidate.ScannedUtc)>nowUtc.AddMinutes(5) ||
-                ParseUtc(candidate.ScannedUtc)<nowUtc-Lifetime)return false;
+                (candidate.LocalReleaseYear.HasValue ?
+                    candidate.LocalReleaseYear.Value!=input.LocalReleaseYear :
+                    input.LocalReleaseYear!=0) ||
+                (ParseUtc(candidate.ScannedUtc)==DateTime.MinValue ||
+                 ParseUtc(candidate.ScannedUtc)>nowUtc.AddMinutes(5)))return false;
             record=candidate;return true;
         }
 
@@ -178,8 +187,11 @@ namespace SmartMetadataMatcher
             foreach(var record in entries)Validate(record);
             var snapshot=new Dictionary<Guid,CatalogScanRecord>(known);
             foreach(var record in entries)snapshot[record.GameId]=record;
-            var retained=snapshot.Values.Where(x=>ParseUtc(x.ScannedUtc)>=nowUtc-Lifetime &&
-                ParseUtc(x.ScannedUtc)<=nowUtc.AddMinutes(5)).OrderBy(x=>x.GameId).ToList();
+            // A routine scan must not discard unchanged older results. The
+            // size and record-count limits still bound storage.
+            var retained=snapshot.Values.Where(x=>ParseUtc(x.ScannedUtc)!=DateTime.MinValue &&
+                ParseUtc(x.ScannedUtc)<=nowUtc.AddMinutes(5))
+                .OrderBy(x=>x.GameId).ToList();
             if(retained.Count>MaxRecords)throw new InvalidDataException("Saved scan cache reached size limit.");
             var data=new CatalogScanDocument{Version=1,Records=retained};
             byte[] content;
